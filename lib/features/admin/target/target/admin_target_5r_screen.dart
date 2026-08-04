@@ -42,6 +42,7 @@ class _State extends State<AdminTarget5rScreen> {
   int? _activeMonthlyId;
   int _currentPage = 1;
   static const int _perPage = 10;
+  final TextEditingController _qCtrl = TextEditingController();
 
   static const _txt = <String, Map<String, String>>{
     'ID': {
@@ -82,6 +83,7 @@ class _State extends State<AdminTarget5rScreen> {
       'ok_del': 'Target berhasil dihapus.',
       'err': 'Terjadi kesalahan.',
       'search': 'Cari...',
+      'clear_filter': 'Hapus pencarian & filter',
       'override': 'Override target bulanan pada tanggal ini',
       'holiday_info': 'Tidak ada target pada hari libur ini',
       'weekend_note': 'Sabtu & Minggu otomatis tidak ada target',
@@ -124,6 +126,7 @@ class _State extends State<AdminTarget5rScreen> {
       'ok_del': 'Target deleted.',
       'err': 'An error occurred.',
       'search': 'Search...',
+      'clear_filter': 'Clear search & filter',
       'override': 'Overrides monthly target on this date',
       'holiday_info': 'No target on this holiday',
       'weekend_note': 'Sat & Sun automatically have no target',
@@ -166,6 +169,7 @@ class _State extends State<AdminTarget5rScreen> {
       'ok_del': '目标删除成功。',
       'err': '发生错误。',
       'search': '搜索...',
+      'clear_filter': '清除搜索与筛选',
       'override': '覆盖此日期的月度目标',
       'holiday_info': '节假日无目标',
       'weekend_note': '周六周日自动无目标',
@@ -181,6 +185,12 @@ class _State extends State<AdminTarget5rScreen> {
   void initState() {
     super.initState();
     _fetch();
+  }
+
+  @override
+  void dispose() {
+    _qCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _fetch() async {
@@ -1186,6 +1196,7 @@ class _State extends State<AdminTarget5rScreen> {
                 border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
               ),
               child: TextField(
+                controller: _qCtrl,
                 onChanged: (v) => setState(() { _q = v; _filter(); }),
                 textAlignVertical: TextAlignVertical.center,
                 style: GoogleFonts.poppins(fontSize: 13, color: _kBlue, fontWeight: FontWeight.w600),
@@ -1193,6 +1204,23 @@ class _State extends State<AdminTarget5rScreen> {
                   hintText: _t('search'),
                   hintStyle: GoogleFonts.poppins(fontSize: 13, color: Colors.black38),
                   prefixIcon: const Icon(Icons.search, color: Colors.black38, size: 20),
+                  suffixIcon: _q.isNotEmpty
+                      ? GestureDetector(
+                          onTap: () {
+                            _qCtrl.clear();
+                            setState(() { _q = ''; _filter(); });
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close_rounded, size: 14, color: Colors.red),
+                          ),
+                        )
+                      : null,
                   border: InputBorder.none,
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -1751,38 +1779,82 @@ class _State extends State<AdminTarget5rScreen> {
         ),
       );
 
-  Widget _empty() => Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Image.asset(
-                'assets/images/team_illustration.png',
-                height: 160,
-                errorBuilder: (_, __, ___) => Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(color: _kGreen.withValues(alpha: 0.08), shape: BoxShape.circle),
-                  child: Icon(Icons.track_changes_rounded, size: 48, color: _kGreen.withValues(alpha: 0.5)),
+  Widget _empty() {
+    final bool isFiltering = _q.isNotEmpty || _fType != null || _fStatus != null;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/images/team_illustration.png',
+              height: 160,
+              errorBuilder: (_, __, ___) => Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: _kGreen.withValues(alpha: 0.08), shape: BoxShape.circle),
+                child: Icon(Icons.track_changes_rounded, size: 48, color: _kGreen.withValues(alpha: 0.5)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isFiltering
+                  ? (widget.lang == 'ID'
+                      ? 'Target Tidak Ditemukan'
+                      : widget.lang == 'ZH'
+                          ? '未找到目标'
+                          : 'No Matching Target')
+                  : _t('empty'),
+              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: _kGreen),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              widget.lang == 'ID'
+                  ? 'Coba ubah kata kunci atau filter pencarian kamu.'
+                  : widget.lang == 'ZH'
+                      ? '请尝试更改搜索关键词或筛选条件。'
+                      : 'Try changing your search keyword or filter.',
+              style: GoogleFonts.poppins(fontSize: 12, color: Colors.black38),
+              textAlign: TextAlign.center,
+            ),
+            if (isFiltering) ...[
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () {
+                  _qCtrl.clear();
+                  setState(() {
+                    _q = '';
+                    _fType = null;
+                    _fStatus = null;
+                    _filter();
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _kGreen.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: _kGreen.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.refresh_rounded, size: 15, color: _kGreen),
+                      const SizedBox(width: 6),
+                      Text(
+                        _t('clear_filter'),
+                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _kGreen),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
-              Text(_t('empty'),
-                  style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: _kGreen),
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 6),
-              Text(
-                widget.lang == 'ID'
-                    ? 'Coba ubah kata kunci atau filter pencarian kamu.'
-                    : widget.lang == 'ZH'
-                        ? '请尝试更改搜索关键词或筛选条件。'
-                        : 'Try changing your search keyword or filter.',
-                style: GoogleFonts.poppins(fontSize: 12, color: Colors.black38),
-                textAlign: TextAlign.center,
-              ),
             ],
-          ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 }

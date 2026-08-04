@@ -22,6 +22,13 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
   String _search = '';
   int _currentPage = 1;
   static const int _perPage = 10;
+  final TextEditingController _searchCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   String _t(String key) {
     const txt = {
@@ -41,6 +48,9 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
         'keterangan': 'Keterangan (opsional)',
         'aktif': 'Aktif',
         'empty': 'Belum ada konfigurasi poin.',
+        'empty_search_title': 'Konfigurasi Tidak Ditemukan',
+        'empty_search_desc': 'Coba ubah kata kunci pencarian Anda.',
+        'clear_search': 'Hapus pencarian',
         'success_add': 'Konfigurasi berhasil ditambahkan.',
         'success_edit': 'Konfigurasi berhasil diperbarui.',
         'success_delete': 'Konfigurasi berhasil dihapus.',
@@ -64,6 +74,9 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
         'keterangan': 'Note (optional)',
         'aktif': 'Active',
         'empty': 'No point configurations yet.',
+        'empty_search_title': 'No Matching Configuration',
+        'empty_search_desc': 'Try adjusting your search keyword.',
+        'clear_search': 'Clear search',
         'success_add': 'Configuration added successfully.',
         'success_edit': 'Configuration updated successfully.',
         'success_delete': 'Configuration deleted successfully.',
@@ -87,6 +100,9 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
         'keterangan': '备注（可选）',
         'aktif': '启用',
         'empty': '暂无积分配置。',
+        'empty_search_title': '未找到匹配的配置',
+        'empty_search_desc': '请尝试更改搜索关键词。',
+        'clear_search': '清除搜索',
         'success_add': '配置添加成功。',
         'success_edit': '配置更新成功。',
         'success_delete': '配置删除成功。',
@@ -493,6 +509,7 @@ Widget _buildCardContent(Map<String, dynamic> item) {
         border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
       ),
       child: TextField(
+        controller: _searchCtrl,
         onChanged: (v) => setState(() {
           _search = v;
           _applyFilter();
@@ -503,6 +520,26 @@ Widget _buildCardContent(Map<String, dynamic> item) {
           hintText: widget.lang == 'EN' ? 'Search...' : widget.lang == 'ZH' ? '搜索...' : 'Cari...',
           hintStyle: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
           prefixIcon: const Icon(Icons.search, color: Colors.black38, size: 20),
+          suffixIcon: _search.isNotEmpty
+              ? GestureDetector(
+                  onTap: () {
+                    _searchCtrl.clear();
+                    setState(() {
+                      _search = '';
+                      _applyFilter();
+                    });
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close_rounded, size: 14, color: Color(0xFFEF4444)),
+                  ),
+                )
+              : null,
           border: InputBorder.none,
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -512,27 +549,76 @@ Widget _buildCardContent(Map<String, dynamic> item) {
   }
 
   Widget _buildEmpty() {
+    final isSearching = _search.isNotEmpty;
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color.fromARGB(255, 251, 255, 6).withValues(alpha:0.08),
-              shape: BoxShape.circle,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/images/team_illustration.png',
+              height: 140,
+              errorBuilder: (_, __, ___) => Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color.fromARGB(255, 251, 255, 6).withValues(alpha:0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.stars_outlined,
+                    size: 56,
+                    color: const Color.fromARGB(255, 245, 245, 11).withValues(alpha:0.5)),
+              ),
             ),
-            child: Icon(Icons.stars_outlined,
-                size: 56,
-                color: const Color.fromARGB(255, 245, 245, 11).withValues(alpha:0.5)),
-          ),
-          const SizedBox(height: 12),
-          Text(_t('empty'),
+            const SizedBox(height: 16),
+            Text(
+              isSearching ? _t('empty_search_title') : _t('empty'),
               style: GoogleFonts.poppins(
                   fontSize: 14,
                   color: Colors.black38,
-                  fontWeight: FontWeight.w500)),
-        ],
+                  fontWeight: FontWeight.w500),
+              textAlign: TextAlign.center,
+            ),
+            if (isSearching) ...[
+              const SizedBox(height: 6),
+              Text(
+                _t('empty_search_desc'),
+                style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.black38),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () {
+                  _searchCtrl.clear();
+                  setState(() {
+                    _search = '';
+                    _applyFilter();
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1D72F3).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: const Color(0xFF1D72F3).withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.refresh_rounded, size: 15, color: Color(0xFF1D72F3)),
+                      const SizedBox(width: 6),
+                      Text(
+                        _t('clear_search'),
+                        style: GoogleFonts.poppins(
+                            fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF1D72F3)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

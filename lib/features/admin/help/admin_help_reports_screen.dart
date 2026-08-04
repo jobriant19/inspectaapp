@@ -23,6 +23,13 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
   String _searchQuery = '';
   int _currentPage = 1;
   static const int _perPage = 8;
+  final TextEditingController _searchCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   List<Map<String, dynamic>> get _searchFiltered {
     final all = _t('all');
@@ -96,6 +103,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         'reply_image': 'Gambar Balasan',
         'pick_image': 'Pilih Gambar',
         'search_hint': 'Cari laporan atau pelapor...',
+        'clear_search': 'Hapus pencarian',
         'report_count': 'laporan',
         'empty_all_title': 'Belum Ada Laporan',
         'empty_all_desc': 'Belum ada laporan bantuan yang masuk.',
@@ -151,6 +159,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         'reply_image': 'Reply Image',
         'pick_image': 'Pick Image',
         'search_hint': 'Search reports or reporter...',
+        'clear_search': 'Clear search',
         'report_count': 'reports',
         'empty_all_title': 'No Reports Yet',
         'empty_all_desc': 'No help reports have come in yet.',
@@ -206,6 +215,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         'reply_image': '回复图片',
         'pick_image': '选择图片',
         'search_hint': '搜索报告或报告人...',
+        'clear_search': '清除搜索',
         'report_count': '条报告',
         'empty_all_title': '暂无报告',
         'empty_all_desc': '还没有收到帮助报告。',
@@ -673,6 +683,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
                     color: Colors.black.withValues(alpha:0.08)),
               ),
               child: TextField(
+                controller: _searchCtrl,
                 onChanged: (v) => setState(() {
                   _searchQuery = v;
                   _currentPage = 1;
@@ -686,6 +697,27 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
                       color: Colors.black38, fontSize: 13),
                   prefixIcon: const Icon(Icons.search,
                       color: Colors.black38, size: 20),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? GestureDetector(
+                          onTap: () {
+                            _searchCtrl.clear();
+                            setState(() {
+                              _searchQuery = '';
+                              _currentPage = 1;
+                            });
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close_rounded,
+                                size: 14, color: Color(0xFFEF4444)),
+                          ),
+                        )
+                      : null,
                   border: InputBorder.none,
                   isDense: true,
                   contentPadding: EdgeInsets.zero,
@@ -1042,7 +1074,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
     }
 
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1072,6 +1104,38 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
               style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.black45),
               textAlign: TextAlign.center,
             ),
+            if (isSearching) ...[
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () {
+                  _searchCtrl.clear();
+                  setState(() {
+                    _searchQuery = '';
+                    _currentPage = 1;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: color.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.refresh_rounded, size: 15, color: color),
+                      const SizedBox(width: 6),
+                      Text(
+                        _t('clear_search'),
+                        style: GoogleFonts.poppins(
+                            fontSize: 12, fontWeight: FontWeight.w700, color: color),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

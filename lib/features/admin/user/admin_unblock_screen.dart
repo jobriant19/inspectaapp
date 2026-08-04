@@ -30,6 +30,7 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
   String? _filterJabatanName;
   int _currentPage = 1;
   String? _processingUserId;
+  final TextEditingController _searchCtrl = TextEditingController();
 
   String get _lang => widget.lang;
 
@@ -57,6 +58,12 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
     super.initState();
     _loadJabatanList();
     _loadRequests();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadJabatanList() async {
@@ -406,6 +413,7 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
         border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
       ),
       child: TextField(
+        controller: _searchCtrl,
         textAlignVertical: TextAlignVertical.center,
         onChanged: (v) => setState(() {
           _search = v;
@@ -421,6 +429,26 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
                   : 'Cari nama atau email...',
           hintStyle: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
           prefixIcon: const Icon(Icons.search, color: Colors.black38, size: 20),
+          suffixIcon: _search.isNotEmpty
+              ? GestureDetector(
+                  onTap: () {
+                    _searchCtrl.clear();
+                    setState(() {
+                      _search = '';
+                      _applyFilter();
+                    });
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: _primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.close_rounded, size: 14, color: _primary),
+                  ),
+                )
+              : null,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 12),
         ),
@@ -492,33 +520,94 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
   }
 
   Widget _buildEmpty() {
+    final bool isFiltering = _search.isNotEmpty || _filterJabatanId != null;
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: _primary.withValues(alpha: 0.06),
-              shape: BoxShape.circle,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/images/team_illustration.png',
+              height: 150,
+              errorBuilder: (_, __, ___) => Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: _primary.withValues(alpha: 0.06),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.lock_open_outlined,
+                    size: 56, color: _primary.withValues(alpha: 0.4)),
+              ),
             ),
-            child: Icon(Icons.lock_open_outlined,
-                size: 56, color: _primary.withValues(alpha: 0.4)),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _lang == 'EN'
-                ? 'No unblock requests'
-                : _lang == 'ZH'
-                    ? '没有解封请求'
-                    : 'Tidak ada pengajuan buka blokir',
-            style: GoogleFonts.poppins(
-              color: Colors.black38,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
+            const SizedBox(height: 16),
+            Text(
+              isFiltering
+                  ? (_lang == 'EN'
+                      ? 'No Matching Requests'
+                      : _lang == 'ZH'
+                          ? '未找到匹配的请求'
+                          : 'Pengajuan Tidak Ditemukan')
+                  : (_lang == 'EN'
+                      ? 'No unblock requests'
+                      : _lang == 'ZH'
+                          ? '没有解封请求'
+                          : 'Tidak ada pengajuan buka blokir'),
+              style: GoogleFonts.poppins(
+                color: Colors.black38,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
             ),
-          ),
-        ],
+            if (isFiltering) ...[
+              const SizedBox(height: 6),
+              Text(
+                _lang == 'EN'
+                    ? 'Try adjusting your search or filter.'
+                    : _lang == 'ZH'
+                        ? '请尝试调整搜索或筛选条件。'
+                        : 'Coba ubah kata kunci pencarian atau filter kamu.',
+                style: GoogleFonts.poppins(fontSize: 12, color: Colors.black38),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () => setState(() {
+                  _searchCtrl.clear();
+                  _search = '';
+                  _filterJabatanId = null;
+                  _filterJabatanName = null;
+                  _applyFilter();
+                }),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: _primary.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.refresh_rounded, size: 15, color: _primary),
+                      const SizedBox(width: 6),
+                      Text(
+                        _lang == 'EN'
+                            ? 'Clear search & filter'
+                            : _lang == 'ZH'
+                                ? '清除搜索与筛选'
+                                : 'Hapus pencarian & filter',
+                        style: GoogleFonts.poppins(
+                            fontSize: 12, fontWeight: FontWeight.w700, color: _primary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

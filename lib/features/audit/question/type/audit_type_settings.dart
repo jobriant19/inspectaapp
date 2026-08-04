@@ -38,6 +38,7 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
   List<Map<String, dynamic>> _list = [];
   String _search = '';
   bool _loading = false;
+  final TextEditingController _searchCtrl = TextEditingController();
 
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
@@ -55,6 +56,12 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
   void initState() {
     super.initState();
     _list = List.from(widget.initialList);
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _reload() async {
@@ -691,6 +698,7 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                 border: Border.all(color: _C.divider),
               ),
               child: TextField(
+                controller: _searchCtrl,
                 onChanged: (v) => setState(() => _search = v),
                 textAlignVertical: TextAlignVertical.center,
                 style:
@@ -703,6 +711,24 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                       fontSize: 12, color: Colors.black38),
                   prefixIcon: const Icon(Icons.search_rounded,
                       color: Colors.black38, size: 18),
+                  suffixIcon: _search.isNotEmpty
+                      ? GestureDetector(
+                          onTap: () {
+                            _searchCtrl.clear();
+                            setState(() => _search = '');
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.all(9),
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: _C.red.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close_rounded,
+                                size: 14, color: _C.red),
+                          ),
+                        )
+                      : null,
                   border: InputBorder.none,
                   contentPadding:
                       const EdgeInsets.symmetric(vertical: 11),
@@ -752,7 +778,7 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                         color: _C.primary, strokeWidth: 2))
                 : _filtered.isEmpty
                     ? Center(
-                        child: Padding(
+                        child: SingleChildScrollView(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 32, vertical: 24),
                           child: Column(
@@ -769,8 +795,11 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                _t('No audit types found.',
-                                    'Belum ada jenis audit.', '暂无审计类型。'),
+                                _search.isNotEmpty
+                                    ? _t('No matching audit types',
+                                        'Jenis Audit Tidak Ditemukan', '未找到匹配的审计类型')
+                                    : _t('No audit types found.',
+                                        'Belum ada jenis audit.', '暂无审计类型。'),
                                 style: GoogleFonts.poppins(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
@@ -779,15 +808,56 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                _t(
-                                  'Tap "Add Audit Type" above to get started.',
-                                  'Ketuk "Tambah Jenis Audit" di atas untuk memulai.',
-                                  '点击上方"添加审计类型"开始使用。',
-                                ),
+                                _search.isNotEmpty
+                                    ? _t(
+                                        'Try adjusting your search keyword.',
+                                        'Coba ubah kata kunci pencarian.',
+                                        '请尝试更改搜索关键词。',
+                                      )
+                                    : _t(
+                                        'Tap "Add Audit Type" above to get started.',
+                                        'Ketuk "Tambah Jenis Audit" di atas untuk memulai.',
+                                        '点击上方"添加审计类型"开始使用。',
+                                      ),
                                 style: GoogleFonts.poppins(
                                     fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub),
                                 textAlign: TextAlign.center,
                               ),
+                              if (_search.isNotEmpty) ...[
+                                const SizedBox(height: 16),
+                                GestureDetector(
+                                  onTap: () {
+                                    _searchCtrl.clear();
+                                    setState(() => _search = '');
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 18, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: _C.primary.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(30),
+                                      border: Border.all(
+                                          color: _C.primary.withValues(alpha: 0.35)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.refresh_rounded,
+                                            size: 15, color: _C.primary),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          _t('Clear search', 'Hapus pencarian',
+                                              '清除搜索'),
+                                          style: GoogleFonts.poppins(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: _C.primary),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
