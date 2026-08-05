@@ -4,12 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/utils/jabatan_helper.dart';
 import '../../auth/login_screen.dart';
+import 'privacy/privacy_policy_screen.dart';
 import 'profile/profile_screen.dart';
 import 'about/about_inspecta_screen.dart';
 import 'help/help_center_screen.dart';
-import 'privacy_security_screen.dart';
 import 'news/news_screen.dart';
 import 'package:shimmer/shimmer.dart';
+import 'terms/terms_conditions_screen.dart';
 
 class AccountScreen extends StatefulWidget {
   final String lang;
@@ -70,7 +71,8 @@ class _AccountScreenState extends State<AccountScreen> {
       'current_lang': 'English',
       'about': 'About Inspecta',
       'help': 'Help Center',
-      'privacy': 'Privacy & Security',
+      'terms': 'Terms & Conditions',
+      'privacy_policy': 'Privacy Policy',
       'news': 'Latest News',
       'news_title': 'Latest News',
       'update_notes': 'Update Notes',
@@ -89,7 +91,8 @@ class _AccountScreenState extends State<AccountScreen> {
       'current_lang': 'Bahasa Indonesia',
       'about': 'Tentang Inspecta',
       'help': 'Pusat Bantuan',
-      'privacy': 'Privasi dan Keamanan',
+      'terms': 'Syarat & Ketentuan',
+      'privacy_policy': 'Kebijakan Privasi',
       'news': 'Kabar Terbaru',
       'news_title': 'Kabar Terbaru',
       'update_notes': 'Catatan Pembaruan',
@@ -108,7 +111,8 @@ class _AccountScreenState extends State<AccountScreen> {
       'current_lang': '中文',
       'about': '关于 Inspecta',
       'help': '帮助中心',
-      'privacy': '隐私与安全',
+      'terms': '条款和条件',
+      'privacy_policy': '隐私政策',
       'news': '最新消息',
       'news_title': '最新消息',
       'update_notes': '更新记录',
@@ -559,12 +563,22 @@ class _AccountScreenState extends State<AccountScreen> {
                     },
                   ),
                   _buildMenuTile(
-                    Icons.shield_outlined,
-                    getTxt('privacy'),
+                    Icons.gavel_rounded,
+                    getTxt('terms'),
                     onTap: widget.isBlocked ? widget.onBlockedTap : () {
                       Navigator.push(
                         context,
-                        _slideRoute(PrivacySecurityScreen(lang: _currentLang)),
+                        _slideRoute(TermsConditionsScreen(lang: _currentLang)),
+                      );
+                    },
+                  ),
+                  _buildMenuTile(
+                    Icons.privacy_tip_outlined,
+                    getTxt('privacy_policy'),
+                    onTap: widget.isBlocked ? widget.onBlockedTap : () {
+                      Navigator.push(
+                        context,
+                        _slideRoute(PrivacyPolicyScreen(lang: _currentLang)),
                       );
                     },
                   ),

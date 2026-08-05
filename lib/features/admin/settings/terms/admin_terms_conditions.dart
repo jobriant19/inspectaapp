@@ -22,7 +22,7 @@ class AdminTermsConditionsScreen extends StatelessWidget {
       docType: 'terms_conditions',
       primaryColor: const Color(0xFF0891B2),
       headerIcon: Icons.gavel_rounded,
-      titleId: 'Syarat dan Ketentuan',
+      titleId: 'Syarat & Ketentuan',
       titleEn: 'Terms & Conditions',
       titleZh: '条款和条件',
       initialDocs: initialDocs,
@@ -91,6 +91,33 @@ class _AdminLegalDocScreenState extends State<AdminLegalDocScreen> {
       tab == 'EN' ? 'title_en' : (tab == 'ZH' ? 'title_zh' : 'title');
   String _contentKey(String tab) =>
       tab == 'EN' ? 'content_en' : (tab == 'ZH' ? 'content_zh' : 'content');
+
+  String get _addButtonTitle {
+    final isPrivacy = widget.docType == 'privacy_policy';
+    return _t3(
+      isPrivacy ? 'New Privacy Policy' : 'New Terms & Conditions',
+      isPrivacy ? 'Kebijakan Privasi Baru' : 'Syarat & Ketentuan Baru',
+      isPrivacy ? '新隐私政策' : '新条款和条件',
+    );
+  }
+
+  String get _dialogAddTitle {
+    final isPrivacy = widget.docType == 'privacy_policy';
+    return _t3(
+      isPrivacy ? 'Add New Privacy Policy' : 'Add New Terms & Conditions',
+      isPrivacy ? 'Tambah Kebijakan Privasi Baru' : 'Tambah Syarat & Ketentuan Baru',
+      isPrivacy ? '添加新隐私政策' : '添加新条款和条件',
+    );
+  }
+
+  String get _dialogEditTitle {
+    final isPrivacy = widget.docType == 'privacy_policy';
+    return _t3(
+      isPrivacy ? 'Edit Privacy Policy' : 'Edit Terms & Conditions',
+      isPrivacy ? 'Ubah Kebijakan Privasi' : 'Ubah Syarat & Ketentuan',
+      isPrivacy ? '编辑隐私政策' : '编辑条款和条件',
+    );
+  }
 
   @override
   void initState() {
@@ -189,9 +216,7 @@ class _AdminLegalDocScreenState extends State<AdminLegalDocScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            isEdit
-                                ? _t3('Edit Section', 'Ubah Bagian', '编辑部分')
-                                : _t3('Add New Section', 'Tambah Bagian Baru', '添加新部分'),
+                            isEdit ? _dialogEditTitle : _dialogAddTitle,
                             style: GoogleFonts.poppins(
                               color: const Color(0xFF1D72F3),
                               fontWeight: FontWeight.w700,
@@ -199,7 +224,8 @@ class _AdminLegalDocScreenState extends State<AdminLegalDocScreen> {
                             ),
                           ),
                           Text(tabInfo['label']!,
-                              style: GoogleFonts.poppins(color: Colors.black38, fontSize: 11)),
+                              style: GoogleFonts.poppins(
+                                  color: Colors.black, fontWeight: FontWeight.w600, fontSize: 11)),
                         ],
                       ),
                     ),
@@ -229,7 +255,8 @@ class _AdminLegalDocScreenState extends State<AdminLegalDocScreen> {
                       const SizedBox(height: 6),
                       _buildDialogField(titleCtrl,
                           maxLines: 1,
-                          hint: _t3('Section title...', 'Judul bagian...', '部分标题...')),
+                          hint: _t3('Section title...', 'Judul bagian...', '部分标题...'),
+                          isTitleField: true),
                       const SizedBox(height: 16),
                       _fieldLabel(Icons.notes_rounded, _t3('Description', 'Deskripsi', '描述')),
                       const SizedBox(height: 6),
@@ -328,7 +355,8 @@ class _AdminLegalDocScreenState extends State<AdminLegalDocScreen> {
     );
   }
 
-  Widget _buildDialogField(TextEditingController ctrl, {int maxLines = 1, String? hint}) {
+  Widget _buildDialogField(TextEditingController ctrl,
+      {int maxLines = 1, String? hint, bool isTitleField = false}) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
@@ -338,7 +366,11 @@ class _AdminLegalDocScreenState extends State<AdminLegalDocScreen> {
       child: TextField(
         controller: ctrl,
         maxLines: maxLines,
-        style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 13),
+        style: GoogleFonts.poppins(
+          color: isTitleField ? const Color(0xFF1D72F3) : Colors.black,
+          fontWeight: isTitleField ? FontWeight.w700 : FontWeight.w600,
+          fontSize: 13,
+        ),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: GoogleFonts.poppins(color: Colors.black26, fontSize: 12),
@@ -641,7 +673,7 @@ class _AdminLegalDocScreenState extends State<AdminLegalDocScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(_t3('Add New Section', 'Tambah Bagian Baru', '添加新部分'),
+                    Text(_addButtonTitle,
                         style: GoogleFonts.poppins(
                             fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
                     Text(_t3('Tap to add a new section', 'Ketuk untuk menambah bagian baru', '点击添加新部分'),
@@ -768,7 +800,7 @@ class _AdminLegalDocScreenState extends State<AdminLegalDocScreen> {
             children: [
               Icon(Icons.list_alt_rounded, size: 13, color: _primary),
               const SizedBox(width: 5),
-              Text('$count ${_t3('sections', 'bagian', '部分')}',
+              Text('$count ${_t3('results', 'hasil', '结果')}',
                   style:
                       GoogleFonts.poppins(color: _primary, fontSize: 11, fontWeight: FontWeight.w700)),
             ],
@@ -906,12 +938,13 @@ class _AdminLegalDocScreenState extends State<AdminLegalDocScreen> {
               children: [
                 Text(title.isEmpty ? '-' : title,
                     style: GoogleFonts.poppins(
-                        color: const Color(0xFF1E3A8A), fontWeight: FontWeight.w600, fontSize: 13)),
+                        color: const Color(0xFF1D72F3), fontWeight: FontWeight.w700, fontSize: 13)),
                 const SizedBox(height: 4),
                 Text(content.isEmpty ? '-' : content,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(color: Colors.black45, fontSize: 11.5)),
+                    style: GoogleFonts.poppins(
+                        color: Colors.black, fontWeight: FontWeight.w600, fontSize: 11.5)),
               ],
             ),
           ),
