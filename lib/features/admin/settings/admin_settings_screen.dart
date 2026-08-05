@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'about/admin_about_screen.dart';
-import 'admin_legal_screen.dart';
 import 'news/admin_news_screen.dart';
+import 'privacy/admin_privacy_policy.dart';
+import 'terms/admin_terms_conditions.dart';
 
 class AdminSettingsScreen extends StatefulWidget {
   final String lang;
@@ -47,8 +48,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
       final res = await Supabase.instance.client
           .from('legal_documents')
           .select()
-          .order('lang_code')
-          .order('section_order');
+          .order('created_at');
       if (!mounted) return;
       final Map<String, List<Map<String, dynamic>>> grouped = {};
       for (final row in List<Map<String, dynamic>>.from(res)) {
@@ -133,19 +133,16 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                 : 'Kelola syarat per bahasa',
         icon: Icons.gavel_rounded,
         color: const Color(0xFF0891B2),
-        onTap: () => Navigator.push(
-          context,
-          slideRoute(AdminLegalScreen(
-            lang: widget.lang,
-            docType: 'terms_conditions',
-            title: widget.lang == 'EN'
-                ? 'Terms & Conditions'
-                : widget.lang == 'ZH'
-                    ? '条款与条件'
-                    : 'Syarat dan Ketentuan',
-            initialDocs: _cachedLegal['terms_conditions'],
-          )),
-        ),
+        onTap: () async {
+          await Navigator.push(
+            context,
+            slideRoute(AdminTermsConditionsScreen(
+              lang: widget.lang,
+              initialDocs: _cachedLegal['terms_conditions'],
+            )),
+          );
+          _prefetchLegal();
+        },
       ),
       _SettingMenu(
         title: widget.lang == 'EN'
@@ -160,19 +157,16 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                 : 'Kelola kebijakan privasi per bahasa',
         icon: Icons.shield_outlined,
         color: const Color(0xFF059669),
-        onTap: () => Navigator.push(
-          context,
-          slideRoute(AdminLegalScreen(
-            lang: widget.lang,
-            docType: 'privacy_policy',
-            title: widget.lang == 'EN'
-                ? 'Privacy Policy'
-                : widget.lang == 'ZH'
-                    ? '隐私政策'
-                    : 'Kebijakan Privasi',
-            initialDocs: _cachedLegal['privacy_policy'],
-          )),
-        ),
+        onTap: () async {
+          await Navigator.push(
+            context,
+            slideRoute(AdminPrivacyPolicyScreen(
+              lang: widget.lang,
+              initialDocs: _cachedLegal['privacy_policy'],
+            )),
+          );
+          _prefetchLegal();
+        },
       ),
       _SettingMenu(
         title: widget.lang == 'EN'
