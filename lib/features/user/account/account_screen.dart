@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/utils/app_branding_cache.dart';
 import '../../../core/utils/jabatan_helper.dart';
 import '../../auth/login_screen.dart';
 import 'privacy/privacy_policy_screen.dart';
@@ -315,6 +316,7 @@ class _AccountScreenState extends State<AccountScreen> {
           _cachedAppLogoUrl = response['logo_url'] as String?;
         });
       }
+      await AppBrandingCache.save(response);
     } catch (e) {
       debugPrint('Error prefetching app info: $e');
     }
@@ -330,6 +332,23 @@ class _AccountScreenState extends State<AccountScreen> {
       default:
         return (row['tagline'] ?? 'Make Your Discipline day!').toString();
     }
+  }
+
+  String _localizedCopyright(Map<String, dynamic>? row) {
+    final fallback = '© ${DateTime.now().year} ${_cachedAppName ?? 'Inspecta'}';
+    if (row == null) return fallback;
+    String? val;
+    switch (_currentLang) {
+      case 'EN':
+        val = row['copyright_en'] as String?;
+        break;
+      case 'ZH':
+        val = row['copyright_zh'] as String?;
+        break;
+      default:
+        val = row['copyright'] as String?;
+    }
+    return (val != null && val.trim().isNotEmpty) ? val : fallback;
   }
 
   Future<void> _showLanguagePicker() async {
@@ -548,6 +567,7 @@ class _AccountScreenState extends State<AccountScreen> {
                           initialAppWebsite: _cachedAppWebsite,
                           initialAppTagline: _localizedTagline(_cachedAppInfoRow),
                           initialAppLogoUrl: _cachedAppLogoUrl,
+                          initialAppCopyright: _localizedCopyright(_cachedAppInfoRow),
                         )),
                       );
                     },
@@ -721,7 +741,14 @@ class _AccountScreenState extends State<AccountScreen> {
                         if (mounted) {
                           Navigator.pushAndRemoveUntil(
                             context,
-                            MaterialPageRoute(builder: (_) => const LoginScreen()),
+                            MaterialPageRoute(builder: (_) => LoginScreen(
+                              initialLang: _currentLang,
+                              initialAppName: _cachedAppName,
+                              initialAppLogoUrl: _cachedAppLogoUrl,
+                              initialTaglineId: _cachedAppInfoRow?['tagline'] as String?,
+                              initialTaglineEn: _cachedAppInfoRow?['tagline_en'] as String?,
+                              initialTaglineZh: _cachedAppInfoRow?['tagline_zh'] as String?,
+                            )),
                             (route) => false,
                           );
                         }

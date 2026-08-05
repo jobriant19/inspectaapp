@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:ui';
 import 'dart:async';
+import '../../core/utils/app_branding_cache.dart';
 import '../admin/admin_shell_screen.dart';
 import '../user/home/popup/home_point_popup.dart';
 import 'auth_service.dart';
@@ -170,10 +171,32 @@ class _LoginScreenState extends State<LoginScreen> {
     _dbTaglineZh = widget.initialTaglineZh;
 
     _loadSavedCredentials();
-    _fetchAppBranding();
+    _loadBrandingInstantly();
     _emailController.addListener(() => setState(() {}));
     _passwordController.addListener(() => setState(() {}));
     _setupAuthListener();
+  }
+
+  Future<void> _loadBrandingInstantly() async {
+    if (_dbAppName == null && _dbLogoUrl == null && _dbTaglineId == null) {
+      final cached = await AppBrandingCache.load();
+      final hasCache = (cached['app_name']?.isNotEmpty ?? false) ||
+          (cached['logo_url']?.isNotEmpty ?? false);
+      if (mounted && hasCache) {
+        setState(() {
+          _dbAppName   = (cached['app_name']?.isNotEmpty ?? false) ? cached['app_name'] : _dbAppName;
+          _dbLogoUrl   = (cached['logo_url']?.isNotEmpty ?? false) ? cached['logo_url'] : _dbLogoUrl;
+          _dbTaglineId = (cached['tagline']?.isNotEmpty ?? false) ? cached['tagline'] : _dbTaglineId;
+          _dbTaglineEn = (cached['tagline_en']?.isNotEmpty ?? false) ? cached['tagline_en'] : _dbTaglineEn;
+          _dbTaglineZh = (cached['tagline_zh']?.isNotEmpty ?? false) ? cached['tagline_zh'] : _dbTaglineZh;
+        });
+        if (_dbLogoUrl != null && _dbLogoUrl!.isNotEmpty && mounted) {
+          precacheImage(CachedNetworkImageProvider(_dbLogoUrl!), context)
+              .catchError((_) {});
+        }
+      }
+    }
+    _fetchAppBranding();
   }
 
   Future<void> _fetchAppBranding() async {
@@ -184,6 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
           .order('id')
           .limit(1)
           .maybeSingle();
+      if (res != null) await AppBrandingCache.save(res);
       if (mounted && res != null) {
         setState(() {
           _dbAppName   = res['app_name'] as String?;
@@ -420,6 +444,99 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showSuccessDialog(String message) {
+    if (!mounted) return;
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'success',
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      transitionDuration: const Duration(milliseconds: 320),
+      transitionBuilder: (_, anim, __, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.80, end: 1.0).animate(
+              CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+            ),
+            child: child,
+          ),
+        );
+      },
+      pageBuilder: (ctx, _, __) {
+        Future.delayed(const Duration(milliseconds: 2200), () {
+          if (ctx.mounted && Navigator.of(ctx).canPop()) {
+            Navigator.of(ctx).pop();
+          }
+        });
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 40),
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF16A34A).withValues(alpha: 0.25),
+                    blurRadius: 40,
+                    spreadRadius: 4,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: const Color(0xFF16A34A).withValues(alpha: 0.25),
+                          width: 2),
+                    ),
+                    child: const Icon(Icons.mark_email_read_rounded,
+                        color: Color(0xFF16A34A), size: 42),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF1E293B),
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 1.0, end: 0.0),
+                      duration: const Duration(milliseconds: 2200),
+                      builder: (_, v, __) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 4,
+                        backgroundColor: const Color(0xFF16A34A).withValues(alpha: 0.1),
+                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF16A34A)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -925,10 +1042,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                         onTap: () {
                                           if (_emailController.text.isNotEmpty) {
                                             _auth.resetPassword(_emailController.text);
-                                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                              content: Text(getTxt('reset_sent')),
-                                              backgroundColor: const Color(0xFF1D72F3),
-                                            ));
+                                            _showSuccessDialog(getTxt('reset_sent'));
                                           } else {
                                             _showCustomDialog(getTxt('fill_email_reset'));
                                           }

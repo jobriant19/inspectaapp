@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/app_branding_cache.dart';
 import '../admin/admin_shell_screen.dart';
 import '../user/home/home_screen.dart';
 import '../auth/login_screen.dart';
@@ -56,6 +57,7 @@ class _SplashScreenState extends State<SplashScreen> {
           .order('id')
           .limit(1)
           .maybeSingle();
+      if (res != null) await AppBrandingCache.save(res);
       return res;
     } catch (e) {
       debugPrint('Splash fetch app branding error: $e');

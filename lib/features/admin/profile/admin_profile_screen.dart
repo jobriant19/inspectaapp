@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../core/utils/app_branding_cache.dart';
 import '../../auth/auth_service.dart';
 import '../../auth/login_screen.dart';
 import '../../user/home/alert/required_field_alert.dart';
@@ -813,11 +814,19 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       ),
     );
     if (confirmed == true) {
+      final branding = await AppBrandingCache.load();
       await Supabase.instance.client.auth.signOut();
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          MaterialPageRoute(builder: (_) => LoginScreen(
+            initialLang: widget.lang,
+            initialAppName: (branding['app_name']?.isNotEmpty ?? false) ? branding['app_name'] : null,
+            initialAppLogoUrl: (branding['logo_url']?.isNotEmpty ?? false) ? branding['logo_url'] : null,
+            initialTaglineId: (branding['tagline']?.isNotEmpty ?? false) ? branding['tagline'] : null,
+            initialTaglineEn: (branding['tagline_en']?.isNotEmpty ?? false) ? branding['tagline_en'] : null,
+            initialTaglineZh: (branding['tagline_zh']?.isNotEmpty ?? false) ? branding['tagline_zh'] : null,
+          )),
           (_) => false,
         );
       }

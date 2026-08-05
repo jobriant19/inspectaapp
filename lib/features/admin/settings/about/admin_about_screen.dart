@@ -4,8 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-
 import '../../../../core/services/translation_service.dart';
+import '../../../../core/utils/app_branding_cache.dart';
 
 class AdminAboutScreen extends StatefulWidget {
   final String lang;
@@ -30,24 +30,28 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
   late String _appVersion;
   late String _appWebsite;
   late String _appTagline;
+  late String _appCopyright;
   String? _logoUrl;
 
-  bool _editingName    = false;
-  bool _editingVersion = false;
-  bool _editingWebsite = false;
-  bool _editingTagline = false;
-  bool _isSaving       = false;
-  bool _isUploadingLogo = false;
+  bool _editingName      = false;
+  bool _editingVersion   = false;
+  bool _editingWebsite   = false;
+  bool _editingTagline   = false;
+  bool _editingCopyright = false;
+  bool _isSaving         = false;
+  bool _isUploadingLogo  = false;
 
-  final _nameCtrl    = TextEditingController();
-  final _versionCtrl = TextEditingController();
-  final _websiteCtrl = TextEditingController();
-  final _taglineCtrl = TextEditingController();
+  final _nameCtrl      = TextEditingController();
+  final _versionCtrl   = TextEditingController();
+  final _websiteCtrl   = TextEditingController();
+  final _taglineCtrl   = TextEditingController();
+  final _copyrightCtrl = TextEditingController();
 
-  final _nameFocus    = FocusNode();
-  final _versionFocus = FocusNode();
-  final _websiteFocus = FocusNode();
-  final _taglineFocus = FocusNode();
+  final _nameFocus      = FocusNode();
+  final _versionFocus   = FocusNode();
+  final _websiteFocus   = FocusNode();
+  final _taglineFocus   = FocusNode();
+  final _copyrightFocus = FocusNode();
 
   String _t(String en, String id, [String? zh]) {
     if (widget.lang == 'EN') return en;
@@ -64,17 +68,19 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
   @override
   void initState() {
     super.initState();
-    _data       = widget.initialData;
-    _appName    = widget.initialData?['app_name'] ?? 'Inspecta';
-    _appVersion = widget.initialData?['version']  ?? '-';
-    _appWebsite = widget.initialData?['website']  ?? '';
-    _appTagline = _localizedTagline(widget.initialData);
-    _logoUrl    = widget.initialData?['logo_url'] as String?;
+    _data         = widget.initialData;
+    _appName      = widget.initialData?['app_name'] ?? 'Inspecta';
+    _appVersion   = widget.initialData?['version']  ?? '-';
+    _appWebsite   = widget.initialData?['website']  ?? '';
+    _appTagline   = _localizedTagline(widget.initialData);
+    _appCopyright = _localizedCopyright(widget.initialData);
+    _logoUrl      = widget.initialData?['logo_url'] as String?;
 
-    _nameCtrl.text    = _appName;
-    _versionCtrl.text = _appVersion;
-    _websiteCtrl.text = _appWebsite;
-    _taglineCtrl.text = _appTagline;
+    _nameCtrl.text      = _appName;
+    _versionCtrl.text   = _appVersion;
+    _websiteCtrl.text   = _appWebsite;
+    _taglineCtrl.text   = _appTagline;
+    _copyrightCtrl.text = _appCopyright;
 
     if (widget.initialData == null) _loadSilent();
   }
@@ -85,10 +91,12 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     _versionCtrl.dispose();
     _websiteCtrl.dispose();
     _taglineCtrl.dispose();
+    _copyrightCtrl.dispose();
     _nameFocus.dispose();
     _versionFocus.dispose();
     _websiteFocus.dispose();
     _taglineFocus.dispose();
+    _copyrightFocus.dispose();
     super.dispose();
   }
 
@@ -102,17 +110,20 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
           .maybeSingle();
       if (!mounted || res == null) return;
       setState(() {
-        _data       = res;
-        _appName    = res['app_name'] ?? 'Inspecta';
-        _appVersion = res['version']  ?? '-';
-        _appWebsite = res['website']  ?? '';
-        _appTagline = _localizedTagline(res);
-        _logoUrl    = res['logo_url'] as String?;
-        _nameCtrl.text    = _appName;
-        _versionCtrl.text = _appVersion;
-        _websiteCtrl.text = _appWebsite;
-        _taglineCtrl.text = _appTagline;
+        _data         = res;
+        _appName      = res['app_name'] ?? 'Inspecta';
+        _appVersion   = res['version']  ?? '-';
+        _appWebsite   = res['website']  ?? '';
+        _appTagline   = _localizedTagline(res);
+        _appCopyright = _localizedCopyright(res);
+        _logoUrl      = res['logo_url'] as String?;
+        _nameCtrl.text      = _appName;
+        _versionCtrl.text   = _appVersion;
+        _websiteCtrl.text   = _appWebsite;
+        _taglineCtrl.text   = _appTagline;
+        _copyrightCtrl.text = _appCopyright;
       });
+      await AppBrandingCache.save(res);
     } catch (e) {
       debugPrint('AdminAboutScreen background load error: $e');
     }
@@ -128,6 +139,23 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
       default:
         return (row['tagline'] ?? 'Make Your Discipline day!').toString();
     }
+  }
+
+  String _localizedCopyright(Map<String, dynamic>? row) {
+    final fallback = '© ${DateTime.now().year} $_appName';
+    if (row == null) return fallback;
+    String? val;
+    switch (widget.lang) {
+      case 'EN':
+        val = row['copyright_en'] as String?;
+        break;
+      case 'ZH':
+        val = row['copyright_zh'] as String?;
+        break;
+      default:
+        val = row['copyright'] as String?;
+    }
+    return (val != null && val.trim().isNotEmpty) ? val : fallback;
   }
 
   Future<void> _saveTagline(String value) async {
@@ -172,6 +200,59 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
         _appTagline     = _localizedTagline(_data);
         _editingTagline = false;
       });
+      if (_data != null) await AppBrandingCache.save(_data!);
+      _showSnack(_t('Saved!', 'Tersimpan!', '已保存！'));
+    } catch (e) {
+      _showSnack('Error: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _saveCopyright(String value) async {
+    final source = value.trim().isEmpty
+        ? '© ${DateTime.now().year} $_appName'
+        : value.trim();
+    setState(() => _isSaving = true);
+    try {
+      Map<String, String> copyrightAll;
+      try {
+        copyrightAll = await TranslationHelper.instance
+            .translateDescriptionAllLangs(source, widget.lang);
+      } catch (e) {
+        debugPrint('Error translating copyright: $e');
+        copyrightAll = {'id': source, 'en': source, 'zh': source};
+      }
+
+      final payload = {
+        'copyright'    : copyrightAll['id']!.isEmpty ? source : copyrightAll['id'],
+        'copyright_en' : copyrightAll['en']!.isEmpty ? source : copyrightAll['en'],
+        'copyright_zh' : copyrightAll['zh']!.isEmpty ? source : copyrightAll['zh'],
+      };
+
+      if (_data == null) {
+        final inserted = await Supabase.instance.client
+            .from('app_info')
+            .insert({
+              'app_name': _appName,
+              'version' : _appVersion,
+              ...payload,
+            })
+            .select()
+            .single();
+        setState(() => _data = inserted);
+      } else {
+        await Supabase.instance.client
+            .from('app_info')
+            .update(payload)
+            .eq('id', _data!['id']);
+        setState(() => _data = {..._data!, ...payload});
+      }
+
+      setState(() {
+        _appCopyright     = _localizedCopyright(_data);
+        _editingCopyright = false;
+      });
       _showSnack(_t('Saved!', 'Tersimpan!', '已保存！'));
     } catch (e) {
       _showSnack('Error: $e', isError: true);
@@ -204,8 +285,12 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
             .from('app_info')
             .update(payload)
             .eq('id', _data!['id']);
+        setState(() => _data = {..._data!, ...payload});
       }
       onDone();
+      if (field == 'app_name' && _data != null) {
+        await AppBrandingCache.save(_data!);
+      }
       _showSnack(_t('Saved!', 'Tersimpan!', '已保存！'));
     } catch (e) {
       _showSnack('Error: $e', isError: true);
@@ -255,9 +340,11 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
             .from('app_info')
             .update({'logo_url': publicUrl})
             .eq('id', _data!['id']);
+        _data = {..._data!, 'logo_url': publicUrl};
       }
 
       setState(() => _logoUrl = publicUrl);
+      await AppBrandingCache.save({'app_name': _appName, 'logo_url': publicUrl});
       _showSnack(_t('Logo updated!', 'Logo diperbarui!', '徽标已更新！'));
     } catch (e) {
       _showSnack('Upload error: $e', isError: true);
@@ -274,7 +361,9 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
           .from('app_info')
           .update({'logo_url': null})
           .eq('id', _data!['id']);
+      _data = {..._data!, 'logo_url': null};
       setState(() => _logoUrl = null);
+      await AppBrandingCache.save({'app_name': _appName, 'logo_url': ''});
       _showSnack(_t('Logo removed.', 'Logo dihapus.', '徽标已删除。'));
     } catch (e) {
       _showSnack('Error: $e', isError: true);
@@ -287,9 +376,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not launch $url')),
-        );
+        _showErrorPopup('Could not launch $url');
       }
     }
   }
@@ -455,19 +542,38 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
             const SizedBox(height: 14),
 
             _buildEditableWebsiteCard(),
-            const SizedBox(height: 14),
-
-            _buildBuiltWithCard(),
-            const SizedBox(height: 40),
+            const SizedBox(height: 32),
 
             // COPYRIGHT
-            Text(
-              '© ${DateTime.now().year} $_appName',
-              style: GoogleFonts.poppins(
+            _buildInlineField(
+              value: _appCopyright,
+              ctrl: _copyrightCtrl,
+              focusNode: _copyrightFocus,
+              isEditing: _editingCopyright,
+              textStyle: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: const Color(0xFF727272),
               ),
+              editStyle: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF727272),
+              ),
+              textAlign: TextAlign.center,
+              onTapEdit: () => setState(() {
+                _editingCopyright = true;
+                _copyrightCtrl.text = _appCopyright;
+                Future.delayed(
+                  const Duration(milliseconds: 50),
+                  () => _copyrightFocus.requestFocus(),
+                );
+              }),
+              onSave: () => _saveCopyright(_copyrightCtrl.text),
+              onCancel: () => setState(() {
+                _editingCopyright   = false;
+                _copyrightCtrl.text = _appCopyright;
+              }),
             ),
             const SizedBox(height: 16),
           ],
@@ -912,113 +1018,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                   ),
                 ),
               ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBuiltWithCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: _primary.withValues(alpha:0.07),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.code_rounded,
-                    color: _primary, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                _t('Built with', 'Dibangun dengan', '构建技术'),
-                style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: Colors.grey.shade500,
-                    fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 12, horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F4FD),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Image.asset(
-                        'assets/images/flutter.png',
-                        height: 26,
-                        errorBuilder: (_, __, ___) => const Icon(
-                            Icons.flutter_dash,
-                            color: Color(0xFF54C5F8),
-                            size: 26),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Flutter',
-                          style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF0553B1))),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 12, horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8FAF4),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Image.asset(
-                        'assets/images/supabase.png',
-                        height: 26,
-                        errorBuilder: (_, __, ___) => const Icon(
-                            Icons.storage_rounded,
-                            color: Color(0xFF3ECF8E),
-                            size: 26),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Supabase',
-                          style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF1A7A4A))),
-                    ],
-                  ),
-                ),
-              ),
             ],
           ),
         ],
