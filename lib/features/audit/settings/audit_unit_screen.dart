@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import '../audit_result_detail_screen.dart';
+import '../result/audit_result_detail_screen.dart';
 
 class _UC {
   static const primary       = Color(0xFF6366F1);
