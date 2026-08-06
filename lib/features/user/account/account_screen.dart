@@ -181,10 +181,6 @@ class _AccountScreenState extends State<AccountScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       precacheImage(const AssetImage('assets/images/logo1.PNG'), context)
           .catchError((_) {});
-      precacheImage(const AssetImage('assets/images/flutter.png'), context)
-          .catchError((_) {});
-      precacheImage(const AssetImage('assets/images/supabase.png'), context)
-          .catchError((_) {});
       precacheImage(const AssetImage('assets/images/bgadmin.png'), context)
           .catchError((_) {});
     });

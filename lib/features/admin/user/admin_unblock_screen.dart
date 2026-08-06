@@ -127,10 +127,13 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
       await _sb.from('User').update({
         'is_blocked': false,
         'unblock_requested': false,
-        'block_popup_shown': false,
         'blocked_at': null,
         'unblock_requested_at': null,
         'current_streak': 1,
+        'log_login': DateTime.now()
+            .toUtc()
+            .subtract(const Duration(days: 5))
+            .toIso8601String(),
       }).eq('id_user', userId);
 
       await _notifyUser(user);
@@ -273,7 +276,8 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
                     textAlign: TextAlign.center,
                     style: GoogleFonts.poppins(
                       fontSize: 13,
-                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
                       height: 1.5,
                     ),
                   ),
@@ -667,20 +671,29 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
                             fontSize: 14.5,
                             color: const Color(0xFF1E293B))),
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.email_outlined, size: 12, color: Colors.grey.shade500),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(email,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.grey.shade600)),
-                        ),
-                      ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.25)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.mail_rounded, size: 12, color: Color(0xFF2563EB)),
+                          const SizedBox(width: 5),
+                          Flexible(
+                            child: Text(email,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF1D4ED8))),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 6),
                     buildAdminRoleBadge(

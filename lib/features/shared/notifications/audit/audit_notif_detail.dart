@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../audit/form/audit_evidence_camera_screen.dart';
+import '../../../user/home/alert/required_field_alert.dart';
 
 class AuditNotifDetailScreen extends StatefulWidget {
   final Map<String, dynamic> item;
@@ -21,9 +26,11 @@ class AuditNotifDetailScreen extends StatefulWidget {
 class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
   final _supabase = Supabase.instance.client;
   static const _blue = Color(0xFF1D72F3);
+  static const _red = Color(0xFFEF4444);
 
   late Map<String, dynamic> _data;
   bool _loading = false;
+  final Set<String> _collapsedSummaryTemas = {};
 
   @override
   void initState() {
@@ -84,18 +91,38 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
     }
   }
 
-  /// RE-FETCH DETAIL UNTUK id_result INI SAJA (dipanggil setelah reply/confirm)
-  Future<void> _refreshDetail() async {
+  Widget _buildAuditorAvatar(String? url, {double size = 20}) {
+    if (url != null && url.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(size / 2),
+        child: Image.network(
+          url,
+          width: size, height: size, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _defaultAuditorAvatar(size),
+        ),
+      );
+    }
+    return _defaultAuditorAvatar(size);
+  }
+
+  Widget _defaultAuditorAvatar(double size) {
+    return Container(
+      width: size, height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: _blue.withValues(alpha: 0.12)),
+      child: Icon(Icons.person_rounded, size: size * 0.65, color: _blue),
+    );
+  }
+
+  Future<void> _fetchDetailData() async {
     final idResult = _data['id_result']?.toString() ?? '';
     if (idResult.isEmpty) return;
-    setState(() => _loading = true);
     try {
       final resultRow = await _supabase
           .from('audit_result')
           .select(
             'id_result, level_type, id_ref, tanggal_audit, nilai_audit, '
             'nilai_final, is_finalized, catatan_audit, created_at, '
-            'Auditor:User!fk_audit_result_auditor(nama)',
+            'Auditor:User!fk_audit_result_auditor(nama, gambar_user)',
           )
           .eq('id_result', idResult)
           .maybeSingle();
@@ -130,18 +157,145 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
           .eq('id_result', idResult);
       _data['_answers'] = List<Map<String, dynamic>>.from(answers as List);
     } catch (e) {
-      debugPrint('AuditNotifDetailScreen refresh error: $e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      debugPrint('AuditNotifDetailScreen fetch error: $e');
     }
   }
 
-  /// NEW: HITUNG ULANG NILAI FINAL
-  /// Setiap soal benar = poin penuh (100/total_soal).
-  /// Setiap soal salah yang SUDAH diperbaiki & dikonfirmasi = setengah poin.
-  /// Setiap soal salah yang BELUM dikonfirmasi = 0.
-  /// Contoh: 10 soal @10 poin, 1 salah lalu diperbaiki+dikonfirmasi
-  ///          -> 9x10 + (10/2) = 95%
+  Future<void> _refreshDetail() async {
+    setState(() => _loading = true);
+    await _fetchDetailData();
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _showConfirmSuccessPopup() async {
+    if (!mounted) return;
+    bool handled = false;
+    await showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'success',
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      transitionDuration: const Duration(milliseconds: 320),
+      transitionBuilder: (_, anim, __, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.80, end: 1.0).animate(
+              CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+            ),
+            child: child,
+          ),
+        );
+      },
+      pageBuilder: (ctx, _, __) {
+        void finish() {
+          if (handled) return;
+          handled = true;
+          if (ctx.mounted && Navigator.of(ctx).canPop()) {
+            Navigator.of(ctx).pop();
+          }
+        }
+
+        Future.delayed(const Duration(milliseconds: 2000), finish);
+
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 40),
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF16A34A).withValues(alpha: 0.25),
+                    blurRadius: 40,
+                    spreadRadius: 4,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: const Color(0xFF16A34A).withValues(alpha: 0.25), width: 2),
+                    ),
+                    child: const Icon(Icons.check_circle_rounded,
+                        color: Color(0xFF16A34A), size: 44),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    _t('Berhasil!', 'Success!', '成功！'),
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF16A34A),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _t(
+                      'Balasan berhasil dikonfirmasi.',
+                      'Reply confirmed successfully.',
+                      '回复已成功确认。',
+                    ),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 1.0, end: 0.0),
+                      duration: const Duration(milliseconds: 2000),
+                      builder: (_, v, __) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 4,
+                        backgroundColor: const Color(0xFF16A34A).withValues(alpha: 0.1),
+                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF16A34A)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: finish,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF16A34A),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Text(
+                        'OK',
+                        style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700, fontSize: 14, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _recalculateFinalScore(String idResult) async {
     try {
       final answers = await _supabase
@@ -194,7 +348,7 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
     final scoreFinal = double.tryParse(_data['nilai_final']?.toString() ?? '');
     final isFinalized = _data['is_finalized'] == true;
     final displayScore = isFinalized ? scoreFinal : score;
-    final scoreColor = _scoreColor(displayScore);
+    final scoreColor = isFinalized ? const Color(0xFFF59E0B) : _scoreColor(displayScore);
     final locationName = _data['_location_name']?.toString() ?? '-';
     final levelType = _data['level_type']?.toString() ?? '';
     final date = _formatDate(_data['tanggal_audit']);
@@ -203,6 +357,7 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
     final isPic = role == 'pic';
     final auditorData = _data['Auditor'] as Map<String, dynamic>?;
     final auditorName = auditorData?['nama']?.toString() ?? '';
+    final auditorAvatar = auditorData?['gambar_user']?.toString();
     final idResult = _data['id_result']?.toString() ?? '';
     final userId = _supabase.auth.currentUser?.id ?? '';
 
@@ -245,6 +400,7 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
                         date: date,
                         isPic: isPic,
                         auditorName: auditorName,
+                        auditorAvatar: auditorAvatar,
                       ),
                       if (poinLogs.isNotEmpty) ...[
                         const SizedBox(height: 14),
@@ -361,6 +517,7 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
     required String date,
     required bool isPic,
     required String auditorName,
+    required String? auditorAvatar,
   }) {
     final locationColor = _levelColor(levelType);
     final locationIcon = _levelIcon(levelType);
@@ -405,9 +562,6 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
                               style: GoogleFonts.poppins(
                                   fontSize: 14, fontWeight: FontWeight.w800, color: scoreColor),
                             ),
-                            if (isFinalized || allNoConfirmed)
-                              Text(_t('Final', 'Final', '最终'),
-                                  style: GoogleFonts.poppins(fontSize: 8.5, color: scoreColor)),
                           ],
                         )
                       : Column(
@@ -457,17 +611,24 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
                         Text(date,
                             style: GoogleFonts.poppins(
                                 fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.black)),
-                        if (isPic && auditorName.isNotEmpty) ...[
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text('· ${_t('oleh', 'by', '由')} $auditorName',
-                                style: GoogleFonts.poppins(
-                                    fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.grey.shade500),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis),
-                          ),
-                        ],
                       ]),
+                      if (isPic && auditorName.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Row(children: [
+                          Icon(Icons.badge_rounded, size: 12, color: _blue),
+                          const SizedBox(width: 4),
+                          Text('${_t('Auditor', 'Auditor', '审计员')} :',
+                              style: GoogleFonts.poppins(fontSize: 10.5, fontWeight: FontWeight.w700, color: _blue)),
+                          const SizedBox(width: 5),
+                          _buildAuditorAvatar(auditorAvatar, size: 18),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(auditorName,
+                                style: GoogleFonts.poppins(fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.black),
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                        ]),
+                      ],
                       if (!showScore) ...[
                         const SizedBox(height: 8),
                         Container(
@@ -600,7 +761,7 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
     );
   }
 
-  /// QUESTION + IMAGE (full screen viewer) + NOTES + REPLY THREAD
+  /// QUESTION + IMAGE + NOTES + REPLY THREAD
   Widget _buildAnswerThread(
       Map<String, dynamic> ans, String idResult, bool isPic, String userId) {
     final q = ans['Question'] as Map<String, dynamic>?;
@@ -629,37 +790,34 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isFullyConfirmed
-            ? const Color(0xFF10B981).withValues(alpha: 0.05)
-            : const Color(0xFFFFF7ED),
+            ? const Color(0xFFF59E0B).withValues(alpha: 0.05)
+            : _red.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isFullyConfirmed
-              ? const Color(0xFF10B981).withValues(alpha: 0.3)
-              : const Color(0xFFEF4444).withValues(alpha: 0.2),
+              ? const Color(0xFFF59E0B).withValues(alpha: 0.3)
+              : _red.withValues(alpha: 0.2),
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // QUESTION — Poppins w600, warna 0xFF1D72F3
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 24, height: 24,
-                alignment: Alignment.center, // NEW: fix agar X/check di tengah, tidak lagi terlalu atas
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: isFullyConfirmed
                       ? const Color(0xFF10B981).withValues(alpha: 0.12)
-                      : const Color(0xFFEF4444).withValues(alpha: 0.08), // NEW: merah tipis proporsional
+                      : _red.withValues(alpha: 0.08),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   isFullyConfirmed ? Icons.check_rounded : Icons.close_rounded,
                   size: 14,
-                  color: isFullyConfirmed
-                      ? const Color(0xFF10B981)
-                      : const Color(0xFFEF4444),
+                  color: isFullyConfirmed ? const Color(0xFF10B981) : _red,
                 ),
               ),
               const SizedBox(width: 8),
@@ -673,13 +831,14 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
             ],
           ),
 
-          // EVIDENCE IMAGE — ukuran sama seperti finding_detail_screen, full screen saat diklik
+          // EVIDENCE IMAGE 
           if (gambar.isNotEmpty) ...[
             const SizedBox(height: 10),
             AspectRatio(
               aspectRatio: 16 / 10,
               child: Container(
                 decoration: BoxDecoration(
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.black.withValues(alpha: 0.12), width: 1.5),
                 ),
@@ -696,16 +855,14 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
                                 child: Icon(Icons.image_not_supported_rounded,
                                     color: Colors.grey, size: 40))),
                         Positioned(
-                          right: 8,
-                          bottom: 8,
+                          right: 8, bottom: 8,
                           child: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
                               color: Colors.black.withValues(alpha: 0.55),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.fullscreen_rounded,
-                                color: Colors.white, size: 16),
+                            child: const Icon(Icons.fullscreen_rounded, color: Colors.white, size: 16),
                           ),
                         ),
                       ],
@@ -716,15 +873,15 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
             ),
           ],
 
-          // NOTES — label ikon + warna biru, isi kolom khusus hitam w600
+          // NOTES
           if (catatan.isNotEmpty) ...[
             const SizedBox(height: 10),
             Row(children: [
-              const Icon(Icons.sticky_note_2_outlined, size: 14, color: _blue),
+              const Icon(Icons.sticky_note_2_outlined, size: 14, color: _red),
               const SizedBox(width: 5),
               Text(
                 _t('Catatan Auditor', 'Auditor Notes', '审计员备注'),
-                style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700, color: _blue),
+                style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700, color: _red),
               ),
             ]),
             const SizedBox(height: 6),
@@ -734,7 +891,7 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _blue.withValues(alpha: 0.15)),
+                border: Border.all(color: _red.withValues(alpha: 0.15)),
               ),
               child: Text(catatan,
                   style: GoogleFonts.poppins(
@@ -742,29 +899,23 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
             ),
           ],
 
-          // REPLY THREAD — dipisah lebih jelas dengan divider berlabel
+          // FIX REPLIES
           if (replies.isNotEmpty) ...[
             const SizedBox(height: 14),
             Row(children: [
-              Expanded(child: Container(height: 1, color: const Color(0xFFE2E8F0))),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text(
-                  _t('BALASAN PERBAIKAN', 'FIX REPLIES', '修复回复'),
-                  style: GoogleFonts.poppins(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade500,
-                      letterSpacing: 0.4),
-                ),
+              Icon(Icons.forum_rounded, size: 14, color: _blue),
+              const SizedBox(width: 5),
+              Text(
+                _t('Balasan Perbaikan', 'Fix Replies', '修复回复'),
+                style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w700, color: _blue),
               ),
-              Expanded(child: Container(height: 1, color: const Color(0xFFE2E8F0))),
             ]),
             const SizedBox(height: 10),
             ...replies.map((reply) {
               final confirmed = reply['is_confirmed'] == true;
               final picData = reply['PIC'] as Map<String, dynamic>?;
               final picName = picData?['nama']?.toString() ?? '-';
+              final picAvatar = picData?['gambar_user']?.toString();
               final replyGambar = reply['gambar_reply']?.toString() ?? '';
               final replyCatatan = reply['catatan_reply']?.toString() ?? '';
               final idReply = reply['id_reply']?.toString() ?? '';
@@ -775,36 +926,34 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: confirmed
-                      ? const Color(0xFF10B981).withValues(alpha: 0.07)
-                      : const Color(0xFF6366F1).withValues(alpha: 0.06),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: confirmed
-                        ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                        : const Color(0xFF6366F1).withValues(alpha: 0.2),
-                  ),
+                  border: Border.all(color: _blue.withValues(alpha: 0.3)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                      Icon(
-                        confirmed ? Icons.verified_rounded : Icons.reply_rounded,
-                        size: 14,
-                        color: confirmed ? const Color(0xFF10B981) : const Color(0xFF6366F1),
-                      ),
-                      const SizedBox(width: 6),
+                      _buildAuditorAvatar(picAvatar, size: 22),
+                      const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          confirmed
-                              ? '$picName ✓ ${_t('Dikonfirmasi', 'Confirmed', '已确认')}'
-                              : picName,
-                          style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: confirmed ? const Color(0xFF10B981) : const Color(0xFF6366F1)),
-                        ),
+                        child: Row(children: [
+                          Flexible(
+                            child: Text(
+                              picName,
+                              style: GoogleFonts.poppins(
+                                  fontSize: 12, fontWeight: FontWeight.w600, color: _blue),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (confirmed) ...[
+                            const SizedBox(width: 5),
+                            const Icon(Icons.check_circle_rounded, size: 13, color: Color(0xFF10B981)),
+                            const SizedBox(width: 2),
+                            Text(_t('Dikonfirmasi', 'Confirmed', '已确认'),
+                                style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF10B981))),
+                          ],
+                        ]),
                       ),
                       if (isPic && !confirmed && isOwnReply) ...[
                         GestureDetector(
@@ -825,54 +974,81 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                              color: _red.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.delete_outline_rounded,
-                                size: 14, color: Color(0xFFEF4444)),
+                            child: Icon(Icons.delete_outline_rounded, size: 14, color: _red),
                           ),
                         ),
                       ],
                     ]),
-                    if (replyCatatan.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(replyCatatan,
-                          style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF1E3A8A))),
-                    ],
+
                     if (replyGambar.isNotEmpty) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       AspectRatio(
                         aspectRatio: 16 / 10,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: GestureDetector(
-                            onTap: () => _openImageViewer(replyGambar),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                Image.network(replyGambar,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Center(
-                                        child: Icon(Icons.image_not_supported_rounded,
-                                            color: Colors.grey, size: 28))),
-                                Positioned(
-                                  right: 6, bottom: 6,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(5),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withValues(alpha: 0.55),
-                                      shape: BoxShape.circle,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.black.withValues(alpha: 0.12)),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(9),
+                            child: GestureDetector(
+                              onTap: () => _openImageViewer(replyGambar),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Image.network(replyGambar,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => const Center(
+                                          child: Icon(Icons.image_not_supported_rounded,
+                                              color: Colors.grey, size: 28))),
+                                  Positioned(
+                                    right: 6, bottom: 6,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(5),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.55),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.fullscreen_rounded, color: Colors.white, size: 14),
                                     ),
-                                    child: const Icon(Icons.fullscreen_rounded,
-                                        color: Colors.white, size: 14),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ],
+
+                    if (replyCatatan.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Row(children: [
+                        Icon(Icons.edit_note_rounded, size: 13, color: _blue),
+                        const SizedBox(width: 5),
+                        Text(
+                          _t('Keterangan Tindakan Perbaikan', 'Corrective Action Description', '纠正措施说明'),
+                          style: GoogleFonts.poppins(fontSize: 10.5, fontWeight: FontWeight.w700, color: _blue),
+                        ),
+                      ]),
+                      const SizedBox(height: 6),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: _blue.withValues(alpha: 0.15)),
+                        ),
+                        child: Text(replyCatatan,
+                            style: GoogleFonts.poppins(
+                                fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black)),
+                      ),
+                    ],
+
                     if (!isPic && !confirmed && !isOwnReply) ...[
                       const SizedBox(height: 10),
                       Row(children: [
@@ -881,8 +1057,7 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
                             onPressed: () => _confirmReply(idReply, idAnswer, idResult),
                             icon: const Icon(Icons.check_circle_rounded, size: 15),
                             label: Text(_t('Konfirmasi', 'Confirm', '确认'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 12, fontWeight: FontWeight.w600)),
+                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF10B981),
                               foregroundColor: Colors.white,
@@ -894,12 +1069,10 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: () =>
-                                _showAuditorReplySheet(idReply, idAnswer, idResult, userId),
+                            onPressed: () => _showAuditorReplySheet(idReply, idAnswer, idResult, userId),
                             icon: const Icon(Icons.reply_rounded, size: 15),
                             label: Text(_t('Balas', 'Reply', '回复'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 12, fontWeight: FontWeight.w600)),
+                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600)),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: _blue,
                               side: const BorderSide(color: _blue),
@@ -930,8 +1103,8 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
                   style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600),
                 ),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF6366F1),
-                  side: const BorderSide(color: Color(0xFF6366F1)),
+                  foregroundColor: _blue,
+                  side: const BorderSide(color: _blue),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                 ),
@@ -1001,6 +1174,11 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
       byTema.putIfAbsent(temaKey, () => []).add(ans);
     }
 
+    bool isAnswerConfirmed(Map<String, dynamic> ans) {
+      final replies = (ans['Replies'] as List?) ?? [];
+      return replies.any((r) => r['is_confirmed'] == true);
+    }
+
     return Column(
       children: byTema.entries.map((entry) {
         final temaName = entry.key;
@@ -1008,514 +1186,691 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
         final yes = temaAnswers.where((a) => a['jawaban'] == true).length;
         final total = temaAnswers.length;
         final is100 = yes == total;
-        Color temaColor = is100 ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+        final noAnswersInTema = temaAnswers.where((a) => a['jawaban'] == false).toList();
+        final allNoConfirmedInTema =
+            noAnswersInTema.isNotEmpty && noAnswersInTema.every(isAnswerConfirmed);
+        final temaColor = is100
+            ? const Color(0xFF10B981)
+            : (allNoConfirmedInTema ? const Color(0xFFF59E0B) : const Color(0xFFEF4444));
+        final temaBgColor = is100
+            ? const Color(0xFF10B981).withValues(alpha: 0.04)
+            : (allNoConfirmedInTema
+                ? const Color(0xFFFFF7ED)
+                : const Color(0xFFEF4444).withValues(alpha: 0.05));
+        final isCollapsed = _collapsedSummaryTemas.contains(temaName);
 
         return Container(
-          margin: const EdgeInsets.only(top: 6),
+          margin: const EdgeInsets.only(top: 12),
           decoration: BoxDecoration(
-            color: is100
-                ? const Color(0xFF10B981).withValues(alpha: 0.04)
-                : const Color(0xFFFFF7ED),
-            borderRadius: BorderRadius.circular(10),
+            color: temaBgColor,
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: temaColor.withValues(alpha: 0.2)),
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            child: Row(children: [
-              Icon(is100 ? Icons.check_circle_rounded : Icons.topic_outlined,
-                  size: 14, color: temaColor),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(temaName,
-                    style: GoogleFonts.poppins(
-                        fontSize: 11.5, fontWeight: FontWeight.w700, color: temaColor)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (isCollapsed) {
+                      _collapsedSummaryTemas.remove(temaName);
+                    } else {
+                      _collapsedSummaryTemas.add(temaName);
+                    }
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  child: Row(children: [
+                    Icon(is100 ? Icons.check_circle_rounded : Icons.topic_outlined,
+                        size: 14, color: temaColor),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(temaName,
+                          style: GoogleFonts.poppins(
+                              fontSize: 11.5, fontWeight: FontWeight.w700, color: temaColor)),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('$yes/$total',
+                        style: GoogleFonts.poppins(
+                            fontSize: 11.5, fontWeight: FontWeight.w700, color: temaColor)),
+                    const SizedBox(width: 8),
+                    AnimatedRotation(
+                      turns: isCollapsed ? 0 : 0.5,
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: temaColor),
+                    ),
+                  ]),
+                ),
               ),
-              Text('$yes/$total',
-                  style: GoogleFonts.poppins(
-                      fontSize: 11.5, fontWeight: FontWeight.w700, color: temaColor)),
-            ]),
+
+              if (!isCollapsed) ...[
+                Divider(height: 1, thickness: 1, color: temaColor.withValues(alpha: 0.15)),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                  child: Column(
+                    children: temaAnswers.asMap().entries.map((entry) {
+                      final idx = entry.key;
+                      final ans = entry.value;
+                      final q = ans['Question'] as Map<String, dynamic>?;
+                      final isYes = ans['jawaban'] == true;
+                      final isConfirmedNo = !isYes && isAnswerConfirmed(ans);
+                      String qText;
+                      if (widget.lang == 'EN') {
+                        qText = q?['pertanyaan_en']?.toString() ?? q?['pertanyaan']?.toString() ?? '-';
+                      } else if (widget.lang == 'ZH') {
+                        qText = q?['pertanyaan_zh']?.toString() ?? q?['pertanyaan']?.toString() ?? '-';
+                      } else {
+                        qText = q?['pertanyaan']?.toString() ?? '-';
+                      }
+                      return Padding(
+                        padding: EdgeInsets.only(top: idx == 0 ? 0 : 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              isYes || isConfirmedNo
+                                  ? Icons.check_circle_rounded
+                                  : Icons.cancel_rounded,
+                              size: 13,
+                              color: isYes
+                                  ? const Color(0xFF10B981)
+                                  : (isConfirmedNo
+                                      ? const Color(0xFFF59E0B)
+                                      : const Color(0xFFEF4444)),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(qText,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: const Color(0xFF1D72F3),
+                                      height: 1.4)),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ],
           ),
         );
       }).toList(),
     );
   }
 
-  /// PIC REPLY BOTTOM SHEET — FOTO + CATATAN WAJIB
+  /// PIC REPLY POPUP
   Future<void> _showReplyBottomSheet(
       Map<String, dynamic> ans, String idResult, bool isPic, String userId) async {
     final noteCtrl = TextEditingController();
-    String? photoUrl;
+    XFile? photoFile;
     bool submitting = false;
 
-    await showModalBottomSheet(
+    unawaited(AuditEvidenceWarmupService.instance.warmUp());
+
+    await showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                        color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.reply_rounded, color: Color(0xFF6366F1), size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+        builder: (ctx, setSt) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 420),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: _blue.withValues(alpha: 0.25), width: 1.5),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // HEADER
+                    Row(children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _blue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(Icons.reply_rounded, color: _blue, size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
                           _t('Balas Temuan', 'Reply Finding', '回复发现'),
                           style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF1E3A8A)),
+                              fontSize: 15, fontWeight: FontWeight.w700, color: _blue),
                         ),
-                        Text(
-                          _t(
-                            'Sertakan bukti foto dan penjelasan tindakan perbaikan.',
-                            'Include photo evidence and corrective action description.',
-                            '请附上照片证据和纠正措施说明。',
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(ctx),
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          style:
-                              GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF64748B)),
+                          child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF64748B)),
                         ),
-                      ],
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 16),
-                RichText(
-                  text: TextSpan(
-                    style: GoogleFonts.poppins(
-                        fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF1E3A8A)),
-                    children: const [
-                      TextSpan(text: 'Foto Bukti Perbaikan'),
-                      TextSpan(text: ' *', style: TextStyle(color: Color(0xFFEF4444))),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                GestureDetector(
-                  onTap: () async {
-                    final url = await Navigator.push<String>(
-                      ctx,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            AuditEvidenceCameraScreen(lang: widget.lang, questionText: ''),
                       ),
-                    );
-                    if (url != null) setSt(() => photoUrl = url);
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: photoUrl == null
-                            ? const Color(0xFFEF4444).withValues(alpha: 0.4)
-                            : const Color(0xFF6366F1).withValues(alpha: 0.5),
-                      ),
-                    ),
-                    child: photoUrl == null
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            child: Column(children: [
-                              const Icon(Icons.add_a_photo_rounded,
-                                  color: Color(0xFF6366F1), size: 22),
-                              const SizedBox(height: 4),
-                              Text(
-                                _t('Ambil / Upload Foto *', 'Take / Upload Photo *', '拍照/上传照片 *'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF6366F1)),
-                              ),
-                              Text(
-                                _t('Wajib diisi', 'Required', '必填'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 10, color: const Color(0xFFEF4444)),
-                              ),
-                            ]),
-                          )
-                        : Stack(children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(photoUrl!,
-                                  height: 140, width: double.infinity, fit: BoxFit.cover),
-                            ),
-                            Positioned(
-                              top: 6,
-                              right: 6,
-                              child: GestureDetector(
-                                onTap: () => setSt(() => photoUrl = null),
-                                child: Container(
-                                  padding: const EdgeInsets.all(5),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.5),
-                                    shape: BoxShape.circle,
+                    ]),
+                    const SizedBox(height: 18),
+
+                    Row(children: [
+                      Icon(Icons.camera_alt_rounded, size: 14, color: _blue),
+                      const SizedBox(width: 5),
+                      Text(_t('Foto Bukti Perbaikan', 'Fix Evidence Photo', '修复证据照片'),
+                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _blue)),
+                      Text(' *', style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFFEF4444))),
+                    ]),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () async {
+                        final file = await Navigator.push<XFile>(
+                          ctx,
+                          MaterialPageRoute(
+                            builder: (_) => AuditEvidenceCameraScreen(lang: widget.lang, questionText: ''),
+                          ),
+                        );
+                        if (file != null) {
+                          setSt(() => photoFile = file);
+                          unawaited(AuditEvidenceWarmupService.instance.warmUp());
+                        }
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        height: photoFile == null ? 150 : 210,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: _blue.withValues(alpha: 0.35)),
+                        ),
+                        child: photoFile == null
+                            ? Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_a_photo_rounded, color: _blue, size: 26),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _t('Ambil / Upload Foto', 'Take / Upload Photo', '拍照/上传照片'),
+                                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _blue),
                                   ),
-                                  child: const Icon(Icons.close_rounded,
-                                      color: Colors.white, size: 14),
-                                ),
+                                ],
+                              )
+                            : Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(13),
+                                    child: GestureDetector(
+                                      onTap: () => _openLocalImageViewer(photoFile!),
+                                      child: kIsWeb
+                                          ? Image.network(photoFile!.path, fit: BoxFit.cover)
+                                          : Image.file(File(photoFile!.path), fit: BoxFit.cover),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    right: 8, bottom: 8,
+                                    child: IgnorePointer(
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(alpha: 0.55),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.fullscreen_rounded, color: Colors.white, size: 16),
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 6, right: 6,
+                                    child: GestureDetector(
+                                      onTap: () async {
+                                        final file = await Navigator.push<XFile>(
+                                          ctx,
+                                          MaterialPageRoute(
+                                            builder: (_) => AuditEvidenceCameraScreen(lang: widget.lang, questionText: ''),
+                                          ),
+                                        );
+                                        if (file != null) {
+                                          setSt(() => photoFile = file);
+                                          unawaited(AuditEvidenceWarmupService.instance.warmUp());
+                                        }
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(alpha: 0.5),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.refresh_rounded, color: Colors.white, size: 16),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ]),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                RichText(
-                  text: TextSpan(
-                    style: GoogleFonts.poppins(
-                        fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF1E3A8A)),
-                    children: const [
-                      TextSpan(text: 'Keterangan Tindakan Perbaikan'),
-                      TextSpan(text: ' *', style: TextStyle(color: Color(0xFFEF4444))),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: noteCtrl,
-                  maxLines: 3,
-                  style: GoogleFonts.poppins(fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: _t(
-                      'Jelaskan tindakan perbaikan yang telah dilakukan…',
-                      'Describe corrective action taken…',
-                      '描述已采取的纠正措施…',
+                      ),
                     ),
-                    hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
-                    filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                    enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                    focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: submitting
-                        ? null
-                        : () async {
-                            if (photoUrl == null) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                                content: Text(_t('Upload foto bukti perbaikan terlebih dahulu.',
-                                    'Please upload fix evidence photo.', '请先上传修复证据照片。')),
-                                backgroundColor: const Color(0xFFEF4444),
-                              ));
-                              return;
-                            }
-                            if (noteCtrl.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                                content: Text(_t('Keterangan tindakan perbaikan wajib diisi.',
-                                    'Corrective action description is required.', '请填写纠正措施说明。')),
-                                backgroundColor: const Color(0xFFEF4444),
-                              ));
-                              return;
-                            }
-                            setSt(() => submitting = true);
-                            try {
-                              await _supabase.from('audit_answer_reply').insert({
-                                'id_answer': ans['id_answer'],
-                                'id_pic': userId,
-                                'catatan_reply': noteCtrl.text.trim(),
-                                'gambar_reply': photoUrl,
-                                'is_confirmed': false,
-                              });
+                    const SizedBox(height: 16),
 
-                              final picUserData = await _supabase
-                                  .from('User')
-                                  .select('nama')
-                                  .eq('id_user', userId)
-                                  .maybeSingle();
-                              final picName = picUserData?['nama']?.toString() ?? '-';
-                              await _notifyAuditor(idResult, picName);
-
-                              if (ctx.mounted) Navigator.pop(ctx);
-                              await _refreshDetail();
-                            } catch (e) {
-                              setSt(() => submitting = false);
-                              if (ctx.mounted) {
-                                ScaffoldMessenger.of(ctx)
-                                    .showSnackBar(SnackBar(content: Text('Error: $e')));
-                              }
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6366F1),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    Row(children: [
+                      Icon(Icons.edit_note_rounded, size: 14, color: _blue),
+                      const SizedBox(width: 5),
+                      Text(_t('Keterangan Tindakan Perbaikan', 'Corrective Action Description', '纠正措施说明'),
+                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _blue)),
+                      Text(' *', style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFFEF4444))),
+                    ]),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: noteCtrl,
+                      maxLines: 3,
+                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black),
+                      decoration: InputDecoration(
+                        hintText: _t(
+                          'Jelaskan tindakan perbaikan yang telah dilakukan…',
+                          'Describe corrective action taken…',
+                          '描述已采取的纠正措施…',
+                        ),
+                        hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: _blue.withValues(alpha: 0.25))),
+                        enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: _blue.withValues(alpha: 0.25))),
+                        focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: _blue, width: 1.5)),
+                      ),
                     ),
-                    child: submitting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : Text(_t('Kirim Balasan', 'Send Reply', '发送回复'),
-                            style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-                  ),
+                    const SizedBox(height: 18),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: submitting
+                            ? null
+                            : () async {
+                                final missing = <MissingFieldItem>[];
+                                if (photoFile == null) {
+                                  missing.add(MissingFieldItem(
+                                    icon: Icons.camera_alt_rounded,
+                                    label: _t('Foto Bukti Perbaikan', 'Fix Evidence Photo', '修复证据照片'),
+                                  ));
+                                }
+                                if (noteCtrl.text.trim().isEmpty) {
+                                  missing.add(MissingFieldItem(
+                                    icon: Icons.edit_note_rounded,
+                                    label: _t('Keterangan Tindakan Perbaikan',
+                                        'Corrective Action Description', '纠正措施说明'),
+                                  ));
+                                }
+                                if (missing.isNotEmpty) {
+                                  await RequiredFieldAlert.show(context,
+                                      lang: widget.lang, missingFields: missing);
+                                  return;
+                                }
+
+                                setSt(() => submitting = true);
+                                try {
+                                  final bytes = await photoFile!.readAsBytes();
+                                  final fileName =
+                                      'reply_${DateTime.now().millisecondsSinceEpoch}_${ans['id_answer']}.jpg';
+                                  final storagePath = 'audit_evidence/$fileName';
+                                  await _supabase.storage.from('audit-evidence').uploadBinary(
+                                        storagePath,
+                                        bytes,
+                                        fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+                                      );
+                                  final photoUrl =
+                                      _supabase.storage.from('audit-evidence').getPublicUrl(storagePath);
+
+                                  await _supabase.from('audit_answer_reply').insert({
+                                    'id_answer': ans['id_answer'],
+                                    'id_pic': userId,
+                                    'catatan_reply': noteCtrl.text.trim(),
+                                    'gambar_reply': photoUrl,
+                                    'is_confirmed': false,
+                                  });
+
+                                  final picUserData = await _supabase
+                                      .from('User')
+                                      .select('nama')
+                                      .eq('id_user', userId)
+                                      .maybeSingle();
+                                  final picName = picUserData?['nama']?.toString() ?? '-';
+                                  await _notifyAuditor(idResult, picName);
+
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                  await _refreshDetail();
+                                } catch (e) {
+                                  setSt(() => submitting = false);
+                                  if (ctx.mounted) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Error: $e')));
+                                  }
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: submitting
+                            ? const SizedBox(
+                                width: 20, height: 20,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : Text(_t('Kirim Balasan', 'Send Reply', '发送回复'),
+                                style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
       ),
     );
+
+    await AuditEvidenceWarmupService.instance.release();
   }
 
-  /// EDIT REPLY (PIC, belum dikonfirmasi)
+  void _openLocalImageViewer(XFile file) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black.withValues(alpha: 0.95),
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => _AuditLocalImageViewer(file: file),
+      ),
+    );
+  }
+
   Future<void> _showEditReplySheet(String idReply, String idAnswer, String idResult,
       String userId, Map<String, dynamic> existingReply) async {
     final noteCtrl =
         TextEditingController(text: existingReply['catatan_reply']?.toString() ?? '');
-    String? photoUrl = existingReply['gambar_reply']?.toString();
-    if (photoUrl != null && photoUrl.isEmpty) photoUrl = null;
+    String? existingPhotoUrl = existingReply['gambar_reply']?.toString();
+    if (existingPhotoUrl != null && existingPhotoUrl.isEmpty) existingPhotoUrl = null;
+    XFile? newPhotoFile;
     bool submitting = false;
 
-    await showModalBottomSheet(
+    await showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                        color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: _blue.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.edit_rounded, color: _blue, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _t('Edit Balasan', 'Edit Reply', '编辑回复'),
-                      style: GoogleFonts.poppins(
-                          fontSize: 15, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A)),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 16),
-                RichText(
-                  text: TextSpan(
-                    style: GoogleFonts.poppins(
-                        fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF1E3A8A)),
-                    children: const [
-                      TextSpan(text: 'Foto Bukti Perbaikan'),
-                      TextSpan(text: ' *', style: TextStyle(color: Color(0xFFEF4444))),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                GestureDetector(
-                  onTap: () async {
-                    final url = await Navigator.push<String>(
-                      ctx,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            AuditEvidenceCameraScreen(lang: widget.lang, questionText: ''),
+        builder: (ctx, setSt) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 420),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: _blue.withValues(alpha: 0.25), width: 1.5),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _blue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(Icons.edit_rounded, color: _blue, size: 20),
                       ),
-                    );
-                    if (url != null) setSt(() => photoUrl = url);
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: photoUrl == null
-                            ? const Color(0xFFEF4444).withValues(alpha: 0.4)
-                            : const Color(0xFF6366F1).withValues(alpha: 0.5),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _t('Edit Balasan', 'Edit Reply', '编辑回复'),
+                          style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: _blue),
+                        ),
                       ),
-                    ),
-                    child: photoUrl == null
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            child: Column(children: [
-                              const Icon(Icons.add_a_photo_rounded,
-                                  color: Color(0xFF6366F1), size: 22),
-                              const SizedBox(height: 4),
-                              Text(
-                                _t('Ambil / Upload Foto *', 'Take / Upload Photo *', '拍照/上传照片 *'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF6366F1)),
-                              ),
-                            ]),
-                          )
-                        : Stack(children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(photoUrl!,
-                                  height: 140, width: double.infinity, fit: BoxFit.cover),
-                            ),
-                            Positioned(
-                              top: 6,
-                              right: 6,
-                              child: GestureDetector(
-                                onTap: () => setSt(() => photoUrl = null),
-                                child: Container(
-                                  padding: const EdgeInsets.all(5),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.5),
-                                    shape: BoxShape.circle,
+                      GestureDetector(
+                        onTap: () => Navigator.pop(ctx),
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF64748B)),
+                        ),
+                      ),
+                    ]),
+                    const SizedBox(height: 18),
+
+                    Row(children: [
+                      Icon(Icons.camera_alt_rounded, size: 14, color: _blue),
+                      const SizedBox(width: 5),
+                      Text(_t('Foto Bukti Perbaikan', 'Fix Evidence Photo', '修复证据照片'),
+                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _blue)),
+                      Text(' *', style: GoogleFonts.poppins(fontSize: 12, color: _red)),
+                    ]),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () async {
+                        final file = await Navigator.push<XFile>(
+                          ctx,
+                          MaterialPageRoute(
+                            builder: (_) => AuditEvidenceCameraScreen(lang: widget.lang, questionText: ''),
+                          ),
+                        );
+                        if (file != null) setSt(() => newPhotoFile = file);
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        height: (newPhotoFile == null && existingPhotoUrl == null) ? 150 : 210,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: _blue.withValues(alpha: 0.35)),
+                        ),
+                        child: (newPhotoFile == null && existingPhotoUrl == null)
+                            ? Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_a_photo_rounded, color: _blue, size: 26),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _t('Ambil / Upload Foto', 'Take / Upload Photo', '拍照/上传照片'),
+                                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _blue),
                                   ),
-                                  child: const Icon(Icons.close_rounded,
-                                      color: Colors.white, size: 14),
-                                ),
+                                ],
+                              )
+                            : Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(13),
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        if (newPhotoFile != null) {
+                                          _openLocalImageViewer(newPhotoFile!);
+                                        } else if (existingPhotoUrl != null) {
+                                          _openImageViewer(existingPhotoUrl);
+                                        }
+                                      },
+                                      child: newPhotoFile != null
+                                          ? (kIsWeb
+                                              ? Image.network(newPhotoFile!.path, fit: BoxFit.cover)
+                                              : Image.file(File(newPhotoFile!.path), fit: BoxFit.cover))
+                                          : Image.network(existingPhotoUrl!, fit: BoxFit.cover),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    right: 8, bottom: 8,
+                                    child: IgnorePointer(
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(alpha: 0.55),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.fullscreen_rounded, color: Colors.white, size: 16),
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 6, right: 6,
+                                    child: GestureDetector(
+                                      onTap: () async {
+                                        final file = await Navigator.push<XFile>(
+                                          ctx,
+                                          MaterialPageRoute(
+                                            builder: (_) => AuditEvidenceCameraScreen(lang: widget.lang, questionText: ''),
+                                          ),
+                                        );
+                                        if (file != null) setSt(() => newPhotoFile = file);
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(alpha: 0.5),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.refresh_rounded, color: Colors.white, size: 16),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ]),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                RichText(
-                  text: TextSpan(
-                    style: GoogleFonts.poppins(
-                        fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF1E3A8A)),
-                    children: const [
-                      TextSpan(text: 'Keterangan Tindakan Perbaikan'),
-                      TextSpan(text: ' *', style: TextStyle(color: Color(0xFFEF4444))),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: noteCtrl,
-                  maxLines: 3,
-                  style: GoogleFonts.poppins(fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: _t('Jelaskan tindakan perbaikan…', 'Describe corrective action…', '描述纠正措施…'),
-                    hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
-                    filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                    enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                    focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: submitting
-                        ? null
-                        : () async {
-                            if (photoUrl == null) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                                content: Text(_t('Upload foto bukti perbaikan terlebih dahulu.',
-                                    'Please upload fix evidence photo.', '请先上传修复证据照片。')),
-                                backgroundColor: const Color(0xFFEF4444),
-                              ));
-                              return;
-                            }
-                            if (noteCtrl.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                                content: Text(_t('Keterangan tindakan perbaikan wajib diisi.',
-                                    'Corrective action description is required.', '请填写纠正措施说明。')),
-                                backgroundColor: const Color(0xFFEF4444),
-                              ));
-                              return;
-                            }
-                            setSt(() => submitting = true);
-                            try {
-                              await _supabase.from('audit_answer_reply').update({
-                                'catatan_reply': noteCtrl.text.trim(),
-                                'gambar_reply': photoUrl,
-                              }).eq('id_reply', idReply);
-                              if (ctx.mounted) Navigator.pop(ctx);
-                              await _refreshDetail();
-                            } catch (e) {
-                              setSt(() => submitting = false);
-                              if (ctx.mounted) {
-                                ScaffoldMessenger.of(ctx)
-                                    .showSnackBar(SnackBar(content: Text('Error: $e')));
-                              }
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _blue,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
                     ),
-                    child: submitting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : Text(_t('Simpan Perubahan', 'Save Changes', '保存更改'),
-                            style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-                  ),
+                    const SizedBox(height: 16),
+
+                    Row(children: [
+                      Icon(Icons.edit_note_rounded, size: 14, color: _blue),
+                      const SizedBox(width: 5),
+                      Text(_t('Keterangan Tindakan Perbaikan', 'Corrective Action Description', '纠正措施说明'),
+                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _blue)),
+                      Text(' *', style: GoogleFonts.poppins(fontSize: 12, color: _red)),
+                    ]),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: noteCtrl,
+                      maxLines: 3,
+                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black),
+                      decoration: InputDecoration(
+                        hintText: _t('Jelaskan tindakan perbaikan…', 'Describe corrective action…', '描述纠正措施…'),
+                        hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: _blue.withValues(alpha: 0.25))),
+                        enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: _blue.withValues(alpha: 0.25))),
+                        focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: _blue, width: 1.5)),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: submitting
+                            ? null
+                            : () async {
+                                final missing = <MissingFieldItem>[];
+                                if (newPhotoFile == null && existingPhotoUrl == null) {
+                                  missing.add(MissingFieldItem(
+                                    icon: Icons.camera_alt_rounded,
+                                    label: _t('Foto Bukti Perbaikan', 'Fix Evidence Photo', '修复证据照片'),
+                                  ));
+                                }
+                                if (noteCtrl.text.trim().isEmpty) {
+                                  missing.add(MissingFieldItem(
+                                    icon: Icons.edit_note_rounded,
+                                    label: _t('Keterangan Tindakan Perbaikan',
+                                        'Corrective Action Description', '纠正措施说明'),
+                                  ));
+                                }
+                                if (missing.isNotEmpty) {
+                                  await RequiredFieldAlert.show(context,
+                                      lang: widget.lang, missingFields: missing);
+                                  return;
+                                }
+
+                                setSt(() => submitting = true);
+                                try {
+                                  String photoUrl = existingPhotoUrl ?? '';
+                                  if (newPhotoFile != null) {
+                                    final bytes = await newPhotoFile!.readAsBytes();
+                                    final fileName =
+                                        'reply_${DateTime.now().millisecondsSinceEpoch}_$idAnswer.jpg';
+                                    final storagePath = 'audit_evidence/$fileName';
+                                    await _supabase.storage.from('audit-evidence').uploadBinary(
+                                          storagePath,
+                                          bytes,
+                                          fileOptions:
+                                              const FileOptions(contentType: 'image/jpeg', upsert: true),
+                                        );
+                                    photoUrl =
+                                        _supabase.storage.from('audit-evidence').getPublicUrl(storagePath);
+                                  }
+
+                                  await _supabase.from('audit_answer_reply').update({
+                                    'catatan_reply': noteCtrl.text.trim(),
+                                    'gambar_reply': photoUrl,
+                                  }).eq('id_reply', idReply);
+
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                  await _refreshDetail();
+                                } catch (e) {
+                                  setSt(() => submitting = false);
+                                  if (ctx.mounted) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Error: $e')));
+                                  }
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: submitting
+                            ? const SizedBox(
+                                width: 20, height: 20,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : Text(_t('Simpan Perubahan', 'Save Changes', '保存更改'),
+                                style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -1523,7 +1878,6 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
     );
   }
 
-  /// DELETE REPLY (PIC, belum dikonfirmasi)
   Future<void> _deleteReply(String idReply) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -1570,231 +1924,319 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
     }
   }
 
-  /// AUDITOR REPLY BOTTOM SHEET — balasan auditor jika perbaikan belum sesuai
   Future<void> _showAuditorReplySheet(
       String idReply, String idAnswer, String idResult, String userId) async {
     final noteCtrl = TextEditingController();
-    String? photoUrl;
+    XFile? photoFile;
     bool submitting = false;
 
-    await showModalBottomSheet(
+    unawaited(AuditEvidenceWarmupService.instance.warmUp());
+
+    await showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                        color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: _blue.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.reply_rounded, color: _blue, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+        builder: (ctx, setSt) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 420),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: _blue.withValues(alpha: 0.25), width: 1.5),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // HEADER
+                    Row(children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _blue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(Icons.reply_rounded, color: _blue, size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
                           _t('Balas Perbaikan', 'Reply to Fix', '回复修复'),
                           style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF1E3A8A)),
+                              fontSize: 15, fontWeight: FontWeight.w700, color: _blue),
                         ),
-                        Text(
-                          _t(
-                            'Jelaskan jika perbaikan belum sesuai — PIC akan menerima balasan ini dan bisa memperbaiki lagi.',
-                            'Explain if the fix is not sufficient yet — PIC will receive this and can fix it again.',
-                            '说明修复是否仍不充分——PIC将收到此回复并可以再次修复。',
-                          ),
-                          style:
-                              GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF64748B)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 16),
-                GestureDetector(
-                  onTap: () async {
-                    final url = await Navigator.push<String>(
-                      ctx,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            AuditEvidenceCameraScreen(lang: widget.lang, questionText: ''),
                       ),
-                    );
-                    if (url != null) setSt(() => photoUrl = url);
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _blue.withValues(alpha: 0.3)),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(ctx),
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF64748B)),
+                        ),
+                      ),
+                    ]),
+                    const SizedBox(height: 6),
+                    Text(
+                      _t(
+                        'Jelaskan jika perbaikan belum sesuai — PIC akan menerima balasan ini dan bisa memperbaiki lagi.',
+                        'Explain if the fix is not sufficient yet — PIC will receive this and can fix it again.',
+                        '说明修复是否仍不充分——PIC将收到此回复并可以再次修复。',
+                      ),
+                      style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF64748B)),
                     ),
-                    child: photoUrl == null
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            child: Column(children: [
-                              Icon(Icons.add_a_photo_rounded, color: _blue, size: 22),
-                              const SizedBox(height: 4),
-                              Text(
-                                _t('Upload Foto (opsional)', 'Upload Photo (optional)', '上传照片（可选）'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 12, fontWeight: FontWeight.w600, color: _blue),
-                              ),
-                            ]),
-                          )
-                        : Stack(children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(photoUrl!,
-                                  height: 140, width: double.infinity, fit: BoxFit.cover),
-                            ),
-                            Positioned(
-                              top: 6,
-                              right: 6,
-                              child: GestureDetector(
-                                onTap: () => setSt(() => photoUrl = null),
-                                child: Container(
-                                  padding: const EdgeInsets.all(5),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.5),
-                                    shape: BoxShape.circle,
+                    const SizedBox(height: 18),
+
+                    Row(children: [
+                      Icon(Icons.camera_alt_rounded, size: 14, color: _blue),
+                      const SizedBox(width: 5),
+                      Text(_t('Foto Bukti (opsional)', 'Evidence Photo (optional)', '证据照片（可选）'),
+                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _blue)),
+                    ]),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () async {
+                        final file = await Navigator.push<XFile>(
+                          ctx,
+                          MaterialPageRoute(
+                            builder: (_) => AuditEvidenceCameraScreen(lang: widget.lang, questionText: ''),
+                          ),
+                        );
+                        if (file != null) {
+                          setSt(() => photoFile = file);
+                          unawaited(AuditEvidenceWarmupService.instance.warmUp());
+                        }
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        height: photoFile == null ? 130 : 190,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: _blue.withValues(alpha: 0.3)),
+                        ),
+                        child: photoFile == null
+                            ? Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_a_photo_rounded, color: _blue, size: 24),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _t('Ambil / Upload Foto', 'Take / Upload Photo', '拍照/上传照片'),
+                                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _blue),
                                   ),
-                                  child: const Icon(Icons.close_rounded,
-                                      color: Colors.white, size: 14),
-                                ),
+                                ],
+                              )
+                            : Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(13),
+                                    child: GestureDetector(
+                                      onTap: () => _openLocalImageViewer(photoFile!),
+                                      child: kIsWeb
+                                          ? Image.network(photoFile!.path, fit: BoxFit.cover)
+                                          : Image.file(File(photoFile!.path), fit: BoxFit.cover),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    right: 8, bottom: 8,
+                                    child: IgnorePointer(
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(alpha: 0.55),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.fullscreen_rounded, color: Colors.white, size: 16),
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 6, right: 6,
+                                    child: GestureDetector(
+                                      onTap: () async {
+                                        final file = await Navigator.push<XFile>(
+                                          ctx,
+                                          MaterialPageRoute(
+                                            builder: (_) => AuditEvidenceCameraScreen(lang: widget.lang, questionText: ''),
+                                          ),
+                                        );
+                                        if (file != null) {
+                                          setSt(() => photoFile = file);
+                                          unawaited(AuditEvidenceWarmupService.instance.warmUp());
+                                        }
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(alpha: 0.5),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.refresh_rounded, color: Colors.white, size: 16),
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 6, left: 6,
+                                    child: GestureDetector(
+                                      onTap: () => setSt(() => photoFile = null),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(alpha: 0.5),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.close_rounded, color: Colors.white, size: 16),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ]),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: noteCtrl,
-                  maxLines: 3,
-                  style: GoogleFonts.poppins(fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: _t(
-                      'Jelaskan kekurangan perbaikan ini (wajib)…',
-                      'Describe what is still lacking (required)…',
-                      '说明此修复仍存在的问题（必填）…',
+                      ),
                     ),
-                    hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
-                    filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                    enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                    focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: _blue, width: 1.5)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: submitting
-                        ? null
-                        : () async {
-                            if (noteCtrl.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                                content:
-                                    Text(_t('Catatan wajib diisi.', 'Note is required.', '备注为必填项。')),
-                                backgroundColor: const Color(0xFFEF4444),
-                              ));
-                              return;
-                            }
-                            setSt(() => submitting = true);
-                            try {
-                              await _supabase.from('audit_answer_reply').insert({
-                                'id_answer': idAnswer,
-                                'id_pic': userId,
-                                'catatan_reply': noteCtrl.text.trim(),
-                                'gambar_reply': photoUrl,
-                                'is_confirmed': false,
-                              });
+                    const SizedBox(height: 16),
 
-                              final auditorUserData = await _supabase
-                                  .from('User')
-                                  .select('nama')
-                                  .eq('id_user', userId)
-                                  .maybeSingle();
-                              final auditorName = auditorUserData?['nama']?.toString() ?? '-';
-                              await _notifyPicFromAuditor(
-                                idResult: idResult,
-                                auditorName: auditorName,
-                                isConfirm: false,
-                              );
+                    Row(children: [
+                      Icon(Icons.edit_note_rounded, size: 14, color: _blue),
+                      const SizedBox(width: 5),
+                      Text(_t('Catatan', 'Notes', '备注'),
+                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _blue)),
+                      Text(' *', style: GoogleFonts.poppins(fontSize: 12, color: _red)),
+                    ]),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: noteCtrl,
+                      maxLines: 3,
+                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black),
+                      decoration: InputDecoration(
+                        hintText: _t(
+                          'Jelaskan kekurangan perbaikan ini…',
+                          'Describe what is still lacking…',
+                          '说明此修复仍存在的问题…',
+                        ),
+                        hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: _blue.withValues(alpha: 0.25))),
+                        enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: _blue.withValues(alpha: 0.25))),
+                        focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: _blue, width: 1.5)),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
 
-                              if (ctx.mounted) Navigator.pop(ctx);
-                              await _refreshDetail();
-                            } catch (e) {
-                              setSt(() => submitting = false);
-                              if (ctx.mounted) {
-                                ScaffoldMessenger.of(ctx)
-                                    .showSnackBar(SnackBar(content: Text('Error: $e')));
-                              }
-                            }
-                          },
-                    icon: submitting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.send_rounded, size: 16),
-                    label: Text(
-                      submitting ? '' : _t('Kirim Balasan', 'Send Reply', '发送回复'),
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: submitting
+                            ? null
+                            : () async {
+                                if (noteCtrl.text.trim().isEmpty) {
+                                  await RequiredFieldAlert.show(context,
+                                      lang: widget.lang,
+                                      missingFields: [
+                                        MissingFieldItem(
+                                          icon: Icons.edit_note_rounded,
+                                          label: _t('Catatan', 'Notes', '备注'),
+                                        ),
+                                      ]);
+                                  return;
+                                }
+                                setSt(() => submitting = true);
+                                try {
+                                  String? photoUrl;
+                                  if (photoFile != null) {
+                                    final bytes = await photoFile!.readAsBytes();
+                                    final fileName =
+                                        'auditor_reply_${DateTime.now().millisecondsSinceEpoch}_$idAnswer.jpg';
+                                    final storagePath = 'audit_evidence/$fileName';
+                                    await _supabase.storage.from('audit-evidence').uploadBinary(
+                                          storagePath,
+                                          bytes,
+                                          fileOptions:
+                                              const FileOptions(contentType: 'image/jpeg', upsert: true),
+                                        );
+                                    photoUrl =
+                                        _supabase.storage.from('audit-evidence').getPublicUrl(storagePath);
+                                  }
+
+                                  await _supabase.from('audit_answer_reply').insert({
+                                    'id_answer': idAnswer,
+                                    'id_pic': userId,
+                                    'catatan_reply': noteCtrl.text.trim(),
+                                    'gambar_reply': photoUrl,
+                                    'is_confirmed': false,
+                                  });
+
+                                  final auditorUserData = await _supabase
+                                      .from('User')
+                                      .select('nama')
+                                      .eq('id_user', userId)
+                                      .maybeSingle();
+                                  final auditorName = auditorUserData?['nama']?.toString() ?? '-';
+                                  await _notifyPicFromAuditor(
+                                    idResult: idResult,
+                                    auditorName: auditorName,
+                                    isConfirm: false,
+                                  );
+
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                  await _refreshDetail();
+                                } catch (e) {
+                                  setSt(() => submitting = false);
+                                  if (ctx.mounted) {
+                                    ScaffoldMessenger.of(ctx)
+                                        .showSnackBar(SnackBar(content: Text('Error: $e')));
+                                  }
+                                }
+                              },
+                        icon: submitting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Icon(Icons.send_rounded, size: 16),
+                        label: Text(
+                          submitting ? '' : _t('Kirim Balasan', 'Send Reply', '发送回复'),
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _blue,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
       ),
     );
+
+    await AuditEvidenceWarmupService.instance.release();
   }
 
-  /// NOTIF KE AUDITOR SAAT PIC BALAS
   Future<void> _notifyAuditor(String idResult, String picName) async {
     try {
       final resultRow = await _supabase
@@ -1852,7 +2294,6 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
     }
   }
 
-  /// NOTIF KE PIC SAAT AUDITOR CONFIRM/REPLY
   Future<void> _notifyPicFromAuditor({
     required String idResult,
     required String auditorName,
@@ -1924,7 +2365,6 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
     }
   }
 
-  /// CONFIRM REPLY OLEH AUDITOR — TERMASUK RECALCULATE NILAI FINAL (setengah poin)
   Future<void> _confirmReply(String idReply, String idAnswer, String idResult) async {
     try {
       await _supabase.from('audit_answer_reply').update({
@@ -1932,7 +2372,6 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
         'confirmed_at': DateTime.now().toIso8601String(),
       }).eq('id_reply', idReply);
 
-      // NEW: hitung ulang nilai_final setiap kali ada konfirmasi baru
       await _recalculateFinalScore(idResult);
 
       final resultRow = await _supabase
@@ -1942,16 +2381,23 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
           .maybeSingle();
 
       if (resultRow == null || resultRow['is_finalized'] == true) {
-        await _refreshDetail();
+        await _fetchDetailData();
+        if (mounted) setState(() {});
+        await _showConfirmSuccessPopup();
         return;
       }
 
       final allAnswers = await _supabase
           .from('audit_answer')
-          .select('id_answer, jawaban, Replies:audit_answer_reply(is_confirmed)')
+          .select(
+            'id_answer, jawaban, '
+            'Question:audit_question(id_tema, Tema:audit_tema(nama_tema_id, nama_tema_en, nama_tema_zh)), '
+            'Replies:audit_answer_reply(is_confirmed)',
+          )
           .eq('id_result', idResult);
 
-      final noAnswers = (allAnswers as List).where((a) => a['jawaban'] == false).toList();
+      final answerList = allAnswers as List;
+      final noAnswers = answerList.where((a) => a['jawaban'] == false).toList();
 
       final allNoConfirmed = noAnswers.isNotEmpty &&
           noAnswers.every((a) {
@@ -1960,7 +2406,9 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
           });
 
       if (!allNoConfirmed) {
-        await _refreshDetail();
+        await _fetchDetailData();
+        if (mounted) setState(() {});
+        await _showConfirmSuccessPopup();
         return;
       }
 
@@ -1976,24 +2424,59 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
       final lokasiName = locRow?[nameCol]?.toString() ?? '-';
 
       if (picId != null) {
-        final cfgRow = await _supabase
-            .from('konfigurasi_poin')
-            .select('poin, deskripsi_template')
-            .eq('kode', 'AUDIT_BONUS_PIC')
-            .eq('is_aktif', true)
-            .maybeSingle();
+        final Map<String, Map<String, String>> temaNamesMap = {};
+        final Map<String, bool> temaAllYes = {};
 
-        if (cfgRow != null) {
-          final deskripsi =
-              (cfgRow['deskripsi_template'] as String).replaceAll('{lokasi}', lokasiName);
+        for (final a in answerList) {
+          final q = a['Question'] as Map<String, dynamic>?;
+          final tema = q?['Tema'] as Map<String, dynamic>?;
+          final temaId = q?['id_tema']?.toString() ?? 'no_tema';
+          final isYes = a['jawaban'] == true;
 
-          await _supabase.from('log_poin').insert({
-            'id_user': picId,
-            'poin': cfgRow['poin'] as int,
-            'deskripsi': deskripsi,
-            'tipe_aktivitas': 'audit_bonus_pic',
-            'id_result': idResult,
-          });
+          temaNamesMap.putIfAbsent(temaId, () => {
+                'id': tema?['nama_tema_id']?.toString() ?? _t('Lainnya', 'Other', '其他'),
+                'en': tema?['nama_tema_en']?.toString() ?? _t('Lainnya', 'Other', '其他'),
+                'zh': tema?['nama_tema_zh']?.toString() ?? _t('Lainnya', 'Other', '其他'),
+              });
+
+          temaAllYes[temaId] = (temaAllYes[temaId] ?? true) && isYes;
+        }
+
+        if (temaNamesMap.isNotEmpty) {
+          final temaCfgRow = await _supabase
+              .from('konfigurasi_poin')
+              .select('poin, deskripsi_template')
+              .eq('kode', 'AUDIT_BONUS_TEMA')
+              .eq('is_aktif', true)
+              .maybeSingle();
+
+          if (temaCfgRow != null) {
+            final fullPoin = temaCfgRow['poin'] as int;
+            final halfPoin = (fullPoin / 2).round();
+            final template = temaCfgRow['deskripsi_template'] as String;
+
+            final logEntries = temaNamesMap.entries.map((entry) {
+              final temaId = entry.key;
+              final names = entry.value;
+              final temaName = widget.lang == 'EN'
+                  ? names['en']
+                  : (widget.lang == 'ZH' ? names['zh'] : names['id']);
+              final isTemaAllYes = temaAllYes[temaId] ?? false;
+              final poin = isTemaAllYes ? fullPoin : halfPoin;
+              final deskripsi = template
+                  .replaceAll('{tema}', temaName ?? '-')
+                  .replaceAll('{lokasi}', lokasiName);
+              return {
+                'id_user': picId,
+                'poin': poin,
+                'deskripsi': deskripsi,
+                'tipe_aktivitas': 'audit_bonus_tema',
+                'id_result': idResult,
+              };
+            }).toList();
+
+            await _supabase.from('log_poin').insert(logEntries);
+          }
         }
       }
 
@@ -2011,7 +2494,9 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
 
       await _supabase.from('audit_result').update({'is_finalized': true}).eq('id_result', idResult);
 
-      await _refreshDetail();
+      await _fetchDetailData();
+      if (mounted) setState(() {});
+      await _showConfirmSuccessPopup();
     } catch (e) {
       debugPrint('_confirmReply error: $e');
       if (mounted) {
@@ -2024,7 +2509,6 @@ class _AuditNotifDetailScreenState extends State<AuditNotifDetailScreen> {
   }
 }
 
-/// FULL SCREEN IMAGE VIEWER — sama persis seperti finding_detail_screen.dart
 class _AuditImageViewer extends StatelessWidget {
   final String imageUrl;
   const _AuditImageViewer({required this.imageUrl});
@@ -2048,6 +2532,49 @@ class _AuditImageViewer extends StatelessWidget {
                   errorBuilder: (_, __, ___) =>
                       const Icon(Icons.image_not_supported, color: Colors.white54, size: 60),
                 ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.topRight,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuditLocalImageViewer extends StatelessWidget {
+  final XFile file;
+  const _AuditLocalImageViewer({required this.file});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: InteractiveViewer(
+              minScale: 1.0,
+              maxScale: 4,
+              child: Center(
+                child: kIsWeb
+                    ? Image.network(file.path, fit: BoxFit.contain, width: double.infinity, height: double.infinity)
+                    : Image.file(File(file.path), fit: BoxFit.contain, width: double.infinity, height: double.infinity),
               ),
             ),
           ),

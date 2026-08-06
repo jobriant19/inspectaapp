@@ -4,9 +4,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
 
-/// Warm-up kamera evidence — dipanggil lebih awal (saat jawaban "No" dipilih)
-/// agar saat AuditEvidenceCameraScreen dibuka, kamera sudah siap dan
-/// transisinya instan (tidak stuck di loading screen).
 class AuditEvidenceWarmupService {
   AuditEvidenceWarmupService._();
   static final AuditEvidenceWarmupService instance =
@@ -112,7 +109,6 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
   Future<void> _initCamera() async {
     final warm = AuditEvidenceWarmupService.instance;
 
-    // Jika sudah di-warm-up sebelumnya → langsung pakai, instan.
     if (warm.isReady) {
       _cameras = warm.cameras;
       _selectedCameraIndex = warm.selectedCameraIndex;
@@ -210,9 +206,6 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
 
   void _returnAndProceed(XFile imageFile) {
     if (!mounted) return;
-    // Langsung kembali dengan file lokal — TANPA upload di sini agar
-    // transisi ke form audit instan. Upload dilakukan saat submit audit
-    // (lihat audit_form_screen.dart → _uploadPendingEvidence).
     Navigator.pop(context, imageFile);
   }
 
@@ -241,86 +234,30 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
     }
   }
 
-  // ── Loading screen bergaya audit_selfie_screen ──
-  Widget _buildLoadingScreen() {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 220,
-              height: 220,
-              child: Lottie.asset(
-                'assets/lottie/camera_loading.json',
-                fit: BoxFit.contain,
-                frameRate: FrameRate.max,
-                errorBuilder: (_, __, ___) => const Icon(
-                  Icons.camera_alt_rounded,
-                  size: 90,
-                  color: Color(0xFF6366F1),
-                ),
+  Widget _buildLoadingView() {
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: SizedBox(
+          width: 120,
+          height: 120,
+          child: Lottie.asset(
+            'assets/lottie/camera_loading.json',
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
               ),
             ),
-            const SizedBox(height: 20),
-            Text(
-              _t('Loading Camera', 'Memuat Kamera', '正在加载相机'),
-              style: const TextStyle(
-                color: Color(0xFF6366F1),
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.3,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _t(
-                'Preparing camera for evidence photo…',
-                'Menyiapkan kamera untuk foto bukti…',
-                '正在准备证据拍摄相机…',
-              ),
-              style: const TextStyle(
-                color: Color(0xFF818CF8),
-                fontSize: 13,
-                fontWeight: FontWeight.w400,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: 140,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: const LinearProgressIndicator(
-                  minHeight: 3,
-                  backgroundColor: Color(0xFFE0E7FF),
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            // ── Akses galeri instan, tidak perlu menunggu kamera siap ──
-            TextButton.icon(
-              onPressed: _pickFromGallery,
-              icon: const Icon(Icons.photo_library_rounded,
-                  color: Color(0xFF6366F1), size: 18),
-              label: Text(
-                _t('Choose from Gallery', 'Pilih dari Galeri', '从相册选择'),
-                style: GoogleFonts.poppins(
-                    color: const Color(0xFF6366F1),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  // ── Error screen ──
   Widget _buildErrorScreen() {
     return Scaffold(
       backgroundColor: Colors.white,
@@ -382,23 +319,20 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
 
   @override
   Widget build(BuildContext context) {
-    // ── Loading ──
-    if (_status == _CamStatus.loading) return _buildLoadingScreen();
-
-    // ── Error ──
-    if (_status == _CamStatus.error || _cameraController == null) {
+    if (_status == _CamStatus.error) {
       return _buildErrorScreen();
     }
 
-    // ── Kamera siap ──
+    final bool ready = _status == _CamStatus.ready && _cameraController != null;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          CameraPreview(_cameraController!),
+          if (ready) CameraPreview(_cameraController!) else _buildLoadingView(),
+          if (ready) ...[
 
-          // ── Top bar ──
           Positioned(
             top: 0, left: 0, right: 0,
             child: SafeArea(
@@ -461,7 +395,6 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
             ),
           ),
 
-          // ── Subtitle pertanyaan ──
           Positioned(
             top: 90, left: 16, right: 16,
             child: SafeArea(
@@ -476,8 +409,8 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
                 child: Text(
                   widget.questionText,
                   style: GoogleFonts.poppins(
-                      fontSize: 12, color: Colors.white70),
-                  maxLines: 2,
+                      fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -535,6 +468,7 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
               ),
             ),
           ),
+        ],
         ],
       ),
     );

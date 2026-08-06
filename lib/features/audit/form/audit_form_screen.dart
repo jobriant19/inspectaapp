@@ -37,13 +37,10 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   final _supabase = Supabase.instance.client;
   final _scrollCtrl = ScrollController();
 
-  // Data
   List<Map<String, dynamic>> _temas = [];
   List<Map<String, dynamic>> _questions = [];
   final Map<String, bool?> _answers = {};
-  // File lokal hasil foto/galeri (belum diupload — diupload saat submit)
   final Map<String, XFile> _evidenceFiles = {};
-  // URL hasil upload (diisi saat proses submit)
   final Map<String, String> _evidenceUrls = {};
   final Map<String, TextEditingController> _noteCtrls = {};
   final _finalNoteCtrl = TextEditingController();
@@ -56,7 +53,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   int _scrollRequestGen = 0;
   static const int _maxScrollRetries = 6;
 
-  // Keys untuk scroll otomatis ke pertanyaan berikutnya
   final Map<String, GlobalKey> _questionKeys = {};
 
   static const _primary   = Color(0xFF6366F1);
@@ -74,7 +70,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     return id;
   }
 
-  // ── Icon & warna khas sesuai levelType, konsisten dengan screen lain ──
   IconData get _locationLevelIcon {
     switch (widget.levelType) {
       case 'area': return Icons.place_rounded;
@@ -124,7 +119,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
         _temas = List<Map<String, dynamic>>.from(temaRows);
       }
 
-      // Fetch pertanyaan sesuai jenis audit
       var qQuery = _supabase
           .from('audit_question')
           .select()
@@ -203,10 +197,16 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     return groupScores.reduce((a, b) => a + b) / groupScores.length;
   }
 
+  Color _scoreColor(double? s) {
+    if (s == null) return const Color(0xFF64748B);
+    if (s >= 80) return const Color(0xFF10B981);
+    if (s >= 60) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
+
   void _onAnswer(String id, bool value) {
     setState(() => _answers[id] = value);
     if (value == false) {
-      // Warm-up kamera evidence sedini mungkin, sebelum user tap "Take Photo"
       AuditEvidenceWarmupService.instance.warmUp();
     }
     _requestAutoScroll(id, delayMs: 150);
@@ -270,7 +270,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
             ancestor: _scrollCtrl.position.context.storageContext.findRenderObject(),
           );
           final cardBottom = currentScroll + offset.dy + ro.size.height;
-          final rawTarget = cardBottom - viewport + 24; // padding bawah
+          final rawTarget = cardBottom - viewport + 24;
           final targetScroll = rawTarget.clamp(currentScroll, maxScroll);
           if (targetScroll > currentScroll) {
             _scrollCtrl.animateTo(
@@ -281,13 +281,11 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
           }
         } catch (_) {}
       } else if (attempt < _maxScrollRetries) {
-        // ── BARU: render object kartu belum siap, coba lagi sebentar lagi ──
         _scheduleScrollRetry(answeredId, attempt, gen);
       }
       return;
     }
 
-    // Cari pertanyaan atau tema header berikutnya yang sudah ter-render
     bool foundRenderedTarget = false;
     for (int i = idx + 1; i < orderedIds.length; i++) {
       final nextId = orderedIds[i];
@@ -364,10 +362,9 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     if (file != null && mounted) {
       setState(() {
         _evidenceFiles[id] = file;
-        _evidenceUrls.remove(id); // pastikan re-upload foto terbaru saat submit
+        _evidenceUrls.remove(id);
       });
       _requestAutoScroll(id, delayMs: 150);
-      // Warm-up lagi untuk kemungkinan retake berikutnya
       AuditEvidenceWarmupService.instance.warmUp();
     }
   }
@@ -456,10 +453,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     );
   }
 
-  /// Upload seluruh foto evidence lokal (di [_evidenceFiles]) ke Supabase
-  /// Storage, lalu simpan URL-nya ke [_evidenceUrls]. Dipanggil sekali saat
-  /// submit audit — bukan saat ambil foto — supaya transisi kamera/galeri
-  /// tetap instan.
   Future<void> _uploadPendingEvidence() async {
     for (final entry in _evidenceFiles.entries) {
       final qId = entry.key;
@@ -484,15 +477,11 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     }
   }
 
-  /// Selfie dari AuditSelfieScreen sekarang dikembalikan secara INSTAN
-  /// berupa path file lokal (bukan URL) agar tidak ada loading sama sekali
-  /// saat "Use Photo" ditekan. Upload baru dilakukan di sini, sesaat
-  /// sebelum insert audit_result — bukan sebelumnya.
   Future<String?> _resolveSelfieUrlForSubmit() async {
     final current = _selfieUrl;
     if (current == null || current.trim().isEmpty) return null;
     if (current.startsWith('http://') || current.startsWith('https://')) {
-      return current; // sudah URL valid (mis. hasil upload sebelumnya)
+      return current;
     }
     try {
       final file = XFile(current);
@@ -532,10 +521,8 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       final userId = _supabase.auth.currentUser!.id;
       final score = double.parse(_score.toStringAsFixed(2));
 
-      // 0. Upload foto selfie lokal (jika belum berupa URL)
       final resolvedSelfieUrl = await _resolveSelfieUrlForSubmit();
 
-      // 1. Insert audit_result
       final resultRow = await _supabase
           .from('audit_result')
           .insert({
@@ -556,10 +543,8 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
 
       final idResult = resultRow['id_result'].toString();
 
-      // 1.5 Upload semua foto evidence yang sebelumnya hanya disimpan lokal
       await _uploadPendingEvidence();
 
-      // 2. Insert semua jawaban
       final answers = _answers.entries.map((e) {
         final id = e.key;
         return {
@@ -574,7 +559,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       }).toList();
       await _supabase.from('audit_answer').insert(answers);
 
-      // 3. Update status schedule
       if (widget.idSchedule != null) {
         await _supabase
             .from('audit_schedule')
@@ -582,13 +566,10 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
             .eq('id_schedule', widget.idSchedule!);
       }
 
-      // 4. Beri poin AUDIT_SUBMIT ke auditor
       await _grantAuditSubmitPoin(userId: userId, score: score, idResult: idResult);
 
-      // 5. Kirim notif ke PIC lokasi yang diaudit
       await _notifyPic(idResult, score);
 
-      // 6. Beri bonus poin (ke PIC) jika ada tema/keseluruhan yang 100%
       await _grantBonusPoin(userId: userId, idResult: idResult);
 
       if (mounted) _showResult(score);
@@ -630,7 +611,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
 
       final bool isPerfect = !_answers.values.any((ans) => ans == false);
 
-      // ── Judul & body berbeda tergantung hasil audit ──
       final String notifTitle;
       final String notifBody;
 
@@ -676,7 +656,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     }
   }
 
-  /// Beri poin dasar AUDIT_SUBMIT ke auditor yang mengisi audit.
   Future<void> _grantAuditSubmitPoin({
     required String userId,
     required double score,
@@ -701,22 +680,19 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
         'poin':           cfgRow['poin'] as int,
         'deskripsi':      deskripsi,
         'tipe_aktivitas': 'audit_submit',
-        'id_result':      idResult, // ── TAMBAHKAN INI ──
+        'id_result':      idResult,
       });
     } catch (e) {
       debugPrint('Error granting audit submit poin: $e');
     }
   }
 
-  /// Beri bonus poin per tema (100%) dan full (semua 100%) ke PIC lokasi yang diaudit.
-  /// HANYA diberikan jika SELURUH jawaban di result ini adalah Yes (tidak ada satupun No).
   Future<List<Map<String, dynamic>>> _grantBonusPoin({
     required String userId,
     required String idResult,
   }) async {
     final List<Map<String, dynamic>> granted = [];
     try {
-      // ── Guard: jika ada satu saja jawaban No → skip semua bonus tema & full ──
       final hasAnyNo = _answers.values.any((ans) => ans == false);
       if (hasAnyNo) return granted;
 
@@ -732,7 +708,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       }
       if (cfg.isEmpty) return granted;
 
-      // ── Ambil id_pic dari lokasi yang diaudit ──
       final levelType = widget.levelType;
       final idRef     = widget.idRef;
       final nameCol   = 'nama_$levelType';
@@ -747,7 +722,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       final picId = levelRow?['id_pic']?.toString();
       if (picId == null) return granted;
 
-      // ── Hitung skor per tema (di sini pasti semua Yes karena guard di atas) ──
       final Map<String, List<bool>> temaAnswers = {};
       for (final q in _questions) {
         final id  = q['id_question'].toString();
@@ -757,7 +731,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
         temaAnswers.putIfAbsent(temaId, () => []).add(ans);
       }
 
-      // Map temaId → nama tema
       final Map<String, String> temaNames = {};
       for (final t in _temas) {
         final id = t['id_tema'].toString();
@@ -772,14 +745,12 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
         temaNames[id] = name;
       }
 
-      // Karena sudah dipastikan tidak ada No, semua tema pasti 100%
       bool allTema100 = temaAnswers.isNotEmpty;
       final List<Map<String, dynamic>> logEntries = [];
 
       for (final entry in temaAnswers.entries) {
         final temaId  = entry.key;
         final answers = entry.value;
-        // Double-check: semua harus Yes
         final allYes  = answers.every((a) => a == true);
         if (!allYes) {
           allTema100 = false;
@@ -798,7 +769,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
             'poin':           temaCfg['poin'] as int,
             'deskripsi':      deskripsi,
             'tipe_aktivitas': 'audit_bonus_tema',
-            'id_result':      idResult, // ── TAMBAHKAN INI ──
+            'id_result':      idResult,
           });
           granted.add({'poin': temaCfg['poin'] as int, 'deskripsi': deskripsi});
         }
@@ -815,7 +786,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
           'poin':           fullCfg['poin'] as int,
           'deskripsi':      deskripsi,
           'tipe_aktivitas': 'audit_bonus_full',
-          'id_result':      idResult, // ── TAMBAHKAN INI ──
+          'id_result':      idResult,
         });
         granted.add({'poin': fullCfg['poin'] as int, 'deskripsi': deskripsi});
       }
@@ -843,131 +814,264 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       label = _t('Poor', 'Kurang', '较差');
     }
 
-    // Apakah ada jawaban No (belum 100%)
+    IconData tierIcon;
+    if (score >= 80) {
+      tierIcon = Icons.emoji_events_rounded;
+    } else if (score >= 60) {
+      tierIcon = Icons.thumb_up_rounded;
+    } else {
+      tierIcon = Icons.report_problem_rounded;
+    }
+
     final hasNoAnswer = _answers.values.any((v) => v == false);
 
     showDialog(
       context: context,
-      // ── PERUBAHAN: popup bisa ditutup dengan klik di luar area ──
       barrierDismissible: true,
       builder: (dialogContext) {
-        // ── PERUBAHAN: auto-tutup popup 5 detik setelah muncul ──
         Future.delayed(const Duration(seconds: 5), () {
           try {
             if (Navigator.of(dialogContext).canPop()) {
               Navigator.of(dialogContext).pop();
             }
           } catch (_) {
-            // Popup sudah ditutup lebih dulu (klik luar / tombol) — aman diabaikan
           }
         });
 
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          contentPadding: const EdgeInsets.all(24),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 80, height: 80,
-                  decoration: BoxDecoration(
-                      color: color.withValues(alpha:0.12), shape: BoxShape.circle),
-                  child: Center(
-                    child: Text(
-                      '${score.toStringAsFixed(0)}%',
-                      style: GoogleFonts.poppins(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: color),
-                    ),
-                  ),
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  // ── PERUBAHAN: urutan parameter (en, id, zh) diperbaiki ──
-                  _t('Audit Completed!', 'Audit Selesai!', '审计完成！'),
-                  style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: _textMain),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${widget.locationName} — $label',
-                  style: GoogleFonts.poppins(fontSize: 13, color: _textSub),
-                  textAlign: TextAlign.center,
-                ),
-
-                // ── Info jika ada jawaban No: poin menunggu perbaikan ──
-                if (hasNoAnswer) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      // ── PERUBAHAN: background dibuat putih saja ──
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _amber.withValues(alpha:0.3)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.info_outline_rounded,
-                            size: 15, color: Color(0xFFF59E0B)),
-                        const SizedBox(width: 8),
-                        Expanded(
+              ],
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: 92, height: 92,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              color.withValues(alpha: 0.16),
+                              color.withValues(alpha: 0.06),
+                            ],
+                          ),
+                          border: Border.all(color: color.withValues(alpha: 0.35), width: 1.5),
+                        ),
+                        child: Center(
                           child: Text(
-                            // ── PERUBAHAN: urutan parameter (en, id, zh) diperbaiki ──
-                            _t(
-                              'Some findings are pending. Overall points will be '
-                              'shown after PIC replies and you confirm all fixes.',
-                              'Masih ada temuan yang belum selesai. '
-                              'Poin keseluruhan akan ditampilkan setelah PIC membalas '
-                              'dan Anda mengkonfirmasi semua perbaikan.',
-                              '存在待处理发现。PIC回复并您确认所有修复后将显示总积分。',
-                            ),
+                            '${score.toStringAsFixed(0)}%',
                             style: GoogleFonts.poppins(
-                                fontSize: 11, color: _amber),
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                color: color),
                           ),
                         ),
-                      ],
+                      ),
+                      Positioned(
+                        right: -4, bottom: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2.5),
+                          ),
+                          child: Icon(tierIcon, size: 15, color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    _t('Audit Completed!', 'Audit Selesai!', '审计完成！'),
+                    style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: _textMain),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      Icon(_locationLevelIcon, size: 13, color: _locationLevelColor),
+                      Text(
+                        widget.locationName,
+                        style: GoogleFonts.poppins(
+                            fontSize: 13, fontWeight: FontWeight.w600, color: _locationLevelColor),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(label,
+                            style: GoogleFonts.poppins(
+                                fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 18),
+                  Container(height: 1, color: _divider),
+                  const SizedBox(height: 18),
+
+                  if (hasNoAnswer)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: _amber.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: _amber.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: _amber.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: const Icon(Icons.hourglass_top_rounded,
+                                size: 15, color: Color(0xFFF59E0B)),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _t('Points Pending', 'Poin Tertunda', '积分待定'),
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFFB45309)),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  _t(
+                                    'Some findings are pending. Bonus points will be granted after PIC replies and you confirm all fixes.',
+                                    'Masih ada temuan yang belum selesai. Poin bonus akan diberikan setelah PIC membalas dan Anda mengkonfirmasi semua perbaikan.',
+                                    '存在待处理发现。PIC回复并您确认所有修复后将授予奖励积分。',
+                                  ),
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: const Color(0xFF92400E),
+                                      height: 1.4),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: _green.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: _green.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: _green.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: const Icon(Icons.celebration_rounded,
+                                size: 15, color: Color(0xFF10B981)),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _t('All Items Passed', 'Semua Item Lulus', '全部通过'),
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF047857)),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  _t(
+                                    'Great job! Bonus points have been granted to the PIC right away.',
+                                    'Kerja bagus! Poin bonus langsung diberikan ke PIC.',
+                                    '干得好！奖励积分已立即授予PIC。',
+                                  ),
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: const Color(0xFF065F46),
+                                      height: 1.4),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(dialogContext);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: color,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                          _t('Done', 'Selesai', '完成'),
+                          style: GoogleFonts.poppins(
+                              fontSize: 14.5, fontWeight: FontWeight.w700)),
                     ),
                   ),
                 ],
-
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      // ── PERUBAHAN: cukup tutup dialog di sini,
-                      // navigasi balik ditangani setelah dialog selesai (lihat .then di bawah) ──
-                      Navigator.pop(dialogContext);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: color,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                    ),
-                    child: Text(
-                        // ── PERUBAHAN: urutan parameter (en, id, zh) diperbaiki ──
-                        _t('Done', 'Selesai', '完成'),
-                        style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w700)),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         );
       },
     ).then((_) {
-      // ── PERUBAHAN: baru kembali ke screen sebelumnya SETELAH popup tertutup,
-      // konsisten untuk semua cara menutup (tombol / klik luar / auto 5 detik) ──
       if (mounted) Navigator.pop(context);
     });
   }
@@ -1030,7 +1134,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                 )
               : Column(
                   children: [
-                    // ── Selfie banner ──
+                    // SELFIE EVIDENCE BANNER
                     if (_selfieUrl != null)
                       _SelfieEvidenceBanner(
                         selfieUrl: _selfieUrl!,
@@ -1041,7 +1145,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                         onRetake: (newUrl) => setState(() => _selfieUrl = newUrl),
                       ),
 
-                    // ── Progress header ──
+                    // PROGRESS BAR & SCORE
                     Container(
                       color: Colors.white,
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -1052,11 +1156,11 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                             children: [
                               Text(
                                 '$_answeredCount / $total ${_t('answered', 'dijawab', '已回答')}',
-                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _textSub),
+                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black),
                               ),
                               Text(
                                 '${_score.toStringAsFixed(0)}%',
-                                style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: _primary),
+                                style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: _scoreColor(_score)),
                               ),
                             ],
                           ),
@@ -1066,7 +1170,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                             child: LinearProgressIndicator(
                               value: progress,
                               backgroundColor: Colors.grey.shade200,
-                              valueColor: const AlwaysStoppedAnimation<Color>(_primary),
+                              valueColor: AlwaysStoppedAnimation<Color>(_scoreColor(_score)),
                               minHeight: 6,
                             ),
                           ),
@@ -1075,7 +1179,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                     ),
                     const Divider(height: 1),
 
-                    // ── Scrollable content ──
+                    // SCROLLABLE CONTENT
                     Expanded(
                       child: ListView(
                         controller: _scrollCtrl,
@@ -1085,7 +1189,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                     ),
                   ],
                 ),
-      // ── Submit button fixed di bawah ──
       bottomNavigationBar: _loading || _questions.isEmpty
           ? null
           : Container(
@@ -1094,11 +1197,11 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Catatan akhir
+                  // ADDITIONAL NOTES
                   TextField(
                     controller: _finalNoteCtrl,
                     maxLines: 2,
-                    style: GoogleFonts.poppins(fontSize: 13),
+                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black),
                     decoration: InputDecoration(
                       hintText: _t('Additional notes (optional)…', 'Catatan tambahan (opsional)…', '补充备注（可选）…'),
                       hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
@@ -1108,17 +1211,30 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _divider)),
                       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _divider)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _primary, width: 1.5)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF1D72F3), width: 1.5)),
                     ),
                   ),
                   const SizedBox(height: 10),
                   if (!_allAnswered)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _amber.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _amber.withValues(alpha: 0.35), width: 1.2),
+                      ),
                       child: Row(
                         children: [
-                          const Icon(Icons.info_outline_rounded, size: 14, color: _amber),
-                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: _amber.withValues(alpha: 0.18),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.info_outline_rounded, size: 14, color: _amber),
+                          ),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               _t(
@@ -1126,7 +1242,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                                 'Jawab semua pertanyaan untuk mengirim.',
                                 '回答所有问题后即可提交。',
                               ),
-                              style: GoogleFonts.poppins(fontSize: 11, color: _amber),
+                              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFFB45309)),
                             ),
                           ),
                         ],
@@ -1161,8 +1277,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     );
   }
 
-  // ── Skeleton shimmer saat data pertanyaan belum termuat.
-  // Muncul instan sejak frame pertama (tanpa spinner kosong di tengah). ──
   Widget _buildLoadingShimmer() {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
@@ -1228,7 +1342,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   List<Widget> _buildContent() {
     final List<Widget> widgets = [];
 
-    // Group pertanyaan per tema
     final Map<String, List<Map<String, dynamic>>> grouped = {};
     final List<Map<String, dynamic>> noTema = [];
     for (final q in _questions) {
@@ -1240,30 +1353,25 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       }
     }
 
-    // Render per tema sesuai urutan _temas
-    // ── PERUBAHAN: hanya tampilkan tema berikutnya jika tema sebelumnya sudah semua terjawab ──
-    bool previousTemaDone = true; // tema pertama selalu boleh tampil
+    bool previousTemaDone = true;
 
     for (final tema in _temas) {
       final temaId = tema['id_tema'].toString();
       final temaQs = grouped[temaId];
       if (temaQs == null || temaQs.isEmpty) continue;
 
-      // Hanya tampilkan tema ini jika tema sebelumnya sudah selesai semua
       if (!previousTemaDone) break;
 
       widgets.add(_buildTemaHeader(tema, temaQs));
       widgets.addAll(_buildTemaQuestions(temaQs));
       widgets.add(const SizedBox(height: 8));
 
-      // Cek apakah tema ini sudah selesai semua untuk menentukan boleh tampilkan tema berikutnya
       final temaAllDone = temaQs.every(
         (q) => _isQuestionComplete(q['id_question'].toString()),
       );
       previousTemaDone = temaAllDone;
     }
 
-    // Pertanyaan tanpa tema — tampil hanya jika semua tema sebelumnya selesai
     if (previousTemaDone && noTema.isNotEmpty) {
       widgets.add(_buildNoTemaHeader());
       widgets.addAll(_buildTemaQuestions(noTema));
@@ -1301,12 +1409,19 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
               ),
             ),
           ),
-          Text(
-            '$answered/${qs.length}',
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: isDone ? _green : _textSub,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: (isDone ? _green : _primary).withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '$answered/${qs.length}',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDone ? _green : _primary,
+              ),
             ),
           ),
         ],
@@ -1339,8 +1454,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   List<Widget> _buildTemaQuestions(List<Map<String, dynamic>> qs) {
     final List<Widget> result = [];
     for (int i = 0; i < qs.length; i++) {
-      // ── PERUBAHAN: dalam satu tema, pertanyaan muncul satu per satu ──
-      // Pertanyaan ke-i visible jika pertanyaan ke-(i-1) sudah complete
       final visible = _isVisible(qs, i);
       if (!visible) break;
       result.add(_buildQuestionCard(qs[i], i + 1));
@@ -1376,7 +1489,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header pertanyaan ──
+            // QUESTION HEADER
             Padding(
               padding: const EdgeInsets.all(14),
               child: Row(
@@ -1405,14 +1518,14 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                   Expanded(
                     child: Text(
                       _questionText(q),
-                      style: GoogleFonts.poppins(fontSize: 13.5, fontWeight: FontWeight.w600, color: _textMain),
+                      style: GoogleFonts.poppins(fontSize: 13.5, fontWeight: FontWeight.w700, color: const Color(0xFF1D72F3)),
                     ),
                   ),
                 ],
               ),
             ),
 
-            // ── Tombol Yes / No ──
+            // YES / NO BUTTONS
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
               child: Row(
@@ -1480,7 +1593,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
               ),
             ),
 
-            // ── Evidence section jika No ──
+            // EVIDENCE SECTION IF NO
             if (isNo) ...[
               Container(
                 margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
@@ -1494,15 +1607,20 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                      const Icon(Icons.error_outline_rounded, size: 14, color: _red),
+                      const Icon(Icons.camera_alt_rounded, size: 14, color: Color(0xFF1D72F3)),
                       const SizedBox(width: 5),
                       Text(
-                        _t('Evidence Required', 'Bukti Wajib Dilampirkan', '需要提供证据'),
-                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _red),
+                        _t('Evidence Photo', 'Foto Bukti', '证据照片'),
+                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF1D72F3)),
+                      ),
+                      const SizedBox(width: 3),
+                      const Text(
+                        '*',
+                        style: TextStyle(color: _red, fontWeight: FontWeight.bold, fontSize: 14),
                       ),
                     ]),
                     const SizedBox(height: 10),
-                    // Upload foto
+                    // UPLOAD PHOTO
                     if (evidenceFile == null)
                       GestureDetector(
                         onTap: () => _captureEvidence(id, _questionText(q)),
@@ -1594,13 +1712,22 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                         ),
                       ]),
                     const SizedBox(height: 10),
-                    Text(_t('Notes', 'Catatan', '备注'),
-                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _textSub)),
+                    Row(children: [
+                      const Icon(Icons.edit_note_rounded, size: 15, color: Color(0xFF1D72F3)),
+                      const SizedBox(width: 5),
+                      Text(_t('Auditor Notes', 'Catatan Auditor', '审核员备注'),
+                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF1D72F3))),
+                      const SizedBox(width: 3),
+                      const Text(
+                        '*',
+                        style: TextStyle(color: _red, fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ]),
                     const SizedBox(height: 5),
                     TextField(
                       controller: noteCtrl,
                       maxLines: 3,
-                      style: GoogleFonts.poppins(fontSize: 13),
+                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black),
                       onChanged: (_) {
                         setState(() {});
                         _requestAutoScroll(id, delayMs: 450);
@@ -1614,7 +1741,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _divider)),
                         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _divider)),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _primary, width: 1.5)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFF1D72F3), width: 1.5)),
                       ),
                     ),
                   ],
@@ -1622,7 +1749,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
               ),
             ],
 
-            // ── Hint jika Yes ──
             if (isYes)
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
@@ -1642,7 +1768,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   }
 }
 
-/// Banner selfie — sekarang bisa diklik untuk membuka popup detail + retake.
 class _SelfieEvidenceBanner extends StatelessWidget {
   final String selfieUrl;
   final String lang;

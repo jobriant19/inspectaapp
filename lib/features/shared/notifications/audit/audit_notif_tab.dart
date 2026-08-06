@@ -30,12 +30,10 @@ class _AuditNotifTabState extends State<AuditNotifTab>
   DateTime _filterFrom = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime _filterTo = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
-  // NEW: state pagination — 7 card per halaman
   int _currentPage = 1;
   static const int _perPage = 7;
 
   static const _blue = Color(0xFF1D4ED8);
-  // NEW: warna khusus tombol pilih periode & popup kalender
   static const _periodBlue = Color(0xFF1D72F3);
 
   @override
@@ -114,7 +112,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
             .select(
               'id_result, level_type, id_ref, tanggal_audit, nilai_audit, '
               'nilai_final, is_finalized, catatan_audit, created_at, '
-              'Auditor:User!fk_audit_result_auditor(nama), '
+              'Auditor:User!fk_audit_result_auditor(nama, gambar_user), '
               'Schedule:audit_schedule!fk_audit_result_schedule(periode_mulai, periode_selesai)',
             )
             .eq('level_type', ref['level']!)
@@ -213,7 +211,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
   void _applyFilter(String query) {
     setState(() {
       _searchQuery = query;
-      _currentPage = 1; // NEW: reset ke halaman 1 setiap kali search berubah
+      _currentPage = 1;
       final q = query.toLowerCase().trim();
       if (q.isEmpty) {
         _filtered = List.from(_allItems);
@@ -228,7 +226,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     });
   }
 
-  // NEW: reset pencarian saja (dipakai tombol reset di search bar & empty state)
   void _resetSearch() {
     _searchCtrl.clear();
     _applyFilter('');
@@ -349,7 +346,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                 ]),
                 const SizedBox(height: 18),
 
-                // Kolom "Dari" — klik untuk buka kalender penuh
                 dateField(
                   label: _t('Dari', 'From', '从'),
                   labelIcon: Icons.play_circle_outline_rounded,
@@ -370,7 +366,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                 ),
                 const SizedBox(height: 16),
 
-                // Kolom "Sampai" — klik untuk buka kalender penuh
                 dateField(
                   label: _t('Sampai', 'To', '到'),
                   labelIcon: Icons.flag_circle_rounded,
@@ -425,7 +420,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     super.build(context);
     final periodLabel = '${_fmtFilterDate(_filterFrom)} – ${_fmtFilterDate(_filterTo)}';
 
-    // NEW: hitung pagination — 7 card per halaman
     final totalPages = _filtered.isEmpty ? 1 : (_filtered.length / _perPage).ceil();
     final safePage = _currentPage.clamp(1, totalPages);
     final startIdx = (safePage - 1) * _perPage;
@@ -527,7 +521,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                             ),
                           ),
                         ),
-                        // NEW: bottom page indicator — 7 card per halaman
                         if (totalPages > 1)
                           Padding(
                             padding: EdgeInsets.fromLTRB(
@@ -549,7 +542,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     );
   }
 
-  // NEW: empty state umum — tidak ada data audit sama sekali di periode ini
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -579,7 +571,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     );
   }
 
-  // NEW: empty state khusus saat pencarian tidak menemukan hasil
   Widget _buildSearchEmptyState() {
     return Center(
       child: SingleChildScrollView(
@@ -660,6 +651,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     final isPic = role == 'pic';
     final auditorData = item['Auditor'] as Map<String, dynamic>?;
     final auditorName = auditorData?['nama']?.toString() ?? '';
+    final auditorAvatar = auditorData?['gambar_user']?.toString();
 
     final noAnswers = answers.where((a) => a['jawaban'] == false).toList();
     final allNoConfirmed = noAnswers.isNotEmpty &&
@@ -669,7 +661,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
         });
 
     final effectiveScore = displayScore;
-    final effectiveScoreColor = _scoreColor(displayScore);
+    final effectiveScoreColor = isFinalized ? const Color(0xFFF59E0B) : _scoreColor(displayScore);
     final showScore = noAnswers.isEmpty || allNoConfirmed;
 
     final poinLogs = (item['_poin_logs'] as List<Map<String, dynamic>>?) ?? [];
@@ -700,20 +692,23 @@ class _AuditNotifTabState extends State<AuditNotifTab>
               offset: const Offset(0, 3)),
         ],
       ),
-      child: GestureDetector(
-        onTap: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AuditNotifDetailScreen(
-                item: item,
-                lang: widget.lang,
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AuditNotifDetailScreen(
+                  item: item,
+                  lang: widget.lang,
+                ),
               ),
-            ),
-          );
-          _fetch();
-        },
-        child: Stack(
+            );
+            _fetch();
+          },
+          child: Stack(
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 14, 92, 16),
@@ -743,10 +738,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                                     fontWeight: FontWeight.w800,
                                     color: effectiveScoreColor),
                               ),
-                              if (isFinalized || allNoConfirmed)
-                                Text(_t('Final', 'Final', '最终'),
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 8, color: effectiveScoreColor)),
                             ],
                           )
                         : Column(
@@ -770,7 +761,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // NEW: LOKASI SEBAGAI LABEL — icon + warna sesuai level
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                           decoration: BoxDecoration(
@@ -798,7 +788,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                           ),
                         ),
                         const SizedBox(height: 8),
-                        // NEW: TANGGAL LEBIH MENARIK
                         Row(children: [
                           Icon(Icons.schedule_rounded, size: 12, color: Colors.black),
                           const SizedBox(width: 4),
@@ -807,21 +796,24 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.black)),
-                          if (isPic && auditorName.isNotEmpty) ...[
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                '· ${_t('oleh', 'by', '由')} $auditorName',
-                                style: GoogleFonts.poppins(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey.shade500),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
                         ]),
+                        if (isPic && auditorName.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Row(children: [
+                            Icon(Icons.badge_rounded, size: 11, color: _blue),
+                            const SizedBox(width: 4),
+                            Text('${_t('Auditor', 'Auditor', '审计员')} :',
+                                style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: _blue)),
+                            const SizedBox(width: 5),
+                            _buildAuditorAvatar(auditorAvatar, size: 16),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(auditorName,
+                                  style: GoogleFonts.poppins(fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.black),
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ),
+                          ]),
+                        ],
                         if (!showScore) ...[
                           const SizedBox(height: 8),
                           Container(
@@ -854,7 +846,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                 ],
               ),
             ),
-            // NEW: LABEL AUDITOR/PIC — pojok kanan atas, poin di bawahnya
             Positioned(
               top: 14,
               right: 14,
@@ -922,19 +913,13 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                 ],
               ),
             ),
-            // NEW: PANAH — pojok kanan bawah saja
-            Positioned(
-              bottom: 10,
-              right: 10,
-              child: Icon(Icons.chevron_right_rounded, color: _blue, size: 20),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // NEW: helper warna & icon per level lokasi (konsisten dengan add_finding_flow_screen.dart)
   Color _levelColor(String levelType) {
     switch (levelType) {
       case 'lokasi':
@@ -964,11 +949,30 @@ class _AuditNotifTabState extends State<AuditNotifTab>
         return Icons.location_off_rounded;
     }
   }
+
+  Widget _buildAuditorAvatar(String? url, {double size = 18}) {
+    if (url != null && url.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(size / 2),
+        child: Image.network(
+          url,
+          width: size, height: size, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _defaultAuditorAvatar(size),
+        ),
+      );
+    }
+    return _defaultAuditorAvatar(size);
+  }
+
+  Widget _defaultAuditorAvatar(double size) {
+    return Container(
+      width: size, height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: _blue.withValues(alpha: 0.12)),
+      child: Icon(Icons.person_rounded, size: size * 0.65, color: _blue),
+    );
+  }
 }
 
-// ══════════════════════════════════════════════════════════════
-// NEW: indikator halaman bawah — 7 card per halaman
-// ══════════════════════════════════════════════════════════════
 class _AuditPageIndicator extends StatelessWidget {
   final int currentPage;
   final int totalPages;
