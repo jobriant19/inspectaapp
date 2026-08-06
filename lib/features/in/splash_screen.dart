@@ -65,6 +65,27 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
+  Future<List<Map<String, dynamic>>> _fetchOnboardingSlides() async {
+    try {
+      final res = await Supabase.instance.client
+          .from('onboarding_slides')
+          .select()
+          .order('sort_order');
+      final slides = List<Map<String, dynamic>>.from(res);
+      if (mounted) {
+        await Future.wait(slides.map((s) {
+          final url = s['image_url'] as String?;
+          if (url == null || url.isEmpty) return Future.value();
+          return precacheImage(CachedNetworkImageProvider(url), context).catchError((_) {});
+        }));
+      }
+      return slides;
+    } catch (e) {
+      debugPrint('Splash fetch onboarding slides error: $e');
+      return [];
+    }
+  }
+
   Future<VoidCallback> _resolveDestination() async {
     try {
       final session = Supabase.instance.client.auth.currentSession;
@@ -83,6 +104,9 @@ class _SplashScreenState extends State<SplashScreen> {
         await precacheImage(CachedNetworkImageProvider(brandLogoUrl), context)
             .catchError((_) {});
       }
+
+      final List<Map<String, dynamic>> onboardingSlides =
+          onboardingDone ? [] : await _fetchOnboardingSlides();
 
       return onboardingDone
           ? () => Navigator.pushReplacement(
@@ -103,6 +127,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 initialTaglineId: branding?['tagline'] as String?,
                 initialTaglineEn: branding?['tagline_en'] as String?,
                 initialTaglineZh: branding?['tagline_zh'] as String?,
+                initialSlides: onboardingSlides.isEmpty ? null : onboardingSlides,
               )));
     } catch (e) {
       debugPrint('SplashScreen resolve error: $e');
@@ -398,7 +423,7 @@ class _SplashScreenState extends State<SplashScreen> {
               left: 0,
               child: IgnorePointer(
                 child: Opacity(
-                  opacity: 0.02,
+                  opacity: 0.0,
                   child: SizedBox(
                     width: 1,
                     height: 1,
@@ -477,19 +502,21 @@ class _SplashScreenState extends State<SplashScreen> {
               bottom: 0,
               left: 0,
               right: 0,
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0.0, end: 1.0),
-                duration: const Duration(milliseconds: 1400),
-                curve: Curves.easeOutCubic,
-                builder: (_, value, child) => Transform.translate(
-                  offset: Offset(0, size.height * 0.25 * (1 - value)),
-                  child: Opacity(opacity: value.clamp(0.0, 1.0), child: child),
-                ),
-                child: Image.asset(
-                  'assets/images/character.png',
-                  fit: BoxFit.fitWidth,
-                  width: size.width * 0.78,
-                  errorBuilder: (_, __, ___) => const SizedBox(),
+              child: Center(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 1400),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, value, child) => Transform.translate(
+                    offset: Offset(0, size.height * 0.25 * (1 - value)),
+                    child: Opacity(opacity: value.clamp(0.0, 1.0), child: child),
+                  ),
+                  child: Image.asset(
+                    'assets/images/character.png',
+                    fit: BoxFit.contain,
+                    height: size.height * 0.42,
+                    errorBuilder: (_, __, ___) => const SizedBox(),
+                  ),
                 ),
               ),
             ),
@@ -509,7 +536,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
                 child: Image(
                   image: const AssetImage('assets/images/logo1.png'),
-                  width: size.width * 0.52,
+                  width: size.width * 0.68,
                   fit: BoxFit.contain,
                   gaplessPlayback: true,
                   errorBuilder: (_, __, ___) =>

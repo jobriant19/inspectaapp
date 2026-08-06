@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'about/admin_about_screen.dart';
 import 'news/admin_news_screen.dart';
+import 'onboarding/admin_onboarding_settings.dart';
 import 'privacy/admin_privacy_policy.dart';
 import 'terms/admin_terms_conditions.dart';
 
@@ -20,6 +21,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   Map<String, dynamic>? _cachedAppInfo;
   Map<String, List<Map<String, dynamic>>> _cachedLegal = {};
   List<Map<String, dynamic>> _cachedNews = [];
+  List<Map<String, dynamic>> _cachedOnboarding = [];
 
   @override
   void initState() {
@@ -27,6 +29,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     _prefetchAppInfo();
     _prefetchLegal();
     _prefetchNews();
+    _prefetchOnboarding();
   }
 
   Future<void> _prefetchAppInfo() async {
@@ -76,6 +79,20 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     }
   }
 
+  Future<void> _prefetchOnboarding() async {
+    try {
+      final res = await Supabase.instance.client
+          .from('onboarding_slides')
+          .select()
+          .order('sort_order');
+      if (mounted) {
+        setState(() => _cachedOnboarding = List<Map<String, dynamic>>.from(res));
+      }
+    } catch (e) {
+      debugPrint('Prefetch onboarding error: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     PageRoute<T> slideRoute<T>(Widget screen) {
@@ -118,6 +135,30 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
             )),
           );
           _prefetchAppInfo();
+        },
+      ),
+      _SettingMenu(
+        title: widget.lang == 'EN'
+            ? 'Onboarding Slides'
+            : widget.lang == 'ZH'
+                ? '引导页幻灯片'
+                : 'Slide Onboarding',
+        subtitle: widget.lang == 'EN'
+            ? 'Manage welcome onboarding slides'
+            : widget.lang == 'ZH'
+                ? '管理欢迎引导页幻灯片'
+                : 'Kelola slide onboarding selamat datang',
+        icon: Icons.slideshow_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () async {
+          await Navigator.push(
+            context,
+            slideRoute(AdminOnboardingSettingsScreen(
+              lang: widget.lang,
+              initialData: _cachedOnboarding.isEmpty ? null : _cachedOnboarding,
+            )),
+          );
+          _prefetchOnboarding();
         },
       ),
       _SettingMenu(

@@ -1,9 +1,98 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../auth/login_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+class _OnboardingSlide {
+  final String? imageUrl;
+  final String? assetPath;
+  final Map<String, String> title;
+  final Map<String, String> desc;
+  final int sortOrder;
+
+  const _OnboardingSlide({
+    this.imageUrl,
+    this.assetPath,
+    required this.title,
+    required this.desc,
+    this.sortOrder = 0,
+  });
+
+  factory _OnboardingSlide.fromDb(Map<String, dynamic> row) {
+    return _OnboardingSlide(
+      imageUrl: row['image_url'] as String?,
+      title: {
+        'id': (row['title_id'] ?? '').toString(),
+        'en': (row['title_en'] ?? '').toString(),
+        'zh': (row['title_zh'] ?? '').toString(),
+      },
+      desc: {
+        'id': (row['description_id'] ?? '').toString(),
+        'en': (row['description_en'] ?? '').toString(),
+        'zh': (row['description_zh'] ?? '').toString(),
+      },
+      sortOrder: (row['sort_order'] as int?) ?? 0,
+    );
+  }
+}
+
+const List<_OnboardingSlide> _kDefaultSlides = [
+  _OnboardingSlide(
+    assetPath: 'assets/images/onboarding1.png',
+    title: {
+      'id': 'Selamat Datang di Inspecta',
+      'en': 'Welcome to Inspecta',
+      'zh': '欢迎来到 Inspecta',
+    },
+    desc: {
+      'id': 'Pantau, laporkan, dan selesaikan masalah dengan disiplin dan efisien.',
+      'en': 'Monitor, report, and resolve issues with discipline and efficiency.',
+      'zh': '有纪律、高效率地监控、报告和解决问题。',
+    },
+  ),
+  _OnboardingSlide(
+    assetPath: 'assets/images/onboarding2.png',
+    title: {
+      'id': 'Analitik Real-time',
+      'en': 'Real-time Analytics',
+      'zh': '实时分析',
+    },
+    desc: {
+      'id': 'Dapatkan wawasan instan dengan dasbor analitik canggih kami.',
+      'en': 'Get instant insights with our advanced analytics dashboard.',
+      'zh': '通过我们先进的分析仪表板即时获取洞察。',
+    },
+  ),
+  _OnboardingSlide(
+    assetPath: 'assets/images/onboarding3.png',
+    title: {
+      'id': 'Naiki Peringkat',
+      'en': 'Climb the Ranks',
+      'zh': '攀登排行榜',
+    },
+    desc: {
+      'id': 'Dapatkan poin untuk setiap tugas dan lihat nama Anda di papan peringkat.',
+      'en': 'Earn points for every task and see your name on the leaderboard.',
+      'zh': '每项任务都能获得积分，并在排行榜上看到您的名字。',
+    },
+  ),
+  _OnboardingSlide(
+    assetPath: 'assets/images/onboarding4.png',
+    title: {
+      'id': 'Rayakan Pencapaian',
+      'en': 'Celebrate Achievements',
+      'zh': '庆祝成就',
+    },
+    desc: {
+      'id': 'Buka hadiah dan rayakan pencapaian bersama tim Anda.',
+      'en': 'Unlock rewards and celebrate milestones with your team.',
+      'zh': '解锁奖励，与团队一起庆祝里程碑。',
+    },
+  ),
+];
 
 class OnboardingScreen extends StatefulWidget {
   final String? initialAppName;
@@ -11,6 +100,7 @@ class OnboardingScreen extends StatefulWidget {
   final String? initialTaglineId;
   final String? initialTaglineEn;
   final String? initialTaglineZh;
+  final List<Map<String, dynamic>>? initialSlides;
 
   const OnboardingScreen({
     super.key,
@@ -19,6 +109,7 @@ class OnboardingScreen extends StatefulWidget {
     this.initialTaglineId,
     this.initialTaglineEn,
     this.initialTaglineZh,
+    this.initialSlides,
   });
 
   @override
@@ -33,20 +124,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   bool _isDialogOpen = false;
 
+  late List<_OnboardingSlide> _slides;
+
   @override
   void initState() {
     super.initState();
+    _slides = (widget.initialSlides != null && widget.initialSlides!.isNotEmpty)
+        ? (widget.initialSlides!.map((e) => _OnboardingSlide.fromDb(e)).toList()
+          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)))
+        : List.of(_kDefaultSlides);
     _startAutoSlideTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) => _warmUpAssets());
   }
+
   Future<void> _warmUpAssets() async {
     if (!mounted) return;
-    await Future.wait([
-      precacheImage(const AssetImage('assets/images/onboarding1.png'), context).catchError((_) {}),
-      precacheImage(const AssetImage('assets/images/onboarding2.png'), context).catchError((_) {}),
-      precacheImage(const AssetImage('assets/images/onboarding3.png'), context).catchError((_) {}),
-      precacheImage(const AssetImage('assets/images/onboarding4.png'), context).catchError((_) {}),
-    ]);
+    final futures = <Future<void>>[];
+    for (final s in _slides) {
+      if (s.assetPath != null) {
+        futures.add(precacheImage(AssetImage(s.assetPath!), context).catchError((_) {}));
+      } else if (s.imageUrl != null && s.imageUrl!.isNotEmpty) {
+        futures.add(precacheImage(CachedNetworkImageProvider(s.imageUrl!), context).catchError((_) {}));
+      }
+    }
+    await Future.wait(futures);
   }
 
   void _startAutoSlideTimer() {
@@ -57,14 +158,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       }
       try {
         final int actualPage = _pageController.page?.round() ?? _currentPage;
-        final int nextPage = actualPage < 3 ? actualPage + 1 : 0;
+        final int lastIndex = _slides.length - 1;
+        final int nextPage = actualPage < lastIndex ? actualPage + 1 : 0;
         _pageController.animateToPage(
           nextPage,
           duration: const Duration(milliseconds: 500),
           curve: Curves.easeIn,
         );
-      } catch (_) {
-      }
+      } catch (_) {}
     });
   }
 
@@ -75,48 +176,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
-  final Map<String, Map<String, String>> _onboardingText = {
+  static const Map<String, Map<String, String>> _uiText = {
     'EN': {
-      'title1': 'Welcome to Inspecta',
-      'desc1': 'Monitor, report, and resolve issues with discipline and efficiency.',
-      'title2': 'Real-time Analytics',
-      'desc2': 'Get instant insights with our advanced analytics dashboard.',
-      'title3': 'Climb the Ranks',
-      'desc3': 'Earn points for every task and see your name on the leaderboard.',
-      'title4': 'Celebrate Achievements',
-      'desc4': 'Unlock rewards and celebrate milestones with your team.',
       'get_started': 'Get Started',
       'skip': 'Skip',
       'next': 'Next',
-      'select_language': 'Select Language'
+      'select_language': 'Select Language',
     },
     'ID': {
-      'title1': 'Selamat Datang di Inspecta',
-      'desc1': 'Pantau, laporkan, dan selesaikan masalah dengan disiplin dan efisien.',
-      'title2': 'Analitik Real-time',
-      'desc2': 'Dapatkan wawasan instan dengan dasbor analitik canggih kami.',
-      'title3': 'Naiki Peringkat',
-      'desc3': 'Dapatkan poin untuk setiap tugas dan lihat nama Anda di papan peringkat.',
-      'title4': 'Rayakan Pencapaian',
-      'desc4': 'Buka hadiah dan rayakan pencapaian bersama tim Anda.',
       'get_started': 'Mulai',
       'skip': 'Lewati',
       'next': 'Berikutnya',
-      'select_language': 'Pilih Bahasa'
+      'select_language': 'Pilih Bahasa',
     },
     'ZH': {
-      'title1': '欢迎来到 Inspecta',
-      'desc1': '有纪律、高效率地监控、报告和解决问题。',
-      'title2': '实时分析',
-      'desc2': '通过我们先进的分析仪表板即时获取洞察。',
-      'title3': '攀登排行榜',
-      'desc3': '每项任务都能获得积分，并在排行榜上看到您的名字。',
-      'title4': '庆祝成就',
-      'desc4': '解锁奖励，与团队一起庆祝里程碑。',
       'get_started': '开始使用',
       'skip': '跳过',
       'next': '下一步',
-      'select_language': '选择语言'
+      'select_language': '选择语言',
     },
   };
 
@@ -176,31 +253,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  String getTxt(String key) => _onboardingText[_selectedLanguage]![key] ?? key;
+  String getTxt(String key) => _uiText[_selectedLanguage]?[key] ?? _uiText['EN']![key]!;
 
   List<Widget> _buildPages() {
-    return [
-      _buildPage(
-        imagePath: 'assets/images/onboarding1.png',
-        title: getTxt('title1'),
-        description: getTxt('desc1'),
-      ),
-      _buildPage(
-        imagePath: 'assets/images/onboarding2.png',
-        title: getTxt('title2'),
-        description: getTxt('desc2'),
-      ),
-      _buildPage(
-        imagePath: 'assets/images/onboarding3.png',
-        title: getTxt('title3'),
-        description: getTxt('desc3'),
-      ),
-      _buildPage(
-        imagePath: 'assets/images/onboarding4.png',
-        title: getTxt('title4'),
-        description: getTxt('desc4'),
-      ),
-    ];
+    final langKey = _selectedLanguage.toLowerCase();
+    return List.generate(_slides.length, (i) {
+      final s = _slides[i];
+      return _buildPage(
+        imageUrl: s.imageUrl,
+        assetPath: s.assetPath,
+        title: s.title[langKey] ?? s.title['en'] ?? '',
+        description: s.desc[langKey] ?? s.desc['en'] ?? '',
+        isFirst: i == 0,
+      );
+    });
   }
 
   void _navigateToLogin() async {
@@ -399,7 +465,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             left: 0,
             child: IgnorePointer(
               child: Opacity(
-                opacity: 0.02,
+                opacity: 0.0,
                 child: SizedBox(
                   width: 1,
                   height: 1,
@@ -465,13 +531,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     final int page = _pageController.hasClients
                         ? (_pageController.page?.round() ?? _currentPage)
                         : _currentPage;
+                    final int lastIndex = _slides.length - 1;
                     return Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: List.generate(
-                            4,
+                            _slides.length,
                             (index) => _buildDot(index: index, currentPage: page),
                           ),
                         ),
@@ -499,7 +566,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               ),
                             ),
                             onPressed: () {
-                              if (page == 3) {
+                              if (page == lastIndex) {
                                 _navigateToLogin();
                               } else {
                                 _pageController.nextPage(
@@ -509,7 +576,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               }
                             },
                             child: Text(
-                              page == 3 ? getTxt('get_started') : getTxt('next'),
+                              page == lastIndex ? getTxt('get_started') : getTxt('next'),
                               style: _localizedStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -533,14 +600,35 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildPage({required String imagePath, required String title, required String description}) {
+  Widget _buildPage({
+    String? imageUrl,
+    String? assetPath,
+    required String title,
+    required String description,
+    bool isFirst = false,
+  }) {
+    final double imgHeight = isFirst ? 300 : 250;
+    final Widget image = (imageUrl != null && imageUrl.isNotEmpty)
+        ? CachedNetworkImage(
+            imageUrl: imageUrl,
+            height: imgHeight,
+            fit: BoxFit.contain,
+            placeholder: (c, u) => SizedBox(height: imgHeight),
+            errorWidget: (c, u, e) => Icon(Icons.image, size: imgHeight * 0.8, color: Colors.grey),
+          )
+        : Image.asset(
+            assetPath ?? 'assets/images/onboarding1.png',
+            height: imgHeight,
+            errorBuilder: (c, e, s) => Icon(Icons.image, size: imgHeight * 0.8, color: Colors.grey),
+          );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 40),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.asset(imagePath, height: 250, errorBuilder: (c,e,s) => const Icon(Icons.image, size: 200, color: Colors.grey)),
-          const SizedBox(height: 40),
+          image,
+          SizedBox(height: isFirst ? 28 : 40),
           Text(
             title,
             textAlign: TextAlign.center,
@@ -551,7 +639,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             description,
             textAlign: TextAlign.center,
             style: _localizedStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.grey, height: 1.5),
-          ),        ],
+          ),
+        ],
       ),
     );
   }
