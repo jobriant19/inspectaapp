@@ -302,7 +302,7 @@ class NewsDetailScreen extends StatelessWidget {
                                 color: Colors.black.withValues(alpha: 0.55),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.zoom_out_map_rounded,
+                              child: const Icon(Icons.fullscreen_rounded,
                                   size: 16, color: Colors.white),
                             ),
                           ),

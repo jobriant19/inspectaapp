@@ -140,7 +140,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
         ids.isNotEmpty
             ? _supabase
                 .from('audit_result')
-                .select('id_ref, nilai_audit, nilai_final, is_finalized, tanggal_audit')
+                .select('id_ref, id_schedule, nilai_audit, nilai_final, is_finalized, tanggal_audit')
                 .eq('level_type', 'lokasi')
                 .inFilter('id_ref', ids)
                 .order('tanggal_audit', ascending: false)
@@ -153,10 +153,14 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
             : Future.value(<dynamic>[]),
       ]);
 
-      final Map<String, Map<String, dynamic>> auditMap = {};
+      // NEW: simpan SEMUA baris audit per ref agar bisa dicocokkan dengan
+      // id_schedule milik jadwal yang sedang aktif — skor hanya tampil
+      // ketika berasal dari periode yang sama dengan periode/auditor/tipe
+      // audit yang ditampilkan.
+      final Map<String, List<Map<String, dynamic>>> auditListMap = {};
       for (final a in futures[0]) {
         final ref = a['id_ref'].toString();
-        if (!auditMap.containsKey(ref)) auditMap[ref] = a as Map<String, dynamic>;
+        auditListMap.putIfAbsent(ref, () => []).add(a as Map<String, dynamic>);
       }
 
       final Map<String, String> picMap = {};
@@ -166,16 +170,19 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
         picImageMap[p['id_user'].toString()] = p['gambar_user']?.toString();
       }
 
+      // NEW: hanya jadwal yang periode-nya sedang berlangsung hari ini
+      final todayStr = DateTime.now().toIso8601String().split('T').first;
       final scheduleRows = ids.isNotEmpty
           ? await _supabase
               .from('audit_schedule')
               .select(
-                  'id_ref, periode_mulai, periode_selesai, id_jenis_audit, '
+                  'id_schedule, id_ref, periode_mulai, periode_selesai, id_jenis_audit, '
                   'User_Auditor:User!fk_audit_schedule_auditor(nama, gambar_user), '
                   'JenisAudit:jenis_audit(nama_id, nama_en, nama_zh)')
               .eq('level_type', 'lokasi')
               .inFilter('id_ref', ids)
-              .eq('status', 'pending')
+              .lte('periode_mulai', todayStr)
+              .gte('periode_selesai', todayStr)
               .order('created_at', ascending: false)
           : <dynamic>[];
 
@@ -188,13 +195,15 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
 
       final items = rows.map<_LocationItem>((r) {
         final id = r['id_lokasi'].toString();
-        final audit = auditMap[id];
+        final auditList = auditListMap[id] ?? [];
+        final latestAuditRow = auditList.isNotEmpty ? auditList.first : null;
         final schedule = scheduleMap[id];
 
         String? schedulePeriode;
         String? scheduleAuditorName;
         String? scheduleAuditorImage;
         String? scheduleJenisAuditName;
+        Map<String, dynamic>? scopedAudit;
         if (schedule != null) {
           final mulai   = DateTime.tryParse(schedule['periode_mulai']?.toString() ?? '');
           final selesai = DateTime.tryParse(schedule['periode_selesai']?.toString() ?? '');
@@ -214,6 +223,16 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                     ? jenisData['nama_zh']?.toString()
                     : jenisData['nama_id']?.toString();
           }
+
+          // NEW: skor HANYA dari audit_result dengan id_schedule = jadwal aktif ini,
+          // supaya skor selalu berasal dari periode yang sama dengan yang tampil.
+          final idScheduleAktif = schedule['id_schedule']?.toString();
+          for (final a in auditList) {
+            if (a['id_schedule']?.toString() == idScheduleAktif) {
+              scopedAudit = a;
+              break;
+            }
+          }
         }
 
         return _LocationItem(
@@ -223,15 +242,15 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
           descriptionEn: r['deskripsi_lokasi_en']?.toString(),
           descriptionZh: r['deskripsi_lokasi_zh']?.toString(),
           imageUrl: r['gambar_lokasi']?.toString(),
-          latestScore: audit != null
-              ? double.tryParse(audit['nilai_audit']?.toString() ?? '')
+          latestScore: scopedAudit != null
+              ? double.tryParse(scopedAudit['nilai_audit']?.toString() ?? '')
               : null,
-          latestAuditDate: audit?['tanggal_audit']?.toString(),
+          latestAuditDate: latestAuditRow?['tanggal_audit']?.toString(),
           picName: r['id_pic'] != null ? picMap[r['id_pic'].toString()] : null,
           picImage: r['id_pic'] != null ? picImageMap[r['id_pic'].toString()] : null,
-          latestIsFinalized: audit?['is_finalized'] == true,
-          latestFinalScore: audit != null
-              ? double.tryParse(audit['nilai_final']?.toString() ?? '')
+          latestIsFinalized: scopedAudit?['is_finalized'] == true,
+          latestFinalScore: scopedAudit != null
+              ? double.tryParse(scopedAudit['nilai_final']?.toString() ?? '')
               : null,
           schedulePeriode: schedulePeriode,
           scheduleAuditorName: scheduleAuditorName,
@@ -523,12 +542,23 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
     );
   }
 
+  double _nameFontSize(String name) {
+    if (name.length > 32) return 12.5;
+    if (name.length > 22) return 13.5;
+    return 15;
+  }
+
   Widget _buildCard(_LocationItem item) {
     final rawScore = item.latestScore;
     final isFinalized = item.latestIsFinalized;
     final needsFix = rawScore != null && !isFinalized && rawScore < 100;
     final displayScore = isFinalized ? (item.latestFinalScore ?? rawScore) : rawScore;
     final scoreColor = isFinalized ? _C.amber : _scoreColor(rawScore);
+    final hasJenisAudit = item.scheduleJenisAuditName != null && item.scheduleJenisAuditName!.isNotEmpty;
+    final hasPic = item.picName != null && item.picName!.isNotEmpty;
+    final hasAuditor = item.scheduleAuditorName != null && item.scheduleAuditorName!.isNotEmpty;
+    final hasSchedule = item.schedulePeriode != null && item.schedulePeriode!.isNotEmpty;
+
     return GestureDetector(
       onTap: () => _showDetail(item),
       child: Container(
@@ -551,114 +581,85 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
             Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        AspectRatio(
-                          aspectRatio: 1,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: item.imageUrl != null && item.imageUrl!.isNotEmpty
-                                ? Image.network(item.imageUrl!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => _buildInitial(item.name))
-                                : _buildInitial(item.name),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(item.name,
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 15, fontWeight: FontWeight.w700, color: _C.green),
-                                  maxLines: 2, overflow: TextOverflow.ellipsis),
-                              if (item.picName != null) ...[
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 10,
-                                      backgroundColor: _C.green.withValues(alpha: 0.15),
-                                      backgroundImage: (item.picImage != null && item.picImage!.isNotEmpty)
-                                          ? NetworkImage(item.picImage!)
-                                          : null,
-                                      child: (item.picImage == null || item.picImage!.isEmpty)
-                                          ? Icon(Icons.person_rounded, size: 12, color: _C.green)
-                                          : null,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(item.picName!,
-                                          style: GoogleFonts.poppins(
-                                              fontSize: 11.5, fontWeight: FontWeight.w600, color: Colors.black87),
-                                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                                    ),
-                                  ],
+                  padding: const EdgeInsets.fromLTRB(14, 14, 100, 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 72,
+                        height: 72,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+                        child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                            ? Image.network(item.imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => _buildInitial(item.name))
+                            : _buildInitial(item.name),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(item.name,
+                                style: GoogleFonts.poppins(
+                                    fontSize: _nameFontSize(item.name),
+                                    fontWeight: FontWeight.w700,
+                                    color: _C.green),
+                                maxLines: 2, overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 8),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                CircleAvatar(
+                                  radius: 10,
+                                  backgroundColor: hasPic
+                                      ? _C.green.withValues(alpha: 0.15)
+                                      : _C.textSub.withValues(alpha: 0.12),
+                                  backgroundImage: (item.picImage != null && item.picImage!.isNotEmpty)
+                                      ? NetworkImage(item.picImage!)
+                                      : null,
+                                  child: (item.picImage == null || item.picImage!.isEmpty)
+                                      ? Icon(
+                                          hasPic ? Icons.person_rounded : Icons.person_off_rounded,
+                                          size: 12,
+                                          color: hasPic ? _C.green : _C.textSub,
+                                        )
+                                      : null,
                                 ),
-                              ],
-                              if (item.schedulePeriode != null) ...[
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.event_rounded, size: 13, color: _C.blue),
-                                    const SizedBox(width: 5),
-                                    Expanded(
-                                      child: Text(item.schedulePeriode!,
-                                          style: GoogleFonts.poppins(
-                                              fontSize: 11, fontWeight: FontWeight.w600, color: _C.blue),
-                                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Align(
-                          alignment: Alignment.center,
-                          child: needsFix
-                              ? Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    color: _C.amber.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: _C.amber.withValues(alpha: 0.4), width: 1),
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.build_rounded, size: 14, color: _C.amber),
-                                      const SizedBox(height: 2),
-                                      Text(_t('Needs Fix', 'Perlu Perbaikan', '需要修复'),
-                                          textAlign: TextAlign.center,
-                                          style: GoogleFonts.poppins(
-                                              fontSize: 8, fontWeight: FontWeight.w700, color: _C.amber)),
-                                    ],
-                                  ),
-                                )
-                              : Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: scoreColor.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: scoreColor.withValues(alpha: 0.4), width: 1),
-                                  ),
+                                const SizedBox(width: 6),
+                                Expanded(
                                   child: Text(
-                                    displayScore != null ? '${displayScore.toStringAsFixed(0)}%' : '-',
+                                    hasPic ? item.picName! : _t('No PIC assigned', 'Belum ada PIC', '暂无负责人'),
                                     style: GoogleFonts.poppins(
-                                        fontSize: 14, fontWeight: FontWeight.w800, color: scoreColor),
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                        fontStyle: hasPic ? FontStyle.normal : FontStyle.italic,
+                                        color: hasPic ? Colors.black87 : _C.textSub),
                                   ),
                                 ),
+                              ],
+                            ),
+                            if (hasSchedule) ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(Icons.event_rounded, size: 13, color: _C.blue),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: Text(item.schedulePeriode!,
+                                        style: GoogleFonts.poppins(
+                                            fontSize: 11, fontWeight: FontWeight.w600, color: _C.blue),
+                                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
                 Container(
@@ -678,34 +679,45 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                                 style: GoogleFonts.poppins(
                                     fontSize: 9.5, fontWeight: FontWeight.w600, color: _C.textSub)),
                             const SizedBox(height: 4),
-                            if (item.scheduleAuditorName != null)
-                              Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 10,
-                                    backgroundColor: _C.blue.withValues(alpha: 0.15),
-                                    backgroundImage: (item.scheduleAuditorImage != null &&
-                                            item.scheduleAuditorImage!.isNotEmpty)
-                                        ? NetworkImage(item.scheduleAuditorImage!)
-                                        : null,
-                                    child: (item.scheduleAuditorImage == null ||
-                                            item.scheduleAuditorImage!.isEmpty)
-                                        ? const Icon(Icons.person_rounded, size: 11, color: _C.blue)
-                                        : null,
+                            hasAuditor
+                                ? Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 10,
+                                        backgroundColor: _C.blue.withValues(alpha: 0.15),
+                                        backgroundImage: (item.scheduleAuditorImage != null &&
+                                                item.scheduleAuditorImage!.isNotEmpty)
+                                            ? NetworkImage(item.scheduleAuditorImage!)
+                                            : null,
+                                        child: (item.scheduleAuditorImage == null ||
+                                                item.scheduleAuditorImage!.isEmpty)
+                                            ? const Icon(Icons.person_rounded, size: 11, color: _C.blue)
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(item.scheduleAuditorName!,
+                                            style: GoogleFonts.poppins(
+                                                fontSize: 11, fontWeight: FontWeight.w600, color: _C.blue),
+                                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                                      ),
+                                    ],
+                                  )
+                                : Row(
+                                    children: [
+                                      Icon(Icons.person_off_rounded, size: 13, color: _C.textSub),
+                                      const SizedBox(width: 5),
+                                      Expanded(
+                                        child: Text(_t('No auditor yet', 'Belum ada auditor', '暂无审计员'),
+                                            style: GoogleFonts.poppins(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                fontStyle: FontStyle.italic,
+                                                color: _C.textSub),
+                                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(item.scheduleAuditorName!,
-                                        style: GoogleFonts.poppins(
-                                            fontSize: 11, fontWeight: FontWeight.w600, color: _C.blue),
-                                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  ),
-                                ],
-                              )
-                            else
-                              Text('-',
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 11, fontWeight: FontWeight.w600, color: _C.textSub)),
                           ],
                         ),
                       ),
@@ -747,31 +759,75 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                 ),
               ],
             ),
-            if (item.scheduleJenisAuditName != null)
-              Positioned(
-                top: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: _C.primary,
-                    borderRadius: const BorderRadius.only(
-                      topRight: Radius.circular(15),
-                      bottomLeft: Radius.circular(12),
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  needsFix
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: _C.amber.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: _C.amber.withValues(alpha: 0.4), width: 1),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.build_rounded, size: 14, color: _C.amber),
+                              const SizedBox(height: 2),
+                              Text(_t('Needs Fix', 'Perlu Perbaikan', '需要修复'),
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 8, fontWeight: FontWeight.w700, color: _C.amber)),
+                            ],
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: scoreColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: scoreColor.withValues(alpha: 0.4), width: 1),
+                          ),
+                          child: Text(
+                            displayScore != null ? '${displayScore.toStringAsFixed(0)}%' : '-',
+                            style: GoogleFonts.poppins(
+                                fontSize: 14, fontWeight: FontWeight.w800, color: scoreColor),
+                          ),
+                        ),
+                  if (hasJenisAudit) ...[
+                    const SizedBox(height: 6),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 86),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _C.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: _C.primary.withValues(alpha: 0.35)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.fact_check_rounded, size: 10, color: _C.primary),
+                            const SizedBox(width: 3),
+                            Flexible(
+                              child: Text(item.scheduleJenisAuditName!,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 9, fontWeight: FontWeight.w700, color: _C.primary),
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.fact_check_rounded, size: 11, color: Colors.white),
-                      const SizedBox(width: 4),
-                      Text(item.scheduleJenisAuditName!,
-                          style: GoogleFonts.poppins(
-                              fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white)),
-                    ],
-                  ),
-                ),
+                  ],
+                ],
               ),
+            ),
           ],
         ),
       ),
@@ -1197,6 +1253,7 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
   List<Map<String, dynamic>> _history = [];
   bool _loading = true;
   int _shimmerCount = 3;
+  double? _avgScore;
 
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
@@ -1223,6 +1280,21 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
     return DateFormat('dd MMMM yyyy').format(dt);
   }
 
+  // NEW: rata-rata skor — nilai_audit jika 100, nilai_final jika di bawah 100
+  // (fallback ke nilai_audit bila nilai_final belum ada), selaras dengan
+  // tampilan per baris di Audit History.
+  double? _computeAverageScore(List<Map<String, dynamic>> history) {
+    final List<double> values = [];
+    for (final row in history) {
+      final raw = double.tryParse(row['nilai_audit']?.toString() ?? '');
+      final fin = double.tryParse(row['nilai_final']?.toString() ?? '');
+      if (raw == null) continue;
+      values.add(raw >= 100 ? raw : (fin ?? raw));
+    }
+    if (values.isEmpty) return null;
+    return values.reduce((a, b) => a + b) / values.length;
+  }
+
   Future<void> _fetchHistory() async {
     try {
       final rows = await _supabase
@@ -1236,8 +1308,10 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
           .order('tanggal_audit', ascending: false)
           .limit(20);
       if (mounted) {
+        final historyList = List<Map<String, dynamic>>.from(rows);
         setState(() {
-          _history = List<Map<String, dynamic>>.from(rows);
+          _history = historyList;
+          _avgScore = _computeAverageScore(historyList);
           _shimmerCount = _history.isNotEmpty ? _history.length : _shimmerCount;
           _loading = false;
         });
@@ -1307,18 +1381,27 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
                   ],
                 ),
               ),
-              if (item.latestScore != null) ...[
+              if (_avgScore != null) ...[
                 const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _scoreColor(item.latestScore).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _scoreColor(item.latestScore).withValues(alpha: 0.4)),
-                  ),
-                  child: Text('${item.latestScore!.toStringAsFixed(0)}%',
-                      style: GoogleFonts.poppins(
-                          fontSize: 15, fontWeight: FontWeight.w800, color: _scoreColor(item.latestScore))),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(_t('Avg Score', 'Skor Rata-rata', '平均分'),
+                        style: GoogleFonts.poppins(
+                            fontSize: 9, fontWeight: FontWeight.w700, color: _scoreColor(_avgScore))),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _scoreColor(_avgScore).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: _scoreColor(_avgScore).withValues(alpha: 0.4)),
+                      ),
+                      child: Text('${_avgScore!.toStringAsFixed(0)}%',
+                          style: GoogleFonts.poppins(
+                              fontSize: 15, fontWeight: FontWeight.w800, color: _scoreColor(_avgScore))),
+                    ),
+                  ],
                 ),
               ],
             ],

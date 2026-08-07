@@ -162,7 +162,7 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
         ids.isNotEmpty
             ? _supabase
                 .from('audit_result')
-                .select('id_ref, nilai_audit, nilai_final, is_finalized, tanggal_audit')
+                .select('id_ref, id_schedule, nilai_audit, nilai_final, is_finalized, tanggal_audit')
                 .eq('level_type', 'area')
                 .inFilter('id_ref', ids)
                 .order('tanggal_audit', ascending: false)
@@ -175,10 +175,10 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
             : Future.value(<dynamic>[]),
       ]);
 
-      final Map<String, Map<String, dynamic>> auditMap = {};
+      final Map<String, List<Map<String, dynamic>>> auditListMap = {};
       for (final a in futures[0]) {
         final ref = a['id_ref'].toString();
-        if (!auditMap.containsKey(ref)) auditMap[ref] = a as Map<String, dynamic>;
+        auditListMap.putIfAbsent(ref, () => []).add(a as Map<String, dynamic>);
       }
 
       final Map<String, String> picMap = {};
@@ -188,16 +188,19 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
         picImageMap[p['id_user'].toString()] = p['gambar_user']?.toString();
       }
 
+      // NEW: hanya jadwal yang periode-nya sedang berlangsung hari ini
+      final todayStr = DateTime.now().toIso8601String().split('T').first;
       final scheduleRows = ids.isNotEmpty
           ? await _supabase
               .from('audit_schedule')
               .select(
-                  'id_ref, periode_mulai, periode_selesai, id_jenis_audit, '
+                  'id_schedule, id_ref, periode_mulai, periode_selesai, id_jenis_audit, '
                   'User_Auditor:User!fk_audit_schedule_auditor(nama, gambar_user), '
                   'JenisAudit:jenis_audit(nama_id, nama_en, nama_zh)')
               .eq('level_type', 'area')
               .inFilter('id_ref', ids)
-              .eq('status', 'pending')
+              .lte('periode_mulai', todayStr)
+              .gte('periode_selesai', todayStr)
               .order('created_at', ascending: false)
           : <dynamic>[];
 
@@ -210,13 +213,15 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
 
       final items = rows.map<_AreaItem>((r) {
         final id = r['id_area'].toString();
-        final audit = auditMap[id];
+        final auditList = auditListMap[id] ?? [];
+        final latestAuditRow = auditList.isNotEmpty ? auditList.first : null;
         final schedule = scheduleMap[id];
 
         String? schedulePeriode;
         String? scheduleAuditorName;
         String? scheduleAuditorImage;
         String? scheduleJenisAuditName;
+        Map<String, dynamic>? scopedAudit;
         if (schedule != null) {
           final mulai   = DateTime.tryParse(schedule['periode_mulai']?.toString() ?? '');
           final selesai = DateTime.tryParse(schedule['periode_selesai']?.toString() ?? '');
@@ -236,6 +241,14 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                     ? jenisData['nama_zh']?.toString()
                     : jenisData['nama_id']?.toString();
           }
+
+          final idScheduleAktif = schedule['id_schedule']?.toString();
+          for (final a in auditList) {
+            if (a['id_schedule']?.toString() == idScheduleAktif) {
+              scopedAudit = a;
+              break;
+            }
+          }
         }
 
         return _AreaItem(
@@ -247,18 +260,18 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                   ? (r['deskripsi_area_zh']?.toString() ?? r['deskripsi_area']?.toString())
                   : r['deskripsi_area']?.toString(),
           imageUrl: r['gambar_area']?.toString(),
-          latestScore: audit != null
-              ? double.tryParse(audit['nilai_audit']?.toString() ?? '')
+          latestScore: scopedAudit != null
+              ? double.tryParse(scopedAudit['nilai_audit']?.toString() ?? '')
               : null,
-          latestAuditDate: audit?['tanggal_audit']?.toString(),
+          latestAuditDate: latestAuditRow?['tanggal_audit']?.toString(),
           picName: r['id_pic'] != null ? picMap[r['id_pic'].toString()] : null,
           picImage: r['id_pic'] != null ? picImageMap[r['id_pic'].toString()] : null,
           idSubunit: r['id_subunit']?.toString(),
           idUnit: r['id_unit']?.toString(),
           idLokasi: r['id_lokasi']?.toString(),
-          latestIsFinalized: audit?['is_finalized'] == true,
-          latestFinalScore: audit != null
-              ? double.tryParse(audit['nilai_final']?.toString() ?? '')
+          latestIsFinalized: scopedAudit?['is_finalized'] == true,
+          latestFinalScore: scopedAudit != null
+              ? double.tryParse(scopedAudit['nilai_final']?.toString() ?? '')
               : null,
           schedulePeriode: schedulePeriode,
           scheduleAuditorName: scheduleAuditorName,
@@ -1342,6 +1355,12 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
     );
   }
 
+  double _nameFontSize(String name) {
+    if (name.length > 32) return 12.5;
+    if (name.length > 22) return 13.5;
+    return 15;
+  }
+
   Widget _buildCard(_AreaItem item) {
     final rawScore = item.latestScore;
     final isFinalized = item.latestIsFinalized;
@@ -1350,6 +1369,9 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
     final scoreColor = isFinalized ? _AC.amber : _scoreColor(rawScore);
     final hasPic = item.picName != null && item.picName!.isNotEmpty;
     final hasSchedulePeriode = item.schedulePeriode != null && item.schedulePeriode!.isNotEmpty;
+    final hasJenisAudit = item.scheduleJenisAuditName != null && item.scheduleJenisAuditName!.isNotEmpty;
+    final hasAuditor = item.scheduleAuditorName != null && item.scheduleAuditorName!.isNotEmpty;
+
     return GestureDetector(
       onTap: () => _showDetail(item),
       child: Container(
@@ -1372,17 +1394,15 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
             Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.fromLTRB(14, 14, 100, 14),
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
                         width: 72,
                         height: 72,
                         clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
                         child: item.imageUrl != null && item.imageUrl!.isNotEmpty
                             ? Image.network(item.imageUrl!,
                                 fit: BoxFit.cover,
@@ -1397,10 +1417,13 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                           children: [
                             Text(item.name,
                                 style: GoogleFonts.poppins(
-                                    fontSize: 15, fontWeight: FontWeight.w700, color: _AC.areaAccent),
+                                    fontSize: _nameFontSize(item.name),
+                                    fontWeight: FontWeight.w700,
+                                    color: _AC.areaAccent),
                                 maxLines: 2, overflow: TextOverflow.ellipsis),
                             const SizedBox(height: 8),
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 CircleAvatar(
                                   radius: 10,
@@ -1421,15 +1444,12 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: Text(
-                                    hasPic
-                                        ? item.picName!
-                                        : _t('No PIC assigned', 'Belum ada PIC', '暂无负责人'),
+                                    hasPic ? item.picName! : _t('No PIC assigned', 'Belum ada PIC', '暂无负责人'),
                                     style: GoogleFonts.poppins(
                                         fontSize: 11.5,
                                         fontWeight: FontWeight.w600,
                                         fontStyle: hasPic ? FontStyle.normal : FontStyle.italic,
                                         color: hasPic ? Colors.black87 : _AC.textSub),
-                                    maxLines: 1, overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
@@ -1461,43 +1481,6 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Align(
-                        alignment: Alignment.center,
-                        child: needsFix
-                            ? Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: _AC.amber.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: _AC.amber.withValues(alpha: 0.4), width: 1),
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.build_rounded, size: 14, color: _AC.amber),
-                                    const SizedBox(height: 2),
-                                    Text(_t('Needs Fix', 'Perlu Perbaikan', '需要修复'),
-                                        textAlign: TextAlign.center,
-                                        style: GoogleFonts.poppins(
-                                            fontSize: 8, fontWeight: FontWeight.w700, color: _AC.amber)),
-                                  ],
-                                ),
-                              )
-                            : Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: scoreColor.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: scoreColor.withValues(alpha: 0.4), width: 1),
-                                ),
-                                child: Text(
-                                  displayScore != null ? '${displayScore.toStringAsFixed(0)}%' : '-',
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 14, fontWeight: FontWeight.w800, color: scoreColor),
-                                ),
-                              ),
-                      ),
                     ],
                   ),
                 ),
@@ -1518,34 +1501,45 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                                 style: GoogleFonts.poppins(
                                     fontSize: 9.5, fontWeight: FontWeight.w600, color: _AC.textSub)),
                             const SizedBox(height: 4),
-                            if (item.scheduleAuditorName != null)
-                              Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 10,
-                                    backgroundColor: _AC.blue.withValues(alpha: 0.15),
-                                    backgroundImage: (item.scheduleAuditorImage != null &&
-                                            item.scheduleAuditorImage!.isNotEmpty)
-                                        ? NetworkImage(item.scheduleAuditorImage!)
-                                        : null,
-                                    child: (item.scheduleAuditorImage == null ||
-                                            item.scheduleAuditorImage!.isEmpty)
-                                        ? const Icon(Icons.person_rounded, size: 11, color: _AC.blue)
-                                        : null,
+                            hasAuditor
+                                ? Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 10,
+                                        backgroundColor: _AC.blue.withValues(alpha: 0.15),
+                                        backgroundImage: (item.scheduleAuditorImage != null &&
+                                                item.scheduleAuditorImage!.isNotEmpty)
+                                            ? NetworkImage(item.scheduleAuditorImage!)
+                                            : null,
+                                        child: (item.scheduleAuditorImage == null ||
+                                                item.scheduleAuditorImage!.isEmpty)
+                                            ? const Icon(Icons.person_rounded, size: 11, color: _AC.blue)
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(item.scheduleAuditorName!,
+                                            style: GoogleFonts.poppins(
+                                                fontSize: 11, fontWeight: FontWeight.w600, color: _AC.blue),
+                                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                                      ),
+                                    ],
+                                  )
+                                : Row(
+                                    children: [
+                                      Icon(Icons.person_off_rounded, size: 13, color: _AC.textSub),
+                                      const SizedBox(width: 5),
+                                      Expanded(
+                                        child: Text(_t('No auditor yet', 'Belum ada auditor', '暂无审计员'),
+                                            style: GoogleFonts.poppins(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                fontStyle: FontStyle.italic,
+                                                color: _AC.textSub),
+                                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(item.scheduleAuditorName!,
-                                        style: GoogleFonts.poppins(
-                                            fontSize: 11, fontWeight: FontWeight.w600, color: _AC.blue),
-                                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  ),
-                                ],
-                              )
-                            else
-                              Text('-',
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 11, fontWeight: FontWeight.w600, color: _AC.textSub)),
                           ],
                         ),
                       ),
@@ -1587,31 +1581,75 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                 ),
               ],
             ),
-            if (item.scheduleJenisAuditName != null)
-              Positioned(
-                top: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: _AC.areaAccent,
-                    borderRadius: const BorderRadius.only(
-                      topRight: Radius.circular(15),
-                      bottomLeft: Radius.circular(12),
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  needsFix
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: _AC.amber.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: _AC.amber.withValues(alpha: 0.4), width: 1),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.build_rounded, size: 14, color: _AC.amber),
+                              const SizedBox(height: 2),
+                              Text(_t('Needs Fix', 'Perlu Perbaikan', '需要修复'),
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 8, fontWeight: FontWeight.w700, color: _AC.amber)),
+                            ],
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: scoreColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: scoreColor.withValues(alpha: 0.4), width: 1),
+                          ),
+                          child: Text(
+                            displayScore != null ? '${displayScore.toStringAsFixed(0)}%' : '-',
+                            style: GoogleFonts.poppins(
+                                fontSize: 14, fontWeight: FontWeight.w800, color: scoreColor),
+                          ),
+                        ),
+                  if (hasJenisAudit) ...[
+                    const SizedBox(height: 6),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 86),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _AC.areaAccent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: _AC.areaAccent.withValues(alpha: 0.4)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.fact_check_rounded, size: 10, color: _AC.areaAccent),
+                            const SizedBox(width: 3),
+                            Flexible(
+                              child: Text(item.scheduleJenisAuditName!,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 9, fontWeight: FontWeight.w700, color: _AC.areaAccent),
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.fact_check_rounded, size: 11, color: Colors.white),
-                      const SizedBox(width: 4),
-                      Text(item.scheduleJenisAuditName!,
-                          style: GoogleFonts.poppins(
-                              fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white)),
-                    ],
-                  ),
-                ),
+                  ],
+                ],
               ),
+            ),
           ],
         ),
       ),
@@ -1897,6 +1935,7 @@ class _AreaDetailSheetState extends State<_AreaDetailSheet> {
   List<Map<String, dynamic>> _history = [];
   bool _loading = true;
   int _shimmerCount = 3;
+  double? _avgScore;
 
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
@@ -1923,6 +1962,21 @@ class _AreaDetailSheetState extends State<_AreaDetailSheet> {
     return DateFormat('dd MMMM yyyy').format(dt);
   }
 
+  // NEW: rata-rata skor — nilai_audit jika 100, nilai_final jika di bawah 100
+  // (fallback ke nilai_audit bila nilai_final belum ada), selaras dengan
+  // tampilan per baris di Audit History.
+  double? _computeAverageScore(List<Map<String, dynamic>> history) {
+    final List<double> values = [];
+    for (final row in history) {
+      final raw = double.tryParse(row['nilai_audit']?.toString() ?? '');
+      final fin = double.tryParse(row['nilai_final']?.toString() ?? '');
+      if (raw == null) continue;
+      values.add(raw >= 100 ? raw : (fin ?? raw));
+    }
+    if (values.isEmpty) return null;
+    return values.reduce((a, b) => a + b) / values.length;
+  }
+
   Future<void> _fetchHistory() async {
     try {
       final rows = await _supabase
@@ -1936,8 +1990,10 @@ class _AreaDetailSheetState extends State<_AreaDetailSheet> {
           .order('tanggal_audit', ascending: false)
           .limit(20);
       if (mounted) {
+        final historyList = List<Map<String, dynamic>>.from(rows);
         setState(() {
-          _history = List<Map<String, dynamic>>.from(rows);
+          _history = historyList;
+          _avgScore = _computeAverageScore(historyList);
           _shimmerCount = _history.isNotEmpty ? _history.length : _shimmerCount;
           _loading = false;
         });
@@ -2007,18 +2063,27 @@ class _AreaDetailSheetState extends State<_AreaDetailSheet> {
                   ],
                 ),
               ),
-              if (item.latestScore != null) ...[
+              if (_avgScore != null) ...[
                 const SizedBox(width: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _scoreColor(item.latestScore).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _scoreColor(item.latestScore).withValues(alpha: 0.4)),
-                  ),
-                  child: Text('${item.latestScore!.toStringAsFixed(0)}%',
-                      style: GoogleFonts.poppins(
-                          fontSize: 15, fontWeight: FontWeight.w800, color: _scoreColor(item.latestScore))),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(_t('Avg Score', 'Skor Rata-rata', '平均分'),
+                        style: GoogleFonts.poppins(
+                            fontSize: 9, fontWeight: FontWeight.w700, color: _scoreColor(_avgScore))),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _scoreColor(_avgScore).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: _scoreColor(_avgScore).withValues(alpha: 0.4)),
+                      ),
+                      child: Text('${_avgScore!.toStringAsFixed(0)}%',
+                          style: GoogleFonts.poppins(
+                              fontSize: 15, fontWeight: FontWeight.w800, color: _scoreColor(_avgScore))),
+                    ),
+                  ],
                 ),
               ],
             ],
