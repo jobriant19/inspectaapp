@@ -364,6 +364,7 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
     if (_isLocationPickerOpen) return;
     _isLocationPickerOpen = true;
     String searchQuery = '';
+    final TextEditingController pickerSearchCtrl = TextEditingController();
     await showDialog(
       context: parentCtx,
       barrierDismissible: true,
@@ -418,10 +419,10 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: _AC.red.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                              child: const Icon(Icons.close_rounded, color: _AC.red, size: 18),
                             ),
                           ),
                         ],
@@ -430,12 +431,30 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: TextField(
+                        controller: pickerSearchCtrl,
                         onChanged: (v) => setPickerState(() => searchQuery = v),
                         style: GoogleFonts.poppins(fontSize: 13, color: _AC.textMain),
                         decoration: InputDecoration(
                           hintText: _t('Search location…', 'Cari lokasi…', '搜索位置…'),
                           hintStyle: GoogleFonts.poppins(fontSize: 12, color: _AC.textSub),
                           prefixIcon: const Icon(Icons.search_rounded, color: _AC.locationAccent, size: 18),
+                          suffixIcon: searchQuery.isNotEmpty
+                              ? GestureDetector(
+                                  onTap: () {
+                                    pickerSearchCtrl.clear();
+                                    setPickerState(() => searchQuery = '');
+                                  },
+                                  child: Container(
+                                    margin: const EdgeInsets.all(8),
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: _AC.red.withValues(alpha: 0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.close_rounded, size: 14, color: _AC.red),
+                                  ),
+                                )
+                              : null,
                           filled: true,
                           fillColor: _AC.surface,
                           contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
@@ -547,6 +566,7 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
     if (_isUnitPickerOpen) return;
     _isUnitPickerOpen = true;
     String searchQuery = '';
+    final TextEditingController pickerSearchCtrl = TextEditingController();
     await showDialog(
       context: parentCtx,
       barrierDismissible: true,
@@ -601,10 +621,10 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: _AC.red.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                              child: const Icon(Icons.close_rounded, color: _AC.red, size: 18),
                             ),
                           ),
                         ],
@@ -613,12 +633,30 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: TextField(
+                        controller: pickerSearchCtrl,
                         onChanged: (v) => setPickerState(() => searchQuery = v),
                         style: GoogleFonts.poppins(fontSize: 13, color: _AC.textMain),
                         decoration: InputDecoration(
                           hintText: _t('Search unit…', 'Cari unit…', '搜索单元…'),
                           hintStyle: GoogleFonts.poppins(fontSize: 12, color: _AC.textSub),
                           prefixIcon: const Icon(Icons.search_rounded, color: _AC.unitAccent, size: 18),
+                          suffixIcon: searchQuery.isNotEmpty
+                              ? GestureDetector(
+                                  onTap: () {
+                                    pickerSearchCtrl.clear();
+                                    setPickerState(() => searchQuery = '');
+                                  },
+                                  child: Container(
+                                    margin: const EdgeInsets.all(8),
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: _AC.red.withValues(alpha: 0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.close_rounded, size: 14, color: _AC.red),
+                                  ),
+                                )
+                              : null,
                           filled: true,
                           fillColor: _AC.surface,
                           contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
@@ -730,6 +768,7 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
     if (_isSubunitPickerOpen) return;
     _isSubunitPickerOpen = true;
     String searchQuery = '';
+    final TextEditingController pickerSearchCtrl = TextEditingController();
     await showDialog(
       context: parentCtx,
       barrierDismissible: true,
@@ -784,10 +823,10 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: _AC.red.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                              child: const Icon(Icons.close_rounded, color: _AC.red, size: 18),
                             ),
                           ),
                         ],
@@ -796,12 +835,30 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: TextField(
+                        controller: pickerSearchCtrl,
                         onChanged: (v) => setPickerState(() => searchQuery = v),
                         style: GoogleFonts.poppins(fontSize: 13, color: _AC.textMain),
                         decoration: InputDecoration(
                           hintText: _t('Search sub-unit…', 'Cari sub-unit…', '搜索子单元…'),
                           hintStyle: GoogleFonts.poppins(fontSize: 12, color: _AC.textSub),
                           prefixIcon: const Icon(Icons.search_rounded, color: _AC.subunitAccent, size: 18),
+                          suffixIcon: searchQuery.isNotEmpty
+                              ? GestureDetector(
+                                  onTap: () {
+                                    pickerSearchCtrl.clear();
+                                    setPickerState(() => searchQuery = '');
+                                  },
+                                  child: Container(
+                                    margin: const EdgeInsets.all(8),
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: _AC.red.withValues(alpha: 0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.close_rounded, size: 14, color: _AC.red),
+                                  ),
+                                )
+                              : null,
                           filled: true,
                           fillColor: _AC.surface,
                           contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
@@ -994,10 +1051,10 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: _AC.red.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                              child: const Icon(Icons.close_rounded, color: _AC.red, size: 18),
                             ),
                           ),
                         ],
@@ -1091,8 +1148,26 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                                             maxLines: 1, overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
-                                        Icon(Icons.chevron_right_rounded, size: 18,
-                                            color: selectedLokasiId != null ? _AC.locationAccent : _AC.textSub),
+                                        selectedLokasiId != null
+                                            ? GestureDetector(
+                                                onTap: () => setInner(() {
+                                                  selectedLokasiId = null;
+                                                  selectedLokasiName = null;
+                                                  selectedUnitId = null;
+                                                  selectedUnitName = null;
+                                                  selectedSubunitId = null;
+                                                  selectedSubunitName = null;
+                                                }),
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(4),
+                                                  decoration: BoxDecoration(
+                                                    color: _AC.red.withValues(alpha: 0.12),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: Icon(Icons.close_rounded, size: 14, color: _AC.red),
+                                                ),
+                                              )
+                                            : Icon(Icons.chevron_right_rounded, size: 18, color: _AC.textSub),
                                       ],
                                     ),
                                   ),
@@ -1151,8 +1226,24 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                                             maxLines: 1, overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
-                                        Icon(Icons.chevron_right_rounded, size: 18,
-                                            color: selectedUnitId != null ? _AC.unitAccent : _AC.textSub),
+                                        selectedUnitId != null
+                                            ? GestureDetector(
+                                                onTap: () => setInner(() {
+                                                  selectedUnitId = null;
+                                                  selectedUnitName = null;
+                                                  selectedSubunitId = null;
+                                                  selectedSubunitName = null;
+                                                }),
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(4),
+                                                  decoration: BoxDecoration(
+                                                    color: _AC.red.withValues(alpha: 0.12),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: Icon(Icons.close_rounded, size: 14, color: _AC.red),
+                                                ),
+                                              )
+                                            : Icon(Icons.chevron_right_rounded, size: 18, color: _AC.textSub),
                                       ],
                                     ),
                                   ),
@@ -1170,44 +1261,58 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                                 ),
                                 const SizedBox(height: 8),
                                 GestureDetector(
-                                  onTap: () => _showSubunitPickerDialog(ctx2, filteredSubunitForPicker, selectedSubunitId, (id, name) {
-                                    setInner(() {
-                                      selectedSubunitId = id;
-                                      selectedSubunitName = name;
-                                    });
-                                  }),
-                                  child: Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                    decoration: BoxDecoration(
-                                      color: selectedSubunitId != null ? _AC.subunitAccent.withValues(alpha: 0.08) : Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: selectedSubunitId != null ? _AC.subunitAccent : Colors.grey.shade300,
-                                        width: selectedSubunitId != null ? 1.5 : 1,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.layers_rounded, size: 16,
-                                            color: selectedSubunitId != null ? _AC.subunitAccent : _AC.textSub),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Text(
-                                            selectedSubunitName ?? _t('All Sub-Units', 'Semua Sub-Unit', '所有子单元'),
-                                            style: GoogleFonts.poppins(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                color: selectedSubunitId != null ? _AC.subunitAccent : _AC.textMain),
-                                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        Icon(Icons.chevron_right_rounded, size: 18,
-                                            color: selectedSubunitId != null ? _AC.subunitAccent : _AC.textSub),
-                                      ],
-                                    ),
+                              onTap: () => _showSubunitPickerDialog(ctx2, filteredSubunitForPicker, selectedSubunitId, (id, name) {
+                                setInner(() {
+                                  selectedSubunitId = id;
+                                  selectedSubunitName = name;
+                                });
+                              }),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: selectedSubunitId != null ? _AC.subunitAccent.withValues(alpha: 0.08) : Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: selectedSubunitId != null ? _AC.subunitAccent : Colors.grey.shade300,
+                                    width: selectedSubunitId != null ? 1.5 : 1,
                                   ),
                                 ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.layers_rounded, size: 16,
+                                        color: selectedSubunitId != null ? _AC.subunitAccent : _AC.textSub),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        selectedSubunitName ?? _t('All Sub-Units', 'Semua Sub-Unit', '所有子单元'),
+                                        style: GoogleFonts.poppins(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: selectedSubunitId != null ? _AC.subunitAccent : _AC.textMain),
+                                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    selectedSubunitId != null
+                                        ? GestureDetector(
+                                            onTap: () => setInner(() {
+                                              selectedSubunitId = null;
+                                              selectedSubunitName = null;
+                                            }),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(4),
+                                              decoration: BoxDecoration(
+                                                color: _AC.red.withValues(alpha: 0.12),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Icon(Icons.close_rounded, size: 14, color: _AC.red),
+                                            ),
+                                          )
+                                        : Icon(Icons.chevron_right_rounded, size: 18, color: _AC.textSub),
+                                  ],
+                                ),
+                              ),
+                            ),
                                 const SizedBox(height: 16),
                                 const Divider(),
                                 const SizedBox(height: 8),
@@ -1749,6 +1854,70 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
     );
   }
 
+  List<Widget> _buildActiveFilterChips() {
+    final chips = <Widget>[];
+    final filter = _filter;
+    if (filter == null) return chips;
+
+    if (filter.namaSubunit != null) {
+      chips.add(_ActiveFilterChip(
+        icon: Icons.layers_rounded,
+        label: filter.namaSubunit!,
+        color: _AC.subunitAccent,
+      ));
+    } else if (filter.namaUnit != null) {
+      chips.add(_ActiveFilterChip(
+        icon: Icons.business_rounded,
+        label: filter.namaUnit!,
+        color: _AC.unitAccent,
+      ));
+    } else if (filter.namaLokasi != null) {
+      chips.add(_ActiveFilterChip(
+        icon: Icons.location_city_rounded,
+        label: filter.namaLokasi!,
+        color: _AC.locationAccent,
+      ));
+    }
+
+    if (filter.auditStatus == 'audited') {
+      chips.add(_ActiveFilterChip(
+        icon: Icons.fact_check_rounded,
+        label: _t('Audited', 'Sudah Diaudit', '已审计'),
+        color: _AC.green,
+      ));
+    } else if (filter.auditStatus == 'not_audited') {
+      chips.add(_ActiveFilterChip(
+        icon: Icons.fact_check_rounded,
+        label: _t('Not Audited', 'Belum Diaudit', '未审计'),
+        color: _AC.amber,
+      ));
+    }
+
+    if (filter.minScore != null || filter.maxScore != null) {
+      Color scoreColor = _AC.filterAccent;
+      String scoreLabel = '';
+      if (filter.minScore == 80.0 && filter.maxScore == null) {
+        scoreColor = _AC.green;
+        scoreLabel = '≥ 80%';
+      } else if (filter.minScore == 60.0 && filter.maxScore == 79.9) {
+        scoreColor = _AC.amber;
+        scoreLabel = '60–79%';
+      } else if (filter.minScore == null && filter.maxScore == 59.9) {
+        scoreColor = _AC.red;
+        scoreLabel = '< 60%';
+      }
+      if (scoreLabel.isNotEmpty) {
+        chips.add(_ActiveFilterChip(
+          icon: Icons.leaderboard_rounded,
+          label: scoreLabel,
+          color: scoreColor,
+        ));
+      }
+    }
+
+    return chips;
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -1766,22 +1935,7 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
         .take(_itemsPerPage)
         .toList();
 
-    String? filterLabel;
-    if (_filter != null) {
-      final parts = <String>[
-        if (_filter!.namaLokasi != null) _filter!.namaLokasi!,
-        if (_filter!.namaUnit != null) _filter!.namaUnit!,
-        if (_filter!.namaSubunit != null) _filter!.namaSubunit!,
-        if (_filter!.auditStatus == 'audited') _t('Audited', 'Sudah Diaudit', '已审计'),
-        if (_filter!.auditStatus == 'not_audited') _t('Not Audited', 'Belum Diaudit', '未审计'),
-        if (_filter!.minScore != null || _filter!.maxScore != null) ...[
-          if (_filter!.minScore == 80.0 && _filter!.maxScore == null) '≥80%',
-          if (_filter!.minScore == 60.0 && _filter!.maxScore == 79.9) '60-79%',
-          if (_filter!.minScore == null && _filter!.maxScore == 59.9) '<60%',
-        ],
-      ];
-      if (parts.isNotEmpty) filterLabel = parts.join(' · ');
-    }
+    final activeFilterChips = _buildActiveFilterChips();
 
     return Material(
       type: MaterialType.transparency,
@@ -1860,36 +2014,35 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
             ),
           ),
 
-          if (filterLabel != null)
+          if (activeFilterChips.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  color: _AC.filterAccent.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _AC.filterAccent.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.filter_alt_rounded, size: 14, color: _AC.filterAccent),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(filterLabel,
-                          style: GoogleFonts.poppins(
-                              fontSize: 11, color: _AC.filterAccent, fontWeight: FontWeight.w600),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: activeFilterChips,
                     ),
-                    GestureDetector(
-                      onTap: () => setState(() {
-                        _filter = null;
-                        _currentPage = 1;
-                      }),
-                      child: const Icon(Icons.close_rounded, size: 14, color: _AC.filterAccent),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      _filter = null;
+                      _currentPage = 1;
+                    }),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: _AC.red.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded, size: 14, color: _AC.red),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
 
@@ -2717,6 +2870,39 @@ class _AreaPageIndicator extends StatelessWidget {
           size: 15,
           color: enabled ? _mainColor : Colors.grey.shade400,
         ),
+      ),
+    );
+  }
+}
+
+class _ActiveFilterChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _ActiveFilterChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(label,
+              style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+        ],
       ),
     );
   }

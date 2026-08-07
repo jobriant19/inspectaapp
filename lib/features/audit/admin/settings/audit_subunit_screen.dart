@@ -370,6 +370,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
     if (_isLocationPickerOpen) return;
     _isLocationPickerOpen = true;
     String searchQuery = '';
+    final TextEditingController pickerSearchCtrl = TextEditingController();
     await showDialog(
       context: parentCtx,
       barrierDismissible: true,
@@ -424,10 +425,10 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: _SBC.red.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                              child: const Icon(Icons.close_rounded, color: _SBC.red, size: 18),
                             ),
                           ),
                         ],
@@ -436,12 +437,30 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: TextField(
+                        controller: pickerSearchCtrl,
                         onChanged: (v) => setPickerState(() => searchQuery = v),
                         style: GoogleFonts.poppins(fontSize: 13, color: _SBC.textMain),
                         decoration: InputDecoration(
                           hintText: _t('Search location…', 'Cari lokasi…', '搜索位置…'),
                           hintStyle: GoogleFonts.poppins(fontSize: 12, color: _SBC.textSub),
                           prefixIcon: const Icon(Icons.search_rounded, color: _SBC.locationAccent, size: 18),
+                          suffixIcon: searchQuery.isNotEmpty
+                              ? GestureDetector(
+                                  onTap: () {
+                                    pickerSearchCtrl.clear();
+                                    setPickerState(() => searchQuery = '');
+                                  },
+                                  child: Container(
+                                    margin: const EdgeInsets.all(8),
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: _SBC.red.withValues(alpha: 0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.close_rounded, size: 14, color: _SBC.red),
+                                  ),
+                                )
+                              : null,
                           filled: true,
                           fillColor: _SBC.surface,
                           contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
@@ -553,6 +572,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
     if (_isUnitPickerOpen) return;
     _isUnitPickerOpen = true;
     String searchQuery = '';
+    final TextEditingController pickerSearchCtrl = TextEditingController();
     await showDialog(
       context: parentCtx,
       barrierDismissible: true,
@@ -607,10 +627,10 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: _SBC.red.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                              child: const Icon(Icons.close_rounded, color: _SBC.red, size: 18),
                             ),
                           ),
                         ],
@@ -619,12 +639,30 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: TextField(
+                        controller: pickerSearchCtrl,
                         onChanged: (v) => setPickerState(() => searchQuery = v),
                         style: GoogleFonts.poppins(fontSize: 13, color: _SBC.textMain),
                         decoration: InputDecoration(
                           hintText: _t('Search unit…', 'Cari unit…', '搜索单元…'),
                           hintStyle: GoogleFonts.poppins(fontSize: 12, color: _SBC.textSub),
                           prefixIcon: const Icon(Icons.search_rounded, color: _SBC.unitAccent, size: 18),
+                          suffixIcon: searchQuery.isNotEmpty
+                              ? GestureDetector(
+                                  onTap: () {
+                                    pickerSearchCtrl.clear();
+                                    setPickerState(() => searchQuery = '');
+                                  },
+                                  child: Container(
+                                    margin: const EdgeInsets.all(8),
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: _SBC.red.withValues(alpha: 0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.close_rounded, size: 14, color: _SBC.red),
+                                  ),
+                                )
+                              : null,
                           filled: true,
                           fillColor: _SBC.surface,
                           contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
@@ -813,10 +851,10 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
+                            color: _SBC.red.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                          child: const Icon(Icons.close_rounded, color: _SBC.red, size: 18),
                         ),
                       ),
                     ],
@@ -864,53 +902,69 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                             ),
                             const SizedBox(height: 8),
                             GestureDetector(
-                              onTap: () => _showLocationPickerDialog(ctx2, selectedLokasiId, (id, name) {
-                                setInner(() {
-                                  selectedLokasiId = id;
-                                  selectedLokasiName = name;
-                                  if (selectedUnitId != null) {
-                                    final stillValid = _allUnit.any((u) =>
-                                        u['id_unit']?.toString() == selectedUnitId &&
-                                        (id == null || u['id_lokasi']?.toString() == id));
-                                    if (!stillValid) {
-                                      selectedUnitId = null;
-                                      selectedUnitName = null;
-                                    }
-                                  }
-                                });
-                              }),
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: selectedLokasiId != null ? _SBC.locationAccent.withValues(alpha: 0.08) : Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: selectedLokasiId != null ? _SBC.locationAccent : Colors.grey.shade300,
-                                    width: selectedLokasiId != null ? 1.5 : 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.apartment_rounded, size: 16,
-                                        color: selectedLokasiId != null ? _SBC.locationAccent : _SBC.textSub),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        selectedLokasiName ?? _t('All Locations', 'Semua Lokasi', '所有位置'),
-                                        style: GoogleFonts.poppins(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: selectedLokasiId != null ? _SBC.locationAccent : _SBC.textMain),
-                                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  onTap: () => _showLocationPickerDialog(ctx2, selectedLokasiId, (id, name) {
+                                    setInner(() {
+                                      selectedLokasiId = id;
+                                      selectedLokasiName = name;
+                                      if (selectedUnitId != null) {
+                                        final stillValid = _allUnit.any((u) =>
+                                            u['id_unit']?.toString() == selectedUnitId &&
+                                            (id == null || u['id_lokasi']?.toString() == id));
+                                        if (!stillValid) {
+                                          selectedUnitId = null;
+                                          selectedUnitName = null;
+                                        }
+                                      }
+                                    });
+                                  }),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: selectedLokasiId != null ? _SBC.locationAccent.withValues(alpha: 0.08) : Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: selectedLokasiId != null ? _SBC.locationAccent : Colors.grey.shade300,
+                                        width: selectedLokasiId != null ? 1.5 : 1,
                                       ),
                                     ),
-                                    Icon(Icons.chevron_right_rounded, size: 18,
-                                        color: selectedLokasiId != null ? _SBC.locationAccent : _SBC.textSub),
-                                  ],
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.apartment_rounded, size: 16,
+                                            color: selectedLokasiId != null ? _SBC.locationAccent : _SBC.textSub),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            selectedLokasiName ?? _t('All Locations', 'Semua Lokasi', '所有位置'),
+                                            style: GoogleFonts.poppins(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: selectedLokasiId != null ? _SBC.locationAccent : _SBC.textMain),
+                                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        selectedLokasiId != null
+                                            ? GestureDetector(
+                                                onTap: () => setInner(() {
+                                                  selectedLokasiId = null;
+                                                  selectedLokasiName = null;
+                                                  selectedUnitId = null;
+                                                  selectedUnitName = null;
+                                                }),
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(4),
+                                                  decoration: BoxDecoration(
+                                                    color: _SBC.red.withValues(alpha: 0.12),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: Icon(Icons.close_rounded, size: 14, color: _SBC.red),
+                                                ),
+                                              )
+                                            : Icon(Icons.chevron_right_rounded, size: 18, color: _SBC.textSub),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
                             const SizedBox(height: 16),
 
                             // UNIT SELECT
@@ -956,8 +1010,22 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                                         maxLines: 1, overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    Icon(Icons.chevron_right_rounded, size: 18,
-                                        color: selectedUnitId != null ? _SBC.unitAccent : _SBC.textSub),
+                                    selectedUnitId != null
+                                        ? GestureDetector(
+                                            onTap: () => setInner(() {
+                                              selectedUnitId = null;
+                                              selectedUnitName = null;
+                                            }),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(4),
+                                              decoration: BoxDecoration(
+                                                color: _SBC.red.withValues(alpha: 0.12),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Icon(Icons.close_rounded, size: 14, color: _SBC.red),
+                                            ),
+                                          )
+                                        : Icon(Icons.chevron_right_rounded, size: 18, color: _SBC.textSub),
                                   ],
                                 ),
                               ),
@@ -1500,6 +1568,64 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
     );
   }
 
+  List<Widget> _buildActiveFilterChips() {
+    final chips = <Widget>[];
+    final filter = _filter;
+    if (filter == null) return chips;
+
+    if (filter.namaUnit != null) {
+      chips.add(_ActiveFilterChip(
+        icon: Icons.business_rounded,
+        label: filter.namaUnit!,
+        color: _SBC.unitAccent,
+      ));
+    } else if (filter.namaLokasi != null) {
+      chips.add(_ActiveFilterChip(
+        icon: Icons.location_city_rounded,
+        label: filter.namaLokasi!,
+        color: _SBC.locationAccent,
+      ));
+    }
+
+    if (filter.auditStatus == 'audited') {
+      chips.add(_ActiveFilterChip(
+        icon: Icons.fact_check_rounded,
+        label: _t('Audited', 'Sudah Diaudit', '已审计'),
+        color: _SBC.green,
+      ));
+    } else if (filter.auditStatus == 'not_audited') {
+      chips.add(_ActiveFilterChip(
+        icon: Icons.fact_check_rounded,
+        label: _t('Not Audited', 'Belum Diaudit', '未审计'),
+        color: _SBC.amber,
+      ));
+    }
+
+    if (filter.minScore != null || filter.maxScore != null) {
+      Color scoreColor = _SBC.filterAccent;
+      String scoreLabel = '';
+      if (filter.minScore == 80.0 && filter.maxScore == null) {
+        scoreColor = _SBC.green;
+        scoreLabel = '≥ 80%';
+      } else if (filter.minScore == 60.0 && filter.maxScore == 79.9) {
+        scoreColor = _SBC.amber;
+        scoreLabel = '60–79%';
+      } else if (filter.minScore == null && filter.maxScore == 59.9) {
+        scoreColor = _SBC.red;
+        scoreLabel = '< 60%';
+      }
+      if (scoreLabel.isNotEmpty) {
+        chips.add(_ActiveFilterChip(
+          icon: Icons.leaderboard_rounded,
+          label: scoreLabel,
+          color: scoreColor,
+        ));
+      }
+    }
+
+    return chips;
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -1517,21 +1643,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
         .take(_itemsPerPage)
         .toList();
 
-    String? filterLabel;
-    if (_filter != null) {
-      final parts = <String>[
-        if (_filter!.namaLokasi != null) _filter!.namaLokasi!,
-        if (_filter!.namaUnit != null) _filter!.namaUnit!,
-        if (_filter!.auditStatus == 'audited') _t('Audited', 'Sudah Diaudit', '已审计'),
-        if (_filter!.auditStatus == 'not_audited') _t('Not Audited', 'Belum Diaudit', '未审计'),
-        if (_filter!.minScore != null || _filter!.maxScore != null) ...[
-          if (_filter!.minScore == 80.0 && _filter!.maxScore == null) '≥80%',
-          if (_filter!.minScore == 60.0 && _filter!.maxScore == 79.9) '60-79%',
-          if (_filter!.minScore == null && _filter!.maxScore == 59.9) '<60%',
-        ],
-      ];
-      if (parts.isNotEmpty) filterLabel = parts.join(' · ');
-    }
+    final activeFilterChips = _buildActiveFilterChips();
 
     return Material(
       type: MaterialType.transparency,
@@ -1610,36 +1722,35 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
             ),
           ),
 
-          if (filterLabel != null)
+          if (activeFilterChips.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  color: _SBC.filterAccent.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _SBC.filterAccent.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.filter_alt_rounded, size: 14, color: _SBC.filterAccent),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(filterLabel,
-                          style: GoogleFonts.poppins(
-                              fontSize: 11, color: _SBC.filterAccent, fontWeight: FontWeight.w600),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: activeFilterChips,
                     ),
-                    GestureDetector(
-                      onTap: () => setState(() {
-                        _filter = null;
-                        _currentPage = 1;
-                      }),
-                      child: const Icon(Icons.close_rounded, size: 14, color: _SBC.filterAccent),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      _filter = null;
+                      _currentPage = 1;
+                    }),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: _SBC.red.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded, size: 14, color: _SBC.red),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
 
@@ -2470,6 +2581,39 @@ class _SubunitPageIndicator extends StatelessWidget {
           size: 15,
           color: enabled ? _mainColor : Colors.grey.shade400,
         ),
+      ),
+    );
+  }
+}
+
+class _ActiveFilterChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _ActiveFilterChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(label,
+              style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+        ],
       ),
     );
   }

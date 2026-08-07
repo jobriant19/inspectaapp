@@ -340,6 +340,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
     void Function(String? id, String? name) onSelected,
   ) async {
     String searchQuery = '';
+    final TextEditingController pickerSearchCtrl = TextEditingController();
     await showDialog(
       context: parentCtx,
       barrierDismissible: true,
@@ -391,10 +392,10 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: _UC.red.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                              child: const Icon(Icons.close_rounded, color: _UC.red, size: 18),
                             ),
                           ),
                         ],
@@ -403,12 +404,30 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: TextField(
+                        controller: pickerSearchCtrl,
                         onChanged: (v) => setPickerState(() => searchQuery = v),
                         style: GoogleFonts.poppins(fontSize: 13, color: _UC.green),
                         decoration: InputDecoration(
                           hintText: _t('Search location…', 'Cari lokasi…', '搜索位置…'),
                           hintStyle: GoogleFonts.poppins(fontSize: 12, color: _UC.textSub),
                           prefixIcon: const Icon(Icons.search_rounded, color: _UC.green, size: 18),
+                          suffixIcon: searchQuery.isNotEmpty
+                              ? GestureDetector(
+                                  onTap: () {
+                                    pickerSearchCtrl.clear();
+                                    setPickerState(() => searchQuery = '');
+                                  },
+                                  child: Container(
+                                    margin: const EdgeInsets.all(8),
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: _UC.red.withValues(alpha: 0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.close_rounded, size: 14, color: _UC.red),
+                                  ),
+                                )
+                              : null,
                           filled: true,
                           fillColor: _UC.surface,
                           contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
@@ -469,18 +488,18 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
                                       width: 96,
                                       height: 96,
                                       decoration: BoxDecoration(
-                                        color: _UC.filterAccent.withValues(alpha: 0.08),
+                                        color: _UC.green.withValues(alpha: 0.08),
                                         shape: BoxShape.circle,
                                       ),
                                       child: Icon(Icons.location_off_rounded,
-                                          size: 42, color: _UC.filterAccent.withValues(alpha: 0.4)),
+                                          size: 42, color: _UC.green.withValues(alpha: 0.4)),
                                     ),
                                   ),
                                   const SizedBox(height: 14),
                                   Text(
                                     _t('No Location Found', 'Lokasi Tidak Ditemukan', '未找到位置'),
                                     style: GoogleFonts.poppins(
-                                        fontSize: 13.5, fontWeight: FontWeight.w700, color: _UC.filterAccent),
+                                        fontSize: 13.5, fontWeight: FontWeight.w700, color: _UC.green),
                                     textAlign: TextAlign.center,
                                   ),
                                   const SizedBox(height: 6),
@@ -580,10 +599,10 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: _UC.red.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                              child: const Icon(Icons.close_rounded, color: _UC.red, size: 18),
                             ),
                           ),
                         ],
@@ -637,17 +656,17 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
                                     width: double.infinity,
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                                     decoration: BoxDecoration(
-                                      color: selectedLokasiId != null ? _UC.filterAccent.withValues(alpha: 0.08) : Colors.white,
+                                      color: selectedLokasiId != null ? _UC.green.withValues(alpha: 0.08) : Colors.white,
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: selectedLokasiId != null ? _UC.filterAccent : Colors.grey.shade300,
+                                        color: selectedLokasiId != null ? _UC.green : Colors.grey.shade300,
                                         width: selectedLokasiId != null ? 1.5 : 1,
                                       ),
                                     ),
                                     child: Row(
                                       children: [
                                         Icon(Icons.apartment_rounded, size: 16,
-                                            color: selectedLokasiId != null ? _UC.filterAccent : _UC.textSub),
+                                            color: selectedLokasiId != null ? _UC.green : _UC.textSub),
                                         const SizedBox(width: 10),
                                         Expanded(
                                           child: Text(
@@ -655,12 +674,26 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
                                             style: GoogleFonts.poppins(
                                                 fontSize: 13,
                                                 fontWeight: FontWeight.w600,
-                                                color: selectedLokasiId != null ? _UC.filterAccent : _UC.textMain),
+                                                color: selectedLokasiId != null ? _UC.green : _UC.textMain),
                                             maxLines: 1, overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
-                                        Icon(Icons.chevron_right_rounded, size: 18,
-                                            color: selectedLokasiId != null ? _UC.filterAccent : _UC.textSub),
+                                        selectedLokasiId != null
+                                            ? GestureDetector(
+                                                onTap: () => setInner(() {
+                                                  selectedLokasiId = null;
+                                                  selectedLokasiName = null;
+                                                }),
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(4),
+                                                  decoration: BoxDecoration(
+                                                    color: _UC.red.withValues(alpha: 0.12),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  child: Icon(Icons.close_rounded, size: 14, color: _UC.red),
+                                                ),
+                                              )
+                                            : Icon(Icons.chevron_right_rounded, size: 18, color: _UC.textSub),
                                       ],
                                     ),
                                   ),
@@ -769,7 +802,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
                             Navigator.pop(ctx);
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _UC.primary,
+                            backgroundColor: _UC.filterAccent,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1201,6 +1234,58 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
     );
   }
 
+  List<Widget> _buildActiveFilterChips() {
+    final chips = <Widget>[];
+    final filter = _filter;
+    if (filter == null) return chips;
+
+    if (filter.namaLokasi != null) {
+      chips.add(_ActiveFilterChip(
+        icon: Icons.location_city_rounded,
+        label: filter.namaLokasi!,
+        color: _UC.green,
+      ));
+    }
+
+    if (filter.auditStatus == 'audited') {
+      chips.add(_ActiveFilterChip(
+        icon: Icons.fact_check_rounded,
+        label: _t('Audited', 'Sudah Diaudit', '已审计'),
+        color: _UC.green,
+      ));
+    } else if (filter.auditStatus == 'not_audited') {
+      chips.add(_ActiveFilterChip(
+        icon: Icons.fact_check_rounded,
+        label: _t('Not Audited', 'Belum Diaudit', '未审计'),
+        color: _UC.amber,
+      ));
+    }
+
+    if (filter.minScore != null || filter.maxScore != null) {
+      Color scoreColor = _UC.filterAccent;
+      String scoreLabel = '';
+      if (filter.minScore == 80.0 && filter.maxScore == null) {
+        scoreColor = _UC.green;
+        scoreLabel = '≥ 80%';
+      } else if (filter.minScore == 60.0 && filter.maxScore == 79.9) {
+        scoreColor = _UC.amber;
+        scoreLabel = '60–79%';
+      } else if (filter.minScore == null && filter.maxScore == 59.9) {
+        scoreColor = _UC.red;
+        scoreLabel = '< 60%';
+      }
+      if (scoreLabel.isNotEmpty) {
+        chips.add(_ActiveFilterChip(
+          icon: Icons.leaderboard_rounded,
+          label: scoreLabel,
+          color: scoreColor,
+        ));
+      }
+    }
+
+    return chips;
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -1210,20 +1295,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
         ? filtered
         : filtered.where((i) => i.name.toLowerCase().contains(query)).toList();
 
-    String? filterLabel;
-    if (_filter != null) {
-      final parts = <String>[
-        if (_filter!.namaLokasi != null) _filter!.namaLokasi!,
-        if (_filter!.auditStatus == 'audited') _t('Audited', 'Sudah Diaudit', '已审计'),
-        if (_filter!.auditStatus == 'not_audited') _t('Not Audited', 'Belum Diaudit', '未审计'),
-        if (_filter!.minScore != null || _filter!.maxScore != null) ...[
-          if (_filter!.minScore == 80.0 && _filter!.maxScore == null) '≥80%',
-          if (_filter!.minScore == 60.0 && _filter!.maxScore == 79.9) '60-79%',
-          if (_filter!.minScore == null && _filter!.maxScore == 59.9) '<60%',
-        ],
-      ];
-      if (parts.isNotEmpty) filterLabel = parts.join(' · ');
-    }
+    final activeFilterChips = _buildActiveFilterChips();
 
     final totalPages = items.isEmpty ? 1 : (items.length / _itemsPerPage).ceil();
     if (_currentPage > totalPages) _currentPage = totalPages;
@@ -1311,36 +1383,35 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
           ),
         ),
 
-        if (filterLabel != null)
+        if (activeFilterChips.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: _UC.filterAccent.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _UC.filterAccent.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.filter_alt_rounded, size: 14, color: _UC.filterAccent),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(filterLabel,
-                        style: GoogleFonts.poppins(
-                            fontSize: 11, color: _UC.filterAccent, fontWeight: FontWeight.w600),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: activeFilterChips,
                   ),
-                  GestureDetector(
-                    onTap: () => setState(() {
-                      _filter = null;
-                      _currentPage = 1;
-                    }),
-                    child: const Icon(Icons.close_rounded, size: 14, color: _UC.filterAccent),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => setState(() {
+                    _filter = null;
+                    _currentPage = 1;
+                  }),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: _UC.red.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close_rounded, size: 14, color: _UC.red),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
 
@@ -2170,6 +2241,39 @@ class _FilterChipItem extends StatelessWidget {
             color: isSelected ? Colors.white : _UC.textSub,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ActiveFilterChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _ActiveFilterChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(label,
+              style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+        ],
       ),
     );
   }

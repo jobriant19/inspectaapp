@@ -373,10 +373,10 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: _C.red.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                              child: const Icon(Icons.close_rounded, color: _C.red, size: 18),
                             ),
                           ),
                         ],
@@ -927,6 +927,50 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
     );
   }
 
+  List<Widget> _buildActiveFilterChips() {
+    final chips = <Widget>[];
+    final filter = _filter;
+    if (filter == null) return chips;
+
+    if (filter.auditStatus == 'audited') {
+      chips.add(_ActiveFilterChip(
+        icon: Icons.fact_check_rounded,
+        label: _t('Audited', 'Sudah Diaudit', '已审计'),
+        color: _C.green,
+      ));
+    } else if (filter.auditStatus == 'not_audited') {
+      chips.add(_ActiveFilterChip(
+        icon: Icons.fact_check_rounded,
+        label: _t('Not Audited', 'Belum Diaudit', '未审计'),
+        color: _C.amber,
+      ));
+    }
+
+    if (filter.minScore != null || filter.maxScore != null) {
+      Color scoreColor = _C.blue;
+      String scoreLabel = '';
+      if (filter.minScore == 80.0 && filter.maxScore == null) {
+        scoreColor = _C.green;
+        scoreLabel = '≥ 80%';
+      } else if (filter.minScore == 60.0 && filter.maxScore == 79.9) {
+        scoreColor = _C.amber;
+        scoreLabel = '60–79%';
+      } else if (filter.minScore == null && filter.maxScore == 59.9) {
+        scoreColor = _C.red;
+        scoreLabel = '< 60%';
+      }
+      if (scoreLabel.isNotEmpty) {
+        chips.add(_ActiveFilterChip(
+          icon: Icons.leaderboard_rounded,
+          label: scoreLabel,
+          color: scoreColor,
+        ));
+      }
+    }
+
+    return chips;
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -936,19 +980,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
         ? filtered
         : filtered.where((i) => i.name.toLowerCase().contains(query)).toList();
 
-    String? filterLabel;
-    if (_filter != null) {
-      final parts = <String>[
-        if (_filter!.auditStatus == 'audited') _t('Audited', 'Sudah Diaudit', '已审计'),
-        if (_filter!.auditStatus == 'not_audited') _t('Not Audited', 'Belum Diaudit', '未审计'),
-        if (_filter!.minScore != null || _filter!.maxScore != null) ...[
-          if (_filter!.minScore == 80.0 && _filter!.maxScore == null) '≥80%',
-          if (_filter!.minScore == 60.0 && _filter!.maxScore == 79.9) '60-79%',
-          if (_filter!.minScore == null && _filter!.maxScore == 59.9) '<60%',
-        ],
-      ];
-      if (parts.isNotEmpty) filterLabel = parts.join(' · ');
-    }
+    final activeFilterChips = _buildActiveFilterChips();
 
     final totalPages = items.isEmpty ? 1 : (items.length / _itemsPerPage).ceil();
     if (_currentPage > totalPages) _currentPage = totalPages;
@@ -1034,36 +1066,35 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
             ),
           ),
 
-          if (filterLabel != null)
+          if (activeFilterChips.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  color: _C.textMain.withValues(alpha:0.08),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _C.textMain.withValues(alpha:0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.filter_alt_rounded, size: 14, color: _C.textMain),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(filterLabel,
-                          style: GoogleFonts.poppins(
-                              fontSize: 11, color: _C.textMain, fontWeight: FontWeight.w600),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: activeFilterChips,
                     ),
-                    GestureDetector(
-                      onTap: () => setState(() {
-                        _filter = null;
-                        _currentPage = 1;
-                      }),
-                      child: const Icon(Icons.close_rounded, size: 14, color: _C.textMain),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      _filter = null;
+                      _currentPage = 1;
+                    }),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: _C.red.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded, size: 14, color: _C.red),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
 
@@ -1530,12 +1561,47 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
               ),
             )
           else if (_history.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 30),
-              child: Center(
-                child: Text(
-                    _t('No audit history', 'Belum ada riwayat audit', '无审计历史'),
-                    style: GoogleFonts.poppins(fontSize: 13, color: _C.textSub)),
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _C.divider),
+              ),
+              child: Column(
+                children: [
+                  Image.asset(
+                    'assets/images/team_illustration.png',
+                    height: 140,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: _C.green.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.history_toggle_off_rounded, size: 46, color: _C.green.withValues(alpha: 0.4)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _t('No audit history yet', 'Belum Ada Riwayat Audit', '暂无审计历史'),
+                    style: GoogleFonts.poppins(fontSize: 14.5, fontWeight: FontWeight.w700, color: _C.textMain),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _t(
+                        'This location hasn\'t been audited yet. Once an audit is completed, the results will appear here.',
+                        'Lokasi ini belum pernah diaudit. Hasil audit akan muncul di sini setelah selesai dilakukan.',
+                        '该位置尚未进行审计。审计完成后结果将显示在此处。'),
+                    style: GoogleFonts.poppins(fontSize: 12, color: _C.textSub, height: 1.5),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
             )
           else
@@ -1810,6 +1876,39 @@ class _FilterChipItem extends StatelessWidget {
             color: isSelected ? Colors.white : _C.textSub,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ActiveFilterChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _ActiveFilterChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(label,
+              style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+        ],
       ),
     );
   }
