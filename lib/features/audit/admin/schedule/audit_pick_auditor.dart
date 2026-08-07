@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../admin/user/filter/admin_user_filter.dart';
+import '../../../admin/user/filter/admin_user_filter.dart';
 import 'audit_pick_location.dart';
 
 const Color _kPrimary   = Color(0xFF8B5CF6);

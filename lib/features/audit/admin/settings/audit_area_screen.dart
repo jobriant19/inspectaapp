@@ -3,31 +3,30 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import '../result/audit_result_detail_screen.dart';
+import '../../user/result/audit_result_detail_screen.dart';
 
-class _SBC {
+class _AC {
   static const filterAccent   = Color(0xFF1D72F3);
   static const locationAccent = Color(0xFF10B981);
   static const unitAccent     = Color(0xFF6366F1);
   static const subunitAccent  = Color(0xFFFBBF24);
+  static const areaAccent     = Color(0xFFF472B6);
 
   static const primary    = Color(0xFF8B5CF6);
   static const green      = Color(0xFF10B981);
   static const amber      = Color(0xFFF59E0B);
   static const red        = Color(0xFFEF4444);
   static const blue       = Color(0xFF0EA5E9);
-  static const textMain   = Color(0xFF1D72F3);
+  static const textMain   = Color(0xFF1E3A8A);
   static const textSub    = Color(0xFF64748B);
   static const divider    = Color(0xFFE2E8F0);
   static const surface    = Color(0xFFF8FAFC);
 }
 
-class _SubunitItem {
+class _AreaItem {
   final String id;
   final String name;
   final String? description;
-  final String? descriptionEn;
-  final String? descriptionZh;
   final String? imageUrl;
   String? schedulePeriode;
   String? scheduleAuditorName;
@@ -37,17 +36,16 @@ class _SubunitItem {
   String? latestAuditDate;
   String? picName;
   String? picImage;
+  final String? idSubunit;
   final String? idUnit;
   final String? idLokasi;
   bool latestIsFinalized;
   double? latestFinalScore;
 
-  _SubunitItem({
+  _AreaItem({
     required this.id,
     required this.name,
     this.description,
-    this.descriptionEn,
-    this.descriptionZh,
     this.imageUrl,
     this.schedulePeriode,
     this.scheduleAuditorName,
@@ -57,74 +55,71 @@ class _SubunitItem {
     this.latestAuditDate,
     this.picName,
     this.picImage,
+    this.idSubunit,
     this.idUnit,
     this.idLokasi,
     this.latestIsFinalized = false,
     this.latestFinalScore,
   });
-
-  String? descriptionFor(String lang) {
-    if (lang == 'EN') {
-      return (descriptionEn != null && descriptionEn!.isNotEmpty) ? descriptionEn : description;
-    }
-    if (lang == 'ZH') {
-      return (descriptionZh != null && descriptionZh!.isNotEmpty) ? descriptionZh : description;
-    }
-    return description;
-  }
 }
 
-class _SubunitHierarchyFilter {
+class _AreaHierarchyFilter {
   final String? idLokasi;
   final String? namaLokasi;
   final String? idUnit;
   final String? namaUnit;
+  final String? idSubunit;
+  final String? namaSubunit;
   final String? auditStatus;
   final double? minScore;
   final double? maxScore;
 
-  const _SubunitHierarchyFilter({
+  const _AreaHierarchyFilter({
     this.idLokasi,
     this.namaLokasi,
     this.idUnit,
     this.namaUnit,
+    this.idSubunit,
+    this.namaSubunit,
     this.auditStatus,
     this.minScore,
     this.maxScore,
   });
 }
 
-class AuditSubunitScreen extends StatefulWidget {
+class AuditAreaScreen extends StatefulWidget {
   final String lang;
   final VoidCallback? onScheduleChanged;
-  const AuditSubunitScreen({super.key, required this.lang, this.onScheduleChanged});
+  const AuditAreaScreen({super.key, required this.lang, this.onScheduleChanged});
 
   @override
-  State<AuditSubunitScreen> createState() => _AuditSubunitScreenState();
+  State<AuditAreaScreen> createState() => _AuditAreaScreenState();
 }
 
-class _AuditSubunitScreenState extends State<AuditSubunitScreen>
+class _AuditAreaScreenState extends State<AuditAreaScreen>
     with AutomaticKeepAliveClientMixin {
   final _supabase = Supabase.instance.client;
 
   @override
   bool get wantKeepAlive => true;
 
-  List<_SubunitItem> _data = [];
+  List<_AreaItem> _data = [];
   bool _loading = true;
   String _search = '';
   final TextEditingController _searchCtrl = TextEditingController();
-  _SubunitHierarchyFilter? _filter;
+  _AreaHierarchyFilter? _filter;
   bool _hasSchedule = false;
   bool _isFilterSheetOpen = false;
   bool _isLocationPickerOpen = false;
   bool _isUnitPickerOpen = false;
+  bool _isSubunitPickerOpen = false;
 
   int _currentPage = 1;
   static const int _itemsPerPage = 5;
 
-  List<Map<String, dynamic>> _allLokasi = [];
-  List<Map<String, dynamic>> _allUnit   = [];
+  List<Map<String, dynamic>> _allLokasi  = [];
+  List<Map<String, dynamic>> _allUnit    = [];
+  List<Map<String, dynamic>> _allSubunit = [];
   bool _filterDataLoaded = false;
 
   String _t(String en, String id, String zh) {
@@ -136,7 +131,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
   @override
   void initState() {
     super.initState();
-    _fetchSubunits();
+    _fetchAreas();
   }
 
   @override
@@ -145,17 +140,18 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
     super.dispose();
   }
 
-  Future<void> _fetchSubunits() async {
+  Future<void> _fetchAreas() async {
     setState(() => _loading = true);
     try {
       final rows = await _supabase
-          .from('subunit')
+          .from('area')
           .select(
-              'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, '
-              'deskripsi_subunit_en, deskripsi_subunit_zh, id_pic, id_unit, id_lokasi')
-          .order('nama_subunit');
+              'id_area, nama_area, gambar_area, deskripsi_area, '
+              'deskripsi_area_en, deskripsi_area_zh, '
+              'id_pic, id_subunit, id_unit, id_lokasi')
+          .order('nama_area');
 
-      final ids = rows.map((r) => r['id_subunit'].toString()).toList();
+      final ids = rows.map((r) => r['id_area'].toString()).toList();
       final picIds = rows
           .where((r) => r['id_pic'] != null)
           .map((r) => r['id_pic'].toString())
@@ -167,7 +163,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
             ? _supabase
                 .from('audit_result')
                 .select('id_ref, id_schedule, nilai_audit, nilai_final, is_finalized, tanggal_audit')
-                .eq('level_type', 'subunit')
+                .eq('level_type', 'area')
                 .inFilter('id_ref', ids)
                 .order('tanggal_audit', ascending: false)
             : Future.value(<dynamic>[]),
@@ -201,7 +197,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                   'id_schedule, id_ref, periode_mulai, periode_selesai, id_jenis_audit, '
                   'User_Auditor:User!fk_audit_schedule_auditor(nama, gambar_user), '
                   'JenisAudit:jenis_audit(nama_id, nama_en, nama_zh)')
-              .eq('level_type', 'subunit')
+              .eq('level_type', 'area')
               .inFilter('id_ref', ids)
               .lte('periode_mulai', todayStr)
               .gte('periode_selesai', todayStr)
@@ -215,8 +211,8 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
       }
       _hasSchedule = scheduleRows.isNotEmpty;
 
-      final items = rows.map<_SubunitItem>((r) {
-        final id = r['id_subunit'].toString();
+      final items = rows.map<_AreaItem>((r) {
+        final id = r['id_area'].toString();
         final auditList = auditListMap[id] ?? [];
         final latestAuditRow = auditList.isNotEmpty ? auditList.first : null;
         final schedule = scheduleMap[id];
@@ -255,19 +251,22 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
           }
         }
 
-        return _SubunitItem(
+        return _AreaItem(
           id: id,
-          name: r['nama_subunit']?.toString() ?? '-',
-          description: r['deskripsi_subunit']?.toString(),
-          descriptionEn: r['deskripsi_subunit_en']?.toString(),
-          descriptionZh: r['deskripsi_subunit_zh']?.toString(),
-          imageUrl: r['gambar_subunit']?.toString(),
+          name: r['nama_area']?.toString() ?? '-',
+          description: widget.lang == 'EN'
+              ? (r['deskripsi_area_en']?.toString() ?? r['deskripsi_area']?.toString())
+              : widget.lang == 'ZH'
+                  ? (r['deskripsi_area_zh']?.toString() ?? r['deskripsi_area']?.toString())
+                  : r['deskripsi_area']?.toString(),
+          imageUrl: r['gambar_area']?.toString(),
           latestScore: scopedAudit != null
               ? double.tryParse(scopedAudit['nilai_audit']?.toString() ?? '')
               : null,
           latestAuditDate: latestAuditRow?['tanggal_audit']?.toString(),
           picName: r['id_pic'] != null ? picMap[r['id_pic'].toString()] : null,
           picImage: r['id_pic'] != null ? picImageMap[r['id_pic'].toString()] : null,
+          idSubunit: r['id_subunit']?.toString(),
           idUnit: r['id_unit']?.toString(),
           idLokasi: r['id_lokasi']?.toString(),
           latestIsFinalized: scopedAudit?['is_finalized'] == true,
@@ -288,7 +287,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
         });
       }
     } catch (e) {
-      debugPrint('Audit subunit fetch error: $e');
+      debugPrint('Audit area fetch error: $e');
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -299,11 +298,13 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
       final results = await Future.wait([
         _supabase.from('lokasi').select('id_lokasi, nama_lokasi').order('nama_lokasi'),
         _supabase.from('unit').select('id_unit, nama_unit, id_lokasi').order('nama_unit'),
+        _supabase.from('subunit').select('id_subunit, nama_subunit, id_unit').order('nama_subunit'),
       ]);
       if (mounted) {
         setState(() {
-          _allLokasi = List<Map<String, dynamic>>.from(results[0]);
-          _allUnit   = List<Map<String, dynamic>>.from(results[1]);
+          _allLokasi  = List<Map<String, dynamic>>.from(results[0]);
+          _allUnit    = List<Map<String, dynamic>>.from(results[1]);
+          _allSubunit = List<Map<String, dynamic>>.from(results[2]);
           _filterDataLoaded = true;
         });
       }
@@ -313,10 +314,10 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
   }
 
   Color _scoreColor(double? score) {
-    if (score == null) return _SBC.textSub;
-    if (score >= 80) return _SBC.green;
-    if (score >= 60) return _SBC.amber;
-    return _SBC.red;
+    if (score == null) return _AC.textSub;
+    if (score >= 80) return _AC.green;
+    if (score >= 60) return _AC.amber;
+    return _AC.red;
   }
 
   String _formatDate(String raw) {
@@ -325,24 +326,17 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
     return DateFormat('dd MMM yyyy').format(dt);
   }
 
-  String? _lokasiIdForItem(_SubunitItem item) {
-    if (item.idLokasi != null && item.idLokasi!.isNotEmpty) return item.idLokasi;
-    final unit = _allUnit.firstWhere(
-      (u) => u['id_unit']?.toString() == item.idUnit,
-      orElse: () => {},
-    );
-    return unit['id_lokasi']?.toString();
-  }
-
-  List<_SubunitItem> _applyFilter(List<_SubunitItem> items) {
+  List<_AreaItem> _applyFilter(List<_AreaItem> items) {
     final filter = _filter;
     if (filter == null) return items;
-    List<_SubunitItem> result = items;
+    List<_AreaItem> result = items;
 
-    if (filter.idUnit != null) {
+    if (filter.idSubunit != null) {
+      result = result.where((i) => i.idSubunit == filter.idSubunit).toList();
+    } else if (filter.idUnit != null) {
       result = result.where((i) => i.idUnit == filter.idUnit).toList();
     } else if (filter.idLokasi != null) {
-      result = result.where((i) => _lokasiIdForItem(i) == filter.idLokasi).toList();
+      result = result.where((i) => i.idLokasi == filter.idLokasi).toList();
     }
 
     if (filter.auditStatus == 'audited') {
@@ -389,8 +383,8 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
             insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                minHeight: MediaQuery.of(ctx).size.height * 0.50,
-                maxHeight: MediaQuery.of(ctx).size.height * 0.50,
+                minHeight: MediaQuery.of(ctx).size.height * 0.60,
+                maxHeight: MediaQuery.of(ctx).size.height * 0.60,
               ),
               child: Container(
                 decoration: BoxDecoration(
@@ -407,16 +401,16 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                           Container(
                             padding: const EdgeInsets.all(9),
                             decoration: BoxDecoration(
-                              color: _SBC.locationAccent.withValues(alpha: 0.12),
+                              color: _AC.locationAccent.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(Icons.location_city_rounded, color: _SBC.locationAccent, size: 20),
+                            child: const Icon(Icons.location_city_rounded, color: _AC.locationAccent, size: 20),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               _t('Select Location', 'Pilih Lokasi', '选择位置'),
-                              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _SBC.locationAccent),
+                              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _AC.locationAccent),
                             ),
                           ),
                           GestureDetector(
@@ -437,23 +431,23 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: TextField(
                         onChanged: (v) => setPickerState(() => searchQuery = v),
-                        style: GoogleFonts.poppins(fontSize: 13, color: _SBC.textMain),
+                        style: GoogleFonts.poppins(fontSize: 13, color: _AC.textMain),
                         decoration: InputDecoration(
                           hintText: _t('Search location…', 'Cari lokasi…', '搜索位置…'),
-                          hintStyle: GoogleFonts.poppins(fontSize: 12, color: _SBC.textSub),
-                          prefixIcon: const Icon(Icons.search_rounded, color: _SBC.locationAccent, size: 18),
+                          hintStyle: GoogleFonts.poppins(fontSize: 12, color: _AC.textSub),
+                          prefixIcon: const Icon(Icons.search_rounded, color: _AC.locationAccent, size: 18),
                           filled: true,
-                          fillColor: _SBC.surface,
+                          fillColor: _AC.surface,
                           contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
                           border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(30),
-                              borderSide: const BorderSide(color: _SBC.divider)),
+                              borderSide: const BorderSide(color: _AC.divider)),
                           enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(30),
-                              borderSide: const BorderSide(color: _SBC.divider)),
+                              borderSide: const BorderSide(color: _AC.divider)),
                           focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(30),
-                              borderSide: const BorderSide(color: _SBC.locationAccent, width: 1.5)),
+                              borderSide: const BorderSide(color: _AC.locationAccent, width: 1.5)),
                         ),
                       ),
                     ),
@@ -466,7 +460,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                           _PickerTile(
                             name: _t('All Locations', 'Semua Lokasi', '所有位置'),
                             icon: Icons.apps_rounded,
-                            color: _SBC.locationAccent,
+                            color: _AC.locationAccent,
                             isSelected: currentId == null,
                             onTap: () {
                               onSelected(null, null);
@@ -482,7 +476,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                               child: _PickerTile(
                                 name: name,
                                 icon: Icons.location_city_rounded,
-                                color: _SBC.locationAccent,
+                                color: _AC.locationAccent,
                                 isSelected: currentId == id,
                                 onTap: () {
                                   onSelected(id, name);
@@ -504,18 +498,18 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                                       width: 96,
                                       height: 96,
                                       decoration: BoxDecoration(
-                                        color: _SBC.locationAccent.withValues(alpha: 0.08),
+                                        color: _AC.locationAccent.withValues(alpha: 0.08),
                                         shape: BoxShape.circle,
                                       ),
                                       child: Icon(Icons.location_off_rounded,
-                                          size: 42, color: _SBC.locationAccent.withValues(alpha: 0.4)),
+                                          size: 42, color: _AC.locationAccent.withValues(alpha: 0.4)),
                                     ),
                                   ),
                                   const SizedBox(height: 14),
                                   Text(
                                     _t('No Location Found', 'Lokasi Tidak Ditemukan', '未找到位置'),
                                     style: GoogleFonts.poppins(
-                                        fontSize: 13.5, fontWeight: FontWeight.w700, color: _SBC.locationAccent),
+                                        fontSize: 13.5, fontWeight: FontWeight.w700, color: _AC.locationAccent),
                                     textAlign: TextAlign.center,
                                   ),
                                   const SizedBox(height: 6),
@@ -524,7 +518,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                                         'Try a different keyword to find the location you\'re looking for.',
                                         'Coba kata kunci lain untuk menemukan lokasi yang Anda cari.',
                                         '尝试使用其他关键词查找您需要的位置。'),
-                                    style: GoogleFonts.poppins(fontSize: 11.5, color: _SBC.textSub, height: 1.4),
+                                    style: GoogleFonts.poppins(fontSize: 11.5, color: _AC.textSub, height: 1.4),
                                     textAlign: TextAlign.center,
                                   ),
                                 ],
@@ -572,8 +566,8 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
             insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                minHeight: MediaQuery.of(ctx).size.height * 0.50,
-                maxHeight: MediaQuery.of(ctx).size.height * 0.50,
+                minHeight: MediaQuery.of(ctx).size.height * 0.60,
+                maxHeight: MediaQuery.of(ctx).size.height * 0.60,
               ),
               child: Container(
                 decoration: BoxDecoration(
@@ -590,16 +584,16 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                           Container(
                             padding: const EdgeInsets.all(9),
                             decoration: BoxDecoration(
-                              color: _SBC.unitAccent.withValues(alpha: 0.12),
+                              color: _AC.unitAccent.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(Icons.business_rounded, color: _SBC.unitAccent, size: 20),
+                            child: const Icon(Icons.business_rounded, color: _AC.unitAccent, size: 20),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               _t('Select Unit', 'Pilih Unit', '选择单元'),
-                              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _SBC.unitAccent),
+                              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _AC.unitAccent),
                             ),
                           ),
                           GestureDetector(
@@ -620,23 +614,23 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: TextField(
                         onChanged: (v) => setPickerState(() => searchQuery = v),
-                        style: GoogleFonts.poppins(fontSize: 13, color: _SBC.textMain),
+                        style: GoogleFonts.poppins(fontSize: 13, color: _AC.textMain),
                         decoration: InputDecoration(
                           hintText: _t('Search unit…', 'Cari unit…', '搜索单元…'),
-                          hintStyle: GoogleFonts.poppins(fontSize: 12, color: _SBC.textSub),
-                          prefixIcon: const Icon(Icons.search_rounded, color: _SBC.unitAccent, size: 18),
+                          hintStyle: GoogleFonts.poppins(fontSize: 12, color: _AC.textSub),
+                          prefixIcon: const Icon(Icons.search_rounded, color: _AC.unitAccent, size: 18),
                           filled: true,
-                          fillColor: _SBC.surface,
+                          fillColor: _AC.surface,
                           contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
                           border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(30),
-                              borderSide: const BorderSide(color: _SBC.divider)),
+                              borderSide: const BorderSide(color: _AC.divider)),
                           enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(30),
-                              borderSide: const BorderSide(color: _SBC.divider)),
+                              borderSide: const BorderSide(color: _AC.divider)),
                           focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(30),
-                              borderSide: const BorderSide(color: _SBC.unitAccent, width: 1.5)),
+                              borderSide: const BorderSide(color: _AC.unitAccent, width: 1.5)),
                         ),
                       ),
                     ),
@@ -649,7 +643,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                           _PickerTile(
                             name: _t('All Units', 'Semua Unit', '所有单元'),
                             icon: Icons.apps_rounded,
-                            color: _SBC.unitAccent,
+                            color: _AC.unitAccent,
                             isSelected: currentId == null,
                             onTap: () {
                               onSelected(null, null);
@@ -665,7 +659,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                               child: _PickerTile(
                                 name: name,
                                 icon: Icons.business_rounded,
-                                color: _SBC.unitAccent,
+                                color: _AC.unitAccent,
                                 isSelected: currentId == id,
                                 onTap: () {
                                   onSelected(id, name);
@@ -687,18 +681,18 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                                       width: 96,
                                       height: 96,
                                       decoration: BoxDecoration(
-                                        color: _SBC.unitAccent.withValues(alpha: 0.08),
+                                        color: _AC.unitAccent.withValues(alpha: 0.08),
                                         shape: BoxShape.circle,
                                       ),
                                       child: Icon(Icons.business_rounded,
-                                          size: 42, color: _SBC.unitAccent.withValues(alpha: 0.4)),
+                                          size: 42, color: _AC.unitAccent.withValues(alpha: 0.4)),
                                     ),
                                   ),
                                   const SizedBox(height: 14),
                                   Text(
                                     _t('No Unit Found', 'Unit Tidak Ditemukan', '未找到单元'),
                                     style: GoogleFonts.poppins(
-                                        fontSize: 13.5, fontWeight: FontWeight.w700, color: _SBC.unitAccent),
+                                        fontSize: 13.5, fontWeight: FontWeight.w700, color: _AC.unitAccent),
                                     textAlign: TextAlign.center,
                                   ),
                                   const SizedBox(height: 6),
@@ -707,7 +701,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                                         'Try a different keyword to find the unit you\'re looking for.',
                                         'Coba kata kunci lain untuk menemukan unit yang Anda cari.',
                                         '尝试使用其他关键词查找您需要的单元。'),
-                                    style: GoogleFonts.poppins(fontSize: 11.5, color: _SBC.textSub, height: 1.4),
+                                    style: GoogleFonts.poppins(fontSize: 11.5, color: _AC.textSub, height: 1.4),
                                     textAlign: TextAlign.center,
                                   ),
                                 ],
@@ -727,6 +721,189 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
     _isUnitPickerOpen = false;
   }
 
+  Future<void> _showSubunitPickerDialog(
+    BuildContext parentCtx,
+    List<Map<String, dynamic>> subunitList,
+    String? currentId,
+    void Function(String? id, String? name) onSelected,
+  ) async {
+    if (_isSubunitPickerOpen) return;
+    _isSubunitPickerOpen = true;
+    String searchQuery = '';
+    await showDialog(
+      context: parentCtx,
+      barrierDismissible: true,
+      barrierColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setPickerState) {
+          final filteredSubunit = searchQuery.isEmpty
+              ? subunitList
+              : subunitList
+                  .where((s) => (s['nama_subunit']?.toString() ?? '')
+                      .toLowerCase()
+                      .contains(searchQuery.toLowerCase()))
+                  .toList();
+
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: MediaQuery.of(ctx).size.height * 0.60,
+                maxHeight: MediaQuery.of(ctx).size.height * 0.60,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              color: _AC.subunitAccent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.layers_rounded, color: _AC.subunitAccent, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _t('Select Sub-Unit', 'Pilih Sub-Unit', '选择子单元'),
+                              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _AC.subunitAccent),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => Navigator.pop(ctx),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextField(
+                        onChanged: (v) => setPickerState(() => searchQuery = v),
+                        style: GoogleFonts.poppins(fontSize: 13, color: _AC.textMain),
+                        decoration: InputDecoration(
+                          hintText: _t('Search sub-unit…', 'Cari sub-unit…', '搜索子单元…'),
+                          hintStyle: GoogleFonts.poppins(fontSize: 12, color: _AC.textSub),
+                          prefixIcon: const Icon(Icons.search_rounded, color: _AC.subunitAccent, size: 18),
+                          filled: true,
+                          fillColor: _AC.surface,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: _AC.divider)),
+                          enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: _AC.divider)),
+                          focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: _AC.subunitAccent, width: 1.5)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Flexible(
+                      child: ListView(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        children: [
+                          _PickerTile(
+                            name: _t('All Sub-Units', 'Semua Sub-Unit', '所有子单元'),
+                            icon: Icons.apps_rounded,
+                            color: _AC.subunitAccent,
+                            isSelected: currentId == null,
+                            onTap: () {
+                              onSelected(null, null);
+                              Navigator.pop(ctx);
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          ...filteredSubunit.map((s) {
+                            final id   = s['id_subunit']?.toString() ?? '';
+                            final name = s['nama_subunit']?.toString() ?? '-';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: _PickerTile(
+                                name: name,
+                                icon: Icons.layers_rounded,
+                                color: _AC.subunitAccent,
+                                isSelected: currentId == id,
+                                onTap: () {
+                                  onSelected(id, name);
+                                  Navigator.pop(ctx);
+                                },
+                              ),
+                            );
+                          }),
+                          if (filteredSubunit.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              child: Column(
+                                children: [
+                                  Image.asset(
+                                    'assets/images/team_illustration.png',
+                                    height: 120,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      width: 96,
+                                      height: 96,
+                                      decoration: BoxDecoration(
+                                        color: _AC.subunitAccent.withValues(alpha: 0.08),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(Icons.layers_rounded,
+                                          size: 42, color: _AC.subunitAccent.withValues(alpha: 0.4)),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Text(
+                                    _t('No Sub-Unit Found', 'Sub-Unit Tidak Ditemukan', '未找到子单元'),
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 13.5, fontWeight: FontWeight.w700, color: _AC.subunitAccent),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _t(
+                                        'Try a different keyword to find the sub-unit you\'re looking for.',
+                                        'Coba kata kunci lain untuk menemukan sub-unit yang Anda cari.',
+                                        '尝试使用其他关键词查找您需要的子单元。'),
+                                    style: GoogleFonts.poppins(fontSize: 11.5, color: _AC.textSub, height: 1.4),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    _isSubunitPickerOpen = false;
+  }
+
   Future<void> _showFilterSheet() async {
     if (_isFilterSheetOpen) return;
     _isFilterSheetOpen = true;
@@ -742,6 +919,8 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
     String? selectedLokasiName = current?.namaLokasi;
     String? selectedUnitId = current?.idUnit;
     String? selectedUnitName = current?.namaUnit;
+    String? selectedSubunitId = current?.idSubunit;
+    String? selectedSubunitName = current?.namaSubunit;
     String? selectedAuditStatus = current?.auditStatus;
     double? selectedMinScore = current?.minScore;
     double? selectedMaxScore = current?.maxScore;
@@ -774,309 +953,379 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(9),
-                        decoration: BoxDecoration(
-                          color: _SBC.filterAccent.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.filter_alt_rounded, color: _SBC.filterAccent, size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          _t('Filter', 'Filter', '筛选'),
-                          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _SBC.filterAccent),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          setSheetState(() {
-                            selectedLokasiId = null;
-                            selectedLokasiName = null;
-                            selectedUnitId = null;
-                            selectedUnitName = null;
-                            selectedAuditStatus = null;
-                            selectedMinScore = null;
-                            selectedMaxScore = null;
-                          });
-                        },
-                        child: Text(_t('Reset', 'Reset', '重置'),
-                            style: GoogleFonts.poppins(color: _SBC.red, fontWeight: FontWeight.w600, fontSize: 12.5)),
-                      ),
-                      GestureDetector(
-                        onTap: () => Navigator.pop(ctx),
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(20),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              color: _AC.filterAccent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.filter_alt_rounded, color: _AC.filterAccent, size: 20),
                           ),
-                          child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _t('Filter', 'Filter', '筛选'),
+                              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _AC.filterAccent),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setSheetState(() {
+                                selectedLokasiId = null;
+                                selectedLokasiName = null;
+                                selectedUnitId = null;
+                                selectedUnitName = null;
+                                selectedSubunitId = null;
+                                selectedSubunitName = null;
+                                selectedAuditStatus = null;
+                                selectedMinScore = null;
+                                selectedMaxScore = null;
+                              });
+                            },
+                            child: Text(_t('Reset', 'Reset', '重置'),
+                                style: GoogleFonts.poppins(color: _AC.red, fontWeight: FontWeight.w600, fontSize: 12.5)),
+                          ),
+                          GestureDetector(
+                            onTap: () => Navigator.pop(ctx),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                        child: StatefulBuilder(
+                          builder: (ctx2, setInner) {
+                            final filteredUnitForPicker = selectedLokasiId == null
+                                ? _allUnit
+                                : _allUnit.where((u) => u['id_lokasi']?.toString() == selectedLokasiId).toList();
+                            final filteredSubunitForPicker = selectedUnitId == null
+                                ? _allSubunit
+                                : _allSubunit.where((s) => s['id_unit']?.toString() == selectedUnitId).toList();
+
+                            Widget scoreChip(Map<String, dynamic> range) {
+                              final min = range['min'] as double?;
+                              final max = range['max'] as double?;
+                              final isSelected = selectedMinScore == min && selectedMaxScore == max;
+                              Color chipColor = _AC.filterAccent;
+                              if (min == 80.0) { chipColor = _AC.green; }
+                              else if (min == 60.0) { chipColor = _AC.amber; }
+                              else if (max == 59.9) { chipColor = _AC.red; }
+                              return _FilterChipItem(
+                                label: range['label'] as String,
+                                isSelected: isSelected,
+                                color: chipColor,
+                                onTap: () => setInner(() {
+                                  selectedMinScore = min;
+                                  selectedMaxScore = max;
+                                }),
+                              );
+                            }
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // LOCATION SELECT
+                                Row(
+                                  children: [
+                                    Icon(Icons.location_city_rounded, size: 14, color: _AC.locationAccent),
+                                    const SizedBox(width: 6),
+                                    Text(_t('Location', 'Lokasi', '位置'),
+                                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _AC.locationAccent)),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                GestureDetector(
+                                  onTap: () => _showLocationPickerDialog(ctx2, selectedLokasiId, (id, name) {
+                                    setInner(() {
+                                      selectedLokasiId = id;
+                                      selectedLokasiName = name;
+                                      if (selectedUnitId != null) {
+                                        final stillValid = _allUnit.any((u) =>
+                                            u['id_unit']?.toString() == selectedUnitId &&
+                                            (id == null || u['id_lokasi']?.toString() == id));
+                                        if (!stillValid) {
+                                          selectedUnitId = null;
+                                          selectedUnitName = null;
+                                          selectedSubunitId = null;
+                                          selectedSubunitName = null;
+                                        }
+                                      }
+                                    });
+                                  }),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: selectedLokasiId != null ? _AC.locationAccent.withValues(alpha: 0.08) : Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: selectedLokasiId != null ? _AC.locationAccent : Colors.grey.shade300,
+                                        width: selectedLokasiId != null ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.apartment_rounded, size: 16,
+                                            color: selectedLokasiId != null ? _AC.locationAccent : _AC.textSub),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            selectedLokasiName ?? _t('All Locations', 'Semua Lokasi', '所有位置'),
+                                            style: GoogleFonts.poppins(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: selectedLokasiId != null ? _AC.locationAccent : _AC.textMain),
+                                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        Icon(Icons.chevron_right_rounded, size: 18,
+                                            color: selectedLokasiId != null ? _AC.locationAccent : _AC.textSub),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+
+                                // UNIT SELECT
+                                Row(
+                                  children: [
+                                    Icon(Icons.business_rounded, size: 14, color: _AC.unitAccent),
+                                    const SizedBox(width: 6),
+                                    Text(_t('Unit', 'Unit', '单元'),
+                                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _AC.unitAccent)),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                GestureDetector(
+                                  onTap: () => _showUnitPickerDialog(ctx2, filteredUnitForPicker, selectedUnitId, (id, name) {
+                                    setInner(() {
+                                      selectedUnitId = id;
+                                      selectedUnitName = name;
+                                      if (selectedSubunitId != null) {
+                                        final stillValid = _allSubunit.any((s) =>
+                                            s['id_subunit']?.toString() == selectedSubunitId &&
+                                            (id == null || s['id_unit']?.toString() == id));
+                                        if (!stillValid) {
+                                          selectedSubunitId = null;
+                                          selectedSubunitName = null;
+                                        }
+                                      }
+                                    });
+                                  }),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: selectedUnitId != null ? _AC.unitAccent.withValues(alpha: 0.08) : Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: selectedUnitId != null ? _AC.unitAccent : Colors.grey.shade300,
+                                        width: selectedUnitId != null ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.business_rounded, size: 16,
+                                            color: selectedUnitId != null ? _AC.unitAccent : _AC.textSub),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            selectedUnitName ?? _t('All Units', 'Semua Unit', '所有单元'),
+                                            style: GoogleFonts.poppins(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: selectedUnitId != null ? _AC.unitAccent : _AC.textMain),
+                                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        Icon(Icons.chevron_right_rounded, size: 18,
+                                            color: selectedUnitId != null ? _AC.unitAccent : _AC.textSub),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+
+                                // SUBUNIT SELECT
+                                Row(
+                                  children: [
+                                    Icon(Icons.layers_rounded, size: 14, color: _AC.subunitAccent),
+                                    const SizedBox(width: 6),
+                                    Text(_t('Sub-Unit', 'Sub-Unit', '子单元'),
+                                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _AC.subunitAccent)),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                GestureDetector(
+                                  onTap: () => _showSubunitPickerDialog(ctx2, filteredSubunitForPicker, selectedSubunitId, (id, name) {
+                                    setInner(() {
+                                      selectedSubunitId = id;
+                                      selectedSubunitName = name;
+                                    });
+                                  }),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: selectedSubunitId != null ? _AC.subunitAccent.withValues(alpha: 0.08) : Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: selectedSubunitId != null ? _AC.subunitAccent : Colors.grey.shade300,
+                                        width: selectedSubunitId != null ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.layers_rounded, size: 16,
+                                            color: selectedSubunitId != null ? _AC.subunitAccent : _AC.textSub),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            selectedSubunitName ?? _t('All Sub-Units', 'Semua Sub-Unit', '所有子单元'),
+                                            style: GoogleFonts.poppins(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: selectedSubunitId != null ? _AC.subunitAccent : _AC.textMain),
+                                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        Icon(Icons.chevron_right_rounded, size: 18,
+                                            color: selectedSubunitId != null ? _AC.subunitAccent : _AC.textSub),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                const Divider(),
+                                const SizedBox(height: 8),
+
+                                if (_hasSchedule) ...[
+                                  Row(
+                                    children: [
+                                      Icon(Icons.fact_check_rounded, size: 14, color: _AC.textSub),
+                                      const SizedBox(width: 6),
+                                      Text(_t('Audit Status', 'Status Audit', '审计状态'),
+                                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _AC.textSub)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _FilterChipItem(
+                                          label: _t('All', 'Semua', '全部'),
+                                          isSelected: selectedAuditStatus == null,
+                                          color: _AC.filterAccent,
+                                          onTap: () => setInner(() => selectedAuditStatus = null),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: _FilterChipItem(
+                                          label: _t('Audited', 'Sudah Diaudit', '已审计'),
+                                          isSelected: selectedAuditStatus == 'audited',
+                                          color: _AC.green,
+                                          onTap: () => setInner(() => selectedAuditStatus = 'audited'),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: _FilterChipItem(
+                                          label: _t('Not Audited', 'Belum Diaudit', '未审计'),
+                                          isSelected: selectedAuditStatus == 'not_audited',
+                                          color: _AC.amber,
+                                          onTap: () => setInner(() => selectedAuditStatus = 'not_audited'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
+
+                                Row(
+                                  children: [
+                                    Icon(Icons.leaderboard_rounded, size: 14, color: _AC.textSub),
+                                    const SizedBox(width: 6),
+                                    Text(_t('Score Range', 'Rentang Nilai', '分数范围'),
+                                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _AC.textSub)),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(child: scoreChip(scoreRanges[0])),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: scoreChip(scoreRanges[1])),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(child: scoreChip(scoreRanges[2])),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: scoreChip(scoreRanges[3])),
+                                  ],
+                                ),
+                              ],
+                            );
+                          },
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                Flexible(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                    child: StatefulBuilder(
-                      builder: (ctx2, setInner) {
-                        final filteredUnitForPicker = selectedLokasiId == null
-                            ? _allUnit
-                            : _allUnit.where((u) => u['id_lokasi']?.toString() == selectedLokasiId).toList();
-
-                        Widget scoreChip(Map<String, dynamic> range) {
-                          final min = range['min'] as double?;
-                          final max = range['max'] as double?;
-                          final isSelected = selectedMinScore == min && selectedMaxScore == max;
-                          Color chipColor = _SBC.filterAccent;
-                          if (min == 80.0) { chipColor = _SBC.green; }
-                          else if (min == 60.0) { chipColor = _SBC.amber; }
-                          else if (max == 59.9) { chipColor = _SBC.red; }
-                          return _FilterChipItem(
-                            label: range['label'] as String,
-                            isSelected: isSelected,
-                            color: chipColor,
-                            onTap: () => setInner(() {
-                              selectedMinScore = min;
-                              selectedMaxScore = max;
-                            }),
-                          );
-                        }
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // LOCATION SELECT
-                            Row(
-                              children: [
-                                Icon(Icons.location_city_rounded, size: 14, color: _SBC.locationAccent),
-                                const SizedBox(width: 6),
-                                Text(_t('Location', 'Lokasi', '位置'),
-                                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _SBC.locationAccent)),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            GestureDetector(
-                              onTap: () => _showLocationPickerDialog(ctx2, selectedLokasiId, (id, name) {
-                                setInner(() {
-                                  selectedLokasiId = id;
-                                  selectedLokasiName = name;
-                                  if (selectedUnitId != null) {
-                                    final stillValid = _allUnit.any((u) =>
-                                        u['id_unit']?.toString() == selectedUnitId &&
-                                        (id == null || u['id_lokasi']?.toString() == id));
-                                    if (!stillValid) {
-                                      selectedUnitId = null;
-                                      selectedUnitName = null;
-                                    }
-                                  }
-                                });
-                              }),
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: selectedLokasiId != null ? _SBC.locationAccent.withValues(alpha: 0.08) : Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: selectedLokasiId != null ? _SBC.locationAccent : Colors.grey.shade300,
-                                    width: selectedLokasiId != null ? 1.5 : 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.apartment_rounded, size: 16,
-                                        color: selectedLokasiId != null ? _SBC.locationAccent : _SBC.textSub),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        selectedLokasiName ?? _t('All Locations', 'Semua Lokasi', '所有位置'),
-                                        style: GoogleFonts.poppins(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: selectedLokasiId != null ? _SBC.locationAccent : _SBC.textMain),
-                                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    Icon(Icons.chevron_right_rounded, size: 18,
-                                        color: selectedLokasiId != null ? _SBC.locationAccent : _SBC.textSub),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-
-                            // UNIT SELECT
-                            Row(
-                              children: [
-                                Icon(Icons.business_rounded, size: 14, color: _SBC.unitAccent),
-                                const SizedBox(width: 6),
-                                Text(_t('Unit', 'Unit', '单元'),
-                                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _SBC.unitAccent)),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            GestureDetector(
-                              onTap: () => _showUnitPickerDialog(ctx2, filteredUnitForPicker, selectedUnitId, (id, name) {
-                                setInner(() {
-                                  selectedUnitId = id;
-                                  selectedUnitName = name;
-                                });
-                              }),
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: selectedUnitId != null ? _SBC.unitAccent.withValues(alpha: 0.08) : Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: selectedUnitId != null ? _SBC.unitAccent : Colors.grey.shade300,
-                                    width: selectedUnitId != null ? 1.5 : 1,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.business_rounded, size: 16,
-                                        color: selectedUnitId != null ? _SBC.unitAccent : _SBC.textSub),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        selectedUnitName ?? _t('All Units', 'Semua Unit', '所有单元'),
-                                        style: GoogleFonts.poppins(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: selectedUnitId != null ? _SBC.unitAccent : _SBC.textMain),
-                                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    Icon(Icons.chevron_right_rounded, size: 18,
-                                        color: selectedUnitId != null ? _SBC.unitAccent : _SBC.textSub),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            const Divider(),
-                            const SizedBox(height: 8),
-
-                            if (_hasSchedule) ...[
-                              Row(
-                                children: [
-                                  Icon(Icons.fact_check_rounded, size: 14, color: _SBC.textSub),
-                                  const SizedBox(width: 6),
-                                  Text(_t('Audit Status', 'Status Audit', '审计状态'),
-                                      style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _SBC.textSub)),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _FilterChipItem(
-                                      label: _t('All', 'Semua', '全部'),
-                                      isSelected: selectedAuditStatus == null,
-                                      color: _SBC.filterAccent,
-                                      onTap: () => setInner(() => selectedAuditStatus = null),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: _FilterChipItem(
-                                      label: _t('Audited', 'Sudah Diaudit', '已审计'),
-                                      isSelected: selectedAuditStatus == 'audited',
-                                      color: _SBC.green,
-                                      onTap: () => setInner(() => selectedAuditStatus = 'audited'),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: _FilterChipItem(
-                                      label: _t('Not Audited', 'Belum Diaudit', '未审计'),
-                                      isSelected: selectedAuditStatus == 'not_audited',
-                                      color: _SBC.amber,
-                                      onTap: () => setInner(() => selectedAuditStatus = 'not_audited'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                            ],
-
-                            Row(
-                              children: [
-                                Icon(Icons.leaderboard_rounded, size: 14, color: _SBC.textSub),
-                                const SizedBox(width: 6),
-                                Text(_t('Score Range', 'Rentang Nilai', '分数范围'),
-                                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _SBC.textSub)),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(child: scoreChip(scoreRanges[0])),
-                                const SizedBox(width: 8),
-                                Expanded(child: scoreChip(scoreRanges[1])),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(child: scoreChip(scoreRanges[2])),
-                                const SizedBox(width: 8),
-                                Expanded(child: scoreChip(scoreRanges[3])),
-                              ],
-                            ),
-                          ],
-                        );
-                      },
                     ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          final hasFilter = selectedLokasiId != null ||
-                              selectedUnitId != null ||
-                              selectedAuditStatus != null ||
-                              selectedMinScore != null ||
-                              selectedMaxScore != null;
-                          _filter = hasFilter
-                              ? _SubunitHierarchyFilter(
-                                  idLokasi:    selectedLokasiId,
-                                  namaLokasi:  selectedLokasiName,
-                                  idUnit:      selectedUnitId,
-                                  namaUnit:    selectedUnitName,
-                                  auditStatus: selectedAuditStatus,
-                                  minScore:    selectedMinScore,
-                                  maxScore:    selectedMaxScore,
-                                )
-                              : null;
-                          _currentPage = 1;
-                        });
-                        Navigator.pop(ctx);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _SBC.filterAccent,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              final hasFilter = selectedLokasiId != null ||
+                                  selectedUnitId != null ||
+                                  selectedSubunitId != null ||
+                                  selectedAuditStatus != null ||
+                                  selectedMinScore != null ||
+                                  selectedMaxScore != null;
+                              _filter = hasFilter
+                                  ? _AreaHierarchyFilter(
+                                      idLokasi:    selectedLokasiId,
+                                      namaLokasi:  selectedLokasiName,
+                                      idUnit:      selectedUnitId,
+                                      namaUnit:    selectedUnitName,
+                                      idSubunit:   selectedSubunitId,
+                                      namaSubunit: selectedSubunitName,
+                                      auditStatus: selectedAuditStatus,
+                                      minScore:    selectedMinScore,
+                                      maxScore:    selectedMaxScore,
+                                    )
+                                  : null;
+                              _currentPage = 1;
+                            });
+                            Navigator.pop(ctx);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _AC.filterAccent,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: Text(_t('Apply Filter', 'Terapkan Filter', '应用筛选'),
+                              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                        ),
                       ),
-                      child: Text(_t('Apply Filter', 'Terapkan Filter', '应用筛选'),
-                          style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
                     ),
-                  ),
-                ),
                   ],
                 ),
               ),
@@ -1088,20 +1337,20 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
     _isFilterSheetOpen = false;
   }
 
-  void _showDetail(_SubunitItem item) {
+  void _showDetail(_AreaItem item) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _SubunitDetailSheet(lang: widget.lang, item: item),
+        builder: (_) => _AreaDetailSheet(lang: widget.lang, item: item),
       ),
     );
   }
 
   Widget _buildInitial(String name) {
     return Container(
-      color: _SBC.subunitAccent.withValues(alpha: 0.12),
+      color: _AC.areaAccent.withValues(alpha: 0.12),
       child: Center(
-        child: Icon(Icons.layers_rounded, color: _SBC.subunitAccent, size: 28),
+        child: Icon(Icons.place_rounded, color: _AC.areaAccent, size: 28),
       ),
     );
   }
@@ -1112,12 +1361,12 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
     return 15;
   }
 
-  Widget _buildCard(_SubunitItem item) {
+  Widget _buildCard(_AreaItem item) {
     final rawScore = item.latestScore;
     final isFinalized = item.latestIsFinalized;
     final needsFix = rawScore != null && !isFinalized && rawScore < 100;
     final displayScore = isFinalized ? (item.latestFinalScore ?? rawScore) : rawScore;
-    final scoreColor = isFinalized ? _SBC.amber : _scoreColor(rawScore);
+    final scoreColor = isFinalized ? _AC.amber : _scoreColor(rawScore);
     final hasPic = item.picName != null && item.picName!.isNotEmpty;
     final hasSchedulePeriode = item.schedulePeriode != null && item.schedulePeriode!.isNotEmpty;
     final hasJenisAudit = item.scheduleJenisAuditName != null && item.scheduleJenisAuditName!.isNotEmpty;
@@ -1130,7 +1379,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _SBC.divider, width: 1.2),
+          border: Border.all(color: _AC.divider, width: 1.2),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -1170,7 +1419,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                                 style: GoogleFonts.poppins(
                                     fontSize: _nameFontSize(item.name),
                                     fontWeight: FontWeight.w700,
-                                    color: _SBC.subunitAccent),
+                                    color: _AC.areaAccent),
                                 maxLines: 2, overflow: TextOverflow.ellipsis),
                             const SizedBox(height: 8),
                             Row(
@@ -1179,8 +1428,8 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                                 CircleAvatar(
                                   radius: 10,
                                   backgroundColor: hasPic
-                                      ? _SBC.subunitAccent.withValues(alpha: 0.15)
-                                      : _SBC.textSub.withValues(alpha: 0.12),
+                                      ? _AC.areaAccent.withValues(alpha: 0.15)
+                                      : _AC.textSub.withValues(alpha: 0.12),
                                   backgroundImage: (item.picImage != null && item.picImage!.isNotEmpty)
                                       ? NetworkImage(item.picImage!)
                                       : null,
@@ -1188,7 +1437,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                                       ? Icon(
                                           hasPic ? Icons.person_rounded : Icons.person_off_rounded,
                                           size: 12,
-                                          color: hasPic ? _SBC.subunitAccent : _SBC.textSub,
+                                          color: hasPic ? _AC.areaAccent : _AC.textSub,
                                         )
                                       : null,
                                 ),
@@ -1200,7 +1449,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                                         fontSize: 11.5,
                                         fontWeight: FontWeight.w600,
                                         fontStyle: hasPic ? FontStyle.normal : FontStyle.italic,
-                                        color: hasPic ? Colors.black87 : _SBC.textSub),
+                                        color: hasPic ? Colors.black87 : _AC.textSub),
                                   ),
                                 ),
                               ],
@@ -1211,7 +1460,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                                 Icon(
                                   hasSchedulePeriode ? Icons.event_rounded : Icons.event_busy_rounded,
                                   size: 13,
-                                  color: hasSchedulePeriode ? _SBC.blue : _SBC.textSub,
+                                  color: hasSchedulePeriode ? _AC.blue : _AC.textSub,
                                 ),
                                 const SizedBox(width: 5),
                                 Expanded(
@@ -1223,7 +1472,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                                         fontSize: 11,
                                         fontWeight: FontWeight.w600,
                                         fontStyle: hasSchedulePeriode ? FontStyle.normal : FontStyle.italic,
-                                        color: hasSchedulePeriode ? _SBC.blue : _SBC.textSub),
+                                        color: hasSchedulePeriode ? _AC.blue : _AC.textSub),
                                     maxLines: 1, overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -1238,7 +1487,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                 Container(
                   padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
                   decoration: BoxDecoration(
-                    color: _SBC.surface,
+                    color: _AC.surface,
                     borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
                   ),
                   child: Row(
@@ -1250,35 +1499,35 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                           children: [
                             Text(_t('Auditor', 'Auditor', '审计员'),
                                 style: GoogleFonts.poppins(
-                                    fontSize: 9.5, fontWeight: FontWeight.w600, color: _SBC.textSub)),
+                                    fontSize: 9.5, fontWeight: FontWeight.w600, color: _AC.textSub)),
                             const SizedBox(height: 4),
                             hasAuditor
                                 ? Row(
                                     children: [
                                       CircleAvatar(
                                         radius: 10,
-                                        backgroundColor: _SBC.blue.withValues(alpha: 0.15),
+                                        backgroundColor: _AC.blue.withValues(alpha: 0.15),
                                         backgroundImage: (item.scheduleAuditorImage != null &&
                                                 item.scheduleAuditorImage!.isNotEmpty)
                                             ? NetworkImage(item.scheduleAuditorImage!)
                                             : null,
                                         child: (item.scheduleAuditorImage == null ||
                                                 item.scheduleAuditorImage!.isEmpty)
-                                            ? const Icon(Icons.person_rounded, size: 11, color: _SBC.blue)
+                                            ? const Icon(Icons.person_rounded, size: 11, color: _AC.blue)
                                             : null,
                                       ),
                                       const SizedBox(width: 6),
                                       Expanded(
                                         child: Text(item.scheduleAuditorName!,
                                             style: GoogleFonts.poppins(
-                                                fontSize: 11, fontWeight: FontWeight.w600, color: _SBC.blue),
+                                                fontSize: 11, fontWeight: FontWeight.w600, color: _AC.blue),
                                             maxLines: 1, overflow: TextOverflow.ellipsis),
                                       ),
                                     ],
                                   )
                                 : Row(
                                     children: [
-                                      Icon(Icons.person_off_rounded, size: 13, color: _SBC.textSub),
+                                      Icon(Icons.person_off_rounded, size: 13, color: _AC.textSub),
                                       const SizedBox(width: 5),
                                       Expanded(
                                         child: Text(_t('No auditor yet', 'Belum ada auditor', '暂无审计员'),
@@ -1286,7 +1535,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.w600,
                                                 fontStyle: FontStyle.italic,
-                                                color: _SBC.textSub),
+                                                color: _AC.textSub),
                                             maxLines: 1, overflow: TextOverflow.ellipsis),
                                       ),
                                     ],
@@ -1298,7 +1547,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                         margin: const EdgeInsets.symmetric(horizontal: 10),
                         width: 1,
                         height: 34,
-                        color: _SBC.divider,
+                        color: _AC.divider,
                       ),
                       Expanded(
                         child: Column(
@@ -1306,11 +1555,11 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                           children: [
                             Text(_t('Last Audited', 'Terakhir Diaudit', '上次审计'),
                                 style: GoogleFonts.poppins(
-                                    fontSize: 9.5, fontWeight: FontWeight.w600, color: _SBC.textSub)),
+                                    fontSize: 9.5, fontWeight: FontWeight.w600, color: _AC.textSub)),
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                Icon(Icons.calendar_today_rounded, size: 12, color: _SBC.textSub),
+                                Icon(Icons.calendar_today_rounded, size: 12, color: _AC.textSub),
                                 const SizedBox(width: 5),
                                 Expanded(
                                   child: Text(
@@ -1342,19 +1591,19 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                       ? Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                           decoration: BoxDecoration(
-                            color: _SBC.amber.withValues(alpha: 0.12),
+                            color: _AC.amber.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: _SBC.amber.withValues(alpha: 0.4), width: 1),
+                            border: Border.all(color: _AC.amber.withValues(alpha: 0.4), width: 1),
                           ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.build_rounded, size: 14, color: _SBC.amber),
+                              const Icon(Icons.build_rounded, size: 14, color: _AC.amber),
                               const SizedBox(height: 2),
                               Text(_t('Needs Fix', 'Perlu Perbaikan', '需要修复'),
                                   textAlign: TextAlign.center,
                                   style: GoogleFonts.poppins(
-                                      fontSize: 8, fontWeight: FontWeight.w700, color: _SBC.amber)),
+                                      fontSize: 8, fontWeight: FontWeight.w700, color: _AC.amber)),
                             ],
                           ),
                         )
@@ -1378,19 +1627,19 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _SBC.subunitAccent.withValues(alpha: 0.12),
+                          color: _AC.areaAccent.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: _SBC.subunitAccent.withValues(alpha: 0.4)),
+                          border: Border.all(color: _AC.areaAccent.withValues(alpha: 0.4)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.fact_check_rounded, size: 10, color: _SBC.subunitAccent),
+                            Icon(Icons.fact_check_rounded, size: 10, color: _AC.areaAccent),
                             const SizedBox(width: 3),
                             Flexible(
                               child: Text(item.scheduleJenisAuditName!,
                                   style: GoogleFonts.poppins(
-                                      fontSize: 9, fontWeight: FontWeight.w700, color: _SBC.subunitAccent),
+                                      fontSize: 9, fontWeight: FontWeight.w700, color: _AC.areaAccent),
                                   maxLines: 1, overflow: TextOverflow.ellipsis),
                             ),
                           ],
@@ -1439,18 +1688,18 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                 width: 120,
                 height: 120,
                 decoration: BoxDecoration(
-                  color: _SBC.subunitAccent.withValues(alpha: 0.08),
+                  color: _AC.areaAccent.withValues(alpha: 0.08),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.location_off_rounded, size: 56, color: _SBC.subunitAccent.withValues(alpha: 0.4)),
+                child: Icon(Icons.location_off_rounded, size: 56, color: _AC.areaAccent.withValues(alpha: 0.4)),
               ),
             ),
             const SizedBox(height: 22),
             Text(
               isFiltering
-                  ? _t('No matching subunits', 'Subunit Tidak Ditemukan', '未找到匹配子单元')
-                  : _t('No subunits yet', 'Belum Ada Subunit', '暂无子单元'),
-              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _SBC.subunitAccent),
+                  ? _t('No matching areas', 'Area Tidak Ditemukan', '未找到匹配区域')
+                  : _t('No areas yet', 'Belum Ada Area', '暂无区域'),
+              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _AC.areaAccent),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
@@ -1461,10 +1710,10 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                       'Coba ubah kata kunci pencarian atau filter untuk menemukan yang Anda cari.',
                       '尝试调整搜索关键词或筛选条件以查找您需要的内容。')
                   : _t(
-                      'Subunits will show up here as soon as they\'re added to the system.',
-                      'Subunit akan muncul di sini setelah ditambahkan ke sistem.',
-                      '添加子单元后将显示在此处。'),
-              style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600, color: _SBC.textSub, height: 1.5),
+                      'Areas will show up here as soon as they\'re added to the system.',
+                      'Area akan muncul di sini setelah ditambahkan ke sistem.',
+                      '添加区域后将显示在此处。'),
+              style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600, color: _AC.textSub, height: 1.5),
               textAlign: TextAlign.center,
             ),
             if (isFiltering) ...[
@@ -1478,17 +1727,17 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   decoration: BoxDecoration(
-                    color: _SBC.subunitAccent.withValues(alpha: 0.1),
+                    color: _AC.areaAccent.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: _SBC.subunitAccent.withValues(alpha: 0.35)),
+                    border: Border.all(color: _AC.areaAccent.withValues(alpha: 0.35)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.refresh_rounded, size: 15, color: _SBC.subunitAccent),
+                      Icon(Icons.refresh_rounded, size: 15, color: _AC.areaAccent),
                       const SizedBox(width: 6),
                       Text(_t('Clear search & filter', 'Hapus pencarian & filter', '清除搜索与筛选'),
-                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _SBC.subunitAccent)),
+                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _AC.areaAccent)),
                     ],
                   ),
                 ),
@@ -1522,6 +1771,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
       final parts = <String>[
         if (_filter!.namaLokasi != null) _filter!.namaLokasi!,
         if (_filter!.namaUnit != null) _filter!.namaUnit!,
+        if (_filter!.namaSubunit != null) _filter!.namaSubunit!,
         if (_filter!.auditStatus == 'audited') _t('Audited', 'Sudah Diaudit', '已审计'),
         if (_filter!.auditStatus == 'not_audited') _t('Not Audited', 'Belum Diaudit', '未审计'),
         if (_filter!.minScore != null || _filter!.maxScore != null) ...[
@@ -1548,11 +1798,11 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                       _search = v;
                       _currentPage = 1;
                     }),
-                    style: GoogleFonts.poppins(fontSize: 14, color: _SBC.textMain),
+                    style: GoogleFonts.poppins(fontSize: 14, color: _AC.textMain),
                     decoration: InputDecoration(
                       hintText: _t('Search…', 'Cari…', '搜索…'),
-                      hintStyle: GoogleFonts.poppins(fontSize: 13, color: _SBC.textSub),
-                      prefixIcon: const Icon(Icons.search_rounded, color: _SBC.filterAccent, size: 20),
+                      hintStyle: GoogleFonts.poppins(fontSize: 13, color: _AC.textSub),
+                      prefixIcon: const Icon(Icons.search_rounded, color: _AC.filterAccent, size: 20),
                       suffixIcon: _search.isNotEmpty
                           ? GestureDetector(
                               onTap: () {
@@ -1566,26 +1816,26 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                                 margin: const EdgeInsets.all(10),
                                 padding: const EdgeInsets.all(4),
                                 decoration: BoxDecoration(
-                                  color: _SBC.red.withValues(alpha: 0.1),
+                                  color: _AC.red.withValues(alpha: 0.1),
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(Icons.close_rounded,
-                                    size: 14, color: _SBC.red),
+                                    size: 14, color: _AC.red),
                               ),
                             )
                           : null,
                       filled: true,
-                      fillColor: _SBC.surface,
+                      fillColor: _AC.surface,
                       contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _SBC.divider)),
+                          borderSide: const BorderSide(color: _AC.divider)),
                       enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _SBC.divider)),
+                          borderSide: const BorderSide(color: _AC.divider)),
                       focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _SBC.filterAccent, width: 1.5)),
+                          borderSide: const BorderSide(color: _AC.filterAccent, width: 1.5)),
                     ),
                   ),
                 ),
@@ -1595,13 +1845,13 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: _filter != null ? _SBC.filterAccent : _SBC.surface,
+                      color: _filter != null ? _AC.filterAccent : _AC.surface,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _filter != null ? _SBC.filterAccent : _SBC.divider),
+                      border: Border.all(color: _filter != null ? _AC.filterAccent : _AC.divider),
                     ),
                     child: Icon(
                       Icons.filter_list_rounded,
-                      color: _filter != null ? Colors.white : _SBC.filterAccent,
+                      color: _filter != null ? Colors.white : _AC.filterAccent,
                       size: 20,
                     ),
                   ),
@@ -1617,18 +1867,18 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
-                  color: _SBC.filterAccent.withValues(alpha: 0.08),
+                  color: _AC.filterAccent.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _SBC.filterAccent.withValues(alpha: 0.3)),
+                  border: Border.all(color: _AC.filterAccent.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.filter_alt_rounded, size: 14, color: _SBC.filterAccent),
+                    const Icon(Icons.filter_alt_rounded, size: 14, color: _AC.filterAccent),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(filterLabel,
                           style: GoogleFonts.poppins(
-                              fontSize: 11, color: _SBC.filterAccent, fontWeight: FontWeight.w600),
+                              fontSize: 11, color: _AC.filterAccent, fontWeight: FontWeight.w600),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                     GestureDetector(
@@ -1636,7 +1886,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                         _filter = null;
                         _currentPage = 1;
                       }),
-                      child: const Icon(Icons.close_rounded, size: 14, color: _SBC.filterAccent),
+                      child: const Icon(Icons.close_rounded, size: 14, color: _AC.filterAccent),
                     ),
                   ],
                 ),
@@ -1649,8 +1899,8 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
                 : items.isEmpty
                     ? _buildEmpty()
                     : RefreshIndicator(
-                        onRefresh: _fetchSubunits,
-                        color: _SBC.subunitAccent,
+                        onRefresh: _fetchAreas,
+                        color: _AC.areaAccent,
                         child: ListView.builder(
                           padding: const EdgeInsets.only(bottom: 16, top: 4),
                           itemCount: pageItems.length,
@@ -1660,7 +1910,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
           ),
 
           if (!_loading && items.isNotEmpty && totalPages > 1)
-            _SubunitPageIndicator(
+            _AreaPageIndicator(
               currentPage: _currentPage,
               totalPages: totalPages,
               onPageChanged: (p) => setState(() => _currentPage = p),
@@ -1671,16 +1921,16 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen>
   }
 }
 
-class _SubunitDetailSheet extends StatefulWidget {
+class _AreaDetailSheet extends StatefulWidget {
   final String lang;
-  final _SubunitItem item;
-  const _SubunitDetailSheet({required this.lang, required this.item});
+  final _AreaItem item;
+  const _AreaDetailSheet({required this.lang, required this.item});
 
   @override
-  State<_SubunitDetailSheet> createState() => _SubunitDetailSheetState();
+  State<_AreaDetailSheet> createState() => _AreaDetailSheetState();
 }
 
-class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
+class _AreaDetailSheetState extends State<_AreaDetailSheet> {
   final _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _history = [];
   bool _loading = true;
@@ -1700,10 +1950,10 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
   }
 
   Color _scoreColor(double? score) {
-    if (score == null) return _SBC.textSub;
-    if (score >= 80) return _SBC.green;
-    if (score >= 60) return _SBC.amber;
-    return _SBC.red;
+    if (score == null) return _AC.textSub;
+    if (score >= 80) return _AC.green;
+    if (score >= 60) return _AC.amber;
+    return _AC.red;
   }
 
   String _formatDate(String raw) {
@@ -1735,7 +1985,7 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
               'id_result, nilai_audit, nilai_final, is_finalized, '
               'tanggal_audit, catatan_audit, selfie_url, created_at, '
               'Auditor:User!fk_audit_result_auditor(nama, gambar_user)')
-          .eq('level_type', 'subunit')
+          .eq('level_type', 'area')
           .eq('id_ref', widget.item.id)
           .order('tanggal_audit', ascending: false)
           .limit(20);
@@ -1763,12 +2013,12 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _SBC.subunitAccent, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _AC.areaAccent, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          _t('Subunit Detail', 'Detail Subunit', '子单元详情'),
-          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _SBC.subunitAccent),
+          _t('Area Detail', 'Detail Area', '区域详情'),
+          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _AC.areaAccent),
         ),
       ),
       body: ListView(
@@ -1786,12 +2036,12 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
                       ? Image.network(item.imageUrl!,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
-                                color: _SBC.subunitAccent.withValues(alpha: 0.12),
-                                child: Icon(Icons.layers_rounded, color: _SBC.subunitAccent, size: 32),
+                                color: _AC.areaAccent.withValues(alpha: 0.12),
+                                child: Icon(Icons.place_rounded, color: _AC.areaAccent, size: 32),
                               ))
                       : Container(
-                          color: _SBC.subunitAccent.withValues(alpha: 0.12),
-                          child: Icon(Icons.layers_rounded, color: _SBC.subunitAccent, size: 32),
+                          color: _AC.areaAccent.withValues(alpha: 0.12),
+                          child: Icon(Icons.place_rounded, color: _AC.areaAccent, size: 32),
                         ),
                 ),
               ),
@@ -1802,11 +2052,11 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
                   children: [
                     Text(item.name,
                         style: GoogleFonts.poppins(
-                            fontSize: 18, fontWeight: FontWeight.w700, color: _SBC.subunitAccent),
+                            fontSize: 18, fontWeight: FontWeight.w700, color: _AC.areaAccent),
                         maxLines: 2, overflow: TextOverflow.ellipsis),
-                    if (item.descriptionFor(widget.lang) != null && item.descriptionFor(widget.lang)!.isNotEmpty) ...[
+                    if (item.description != null && item.description!.isNotEmpty) ...[
                       const SizedBox(height: 6),
-                      Text(item.descriptionFor(widget.lang)!,
+                      Text(item.description!,
                           style: GoogleFonts.poppins(fontSize: 12, color: Colors.black, fontWeight: FontWeight.w600, height: 1.4),
                           maxLines: 3, overflow: TextOverflow.ellipsis),
                     ],
@@ -1844,29 +2094,29 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
 
           Row(
             children: [
-              Icon(Icons.info_rounded, size: 15, color: _SBC.subunitAccent),
+              Icon(Icons.info_rounded, size: 15, color: _AC.areaAccent),
               const SizedBox(width: 6),
               Text(_t('Information', 'Informasi', '信息'),
-                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: _SBC.subunitAccent)),
+                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: _AC.areaAccent)),
             ],
           ),
           const SizedBox(height: 8),
 
           _DetailInfoTile(
             icon: Icons.person_rounded,
-            iconColor: _SBC.green,
+            iconColor: _AC.green,
             label: _t('Person in Charge', 'Penanggung Jawab', '负责人'),
             child: item.picName != null && item.picName!.isNotEmpty
                 ? Row(
                     children: [
                       CircleAvatar(
                         radius: 12,
-                        backgroundColor: _SBC.green.withValues(alpha: 0.15),
+                        backgroundColor: _AC.green.withValues(alpha: 0.15),
                         backgroundImage: (item.picImage != null && item.picImage!.isNotEmpty)
                             ? NetworkImage(item.picImage!)
                             : null,
                         child: (item.picImage == null || item.picImage!.isEmpty)
-                            ? Icon(Icons.person_rounded, size: 13, color: _SBC.green)
+                            ? Icon(Icons.person_rounded, size: 13, color: _AC.green)
                             : null,
                       ),
                       const SizedBox(width: 8),
@@ -1886,7 +2136,7 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
           if (item.scheduleJenisAuditName != null)
             _DetailInfoTile(
               icon: Icons.fact_check_rounded,
-              iconColor: _SBC.subunitAccent,
+              iconColor: _AC.areaAccent,
               label: _t('Audit Type', 'Tipe Audit', '审计类型'),
               child: Text(item.scheduleJenisAuditName!,
                   style: GoogleFonts.poppins(
@@ -1896,7 +2146,7 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
           if (item.schedulePeriode != null)
             _DetailInfoTile(
               icon: Icons.event_rounded,
-              iconColor: _SBC.blue,
+              iconColor: _AC.blue,
               label: _t('Audit Period', 'Periode Audit', '审计周期'),
               child: Text(item.schedulePeriode!,
                   style: GoogleFonts.poppins(
@@ -1906,19 +2156,19 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
           if (item.scheduleAuditorName != null)
             _DetailInfoTile(
               icon: Icons.assignment_ind_rounded,
-              iconColor: _SBC.primary,
+              iconColor: _AC.primary,
               label: _t('Scheduled Auditor', 'Auditor Terjadwal', '预定审计员'),
               child: Row(
                 children: [
                   CircleAvatar(
                     radius: 12,
-                    backgroundColor: _SBC.primary.withValues(alpha: 0.15),
+                    backgroundColor: _AC.primary.withValues(alpha: 0.15),
                     backgroundImage: (item.scheduleAuditorImage != null &&
                             item.scheduleAuditorImage!.isNotEmpty)
                         ? NetworkImage(item.scheduleAuditorImage!)
                         : null,
                     child: (item.scheduleAuditorImage == null || item.scheduleAuditorImage!.isEmpty)
-                        ? Icon(Icons.person_rounded, size: 13, color: _SBC.primary)
+                        ? Icon(Icons.person_rounded, size: 13, color: _AC.primary)
                         : null,
                   ),
                   const SizedBox(width: 8),
@@ -1938,10 +2188,10 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
 
           Row(
             children: [
-              Icon(Icons.history_rounded, size: 15, color: _SBC.subunitAccent),
+              Icon(Icons.history_rounded, size: 15, color: _AC.areaAccent),
               const SizedBox(width: 6),
               Text(_t('Audit History', 'Riwayat Audit', '审计历史'),
-                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: _SBC.subunitAccent)),
+                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: _AC.areaAccent)),
             ],
           ),
           const SizedBox(height: 10),
@@ -1969,7 +2219,7 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _SBC.divider),
+                border: Border.all(color: _AC.divider),
               ),
               child: Column(
                 children: [
@@ -1981,25 +2231,25 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
                       width: 100,
                       height: 100,
                       decoration: BoxDecoration(
-                        color: _SBC.subunitAccent.withValues(alpha: 0.08),
+                        color: _AC.areaAccent.withValues(alpha: 0.08),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.history_toggle_off_rounded, size: 46, color: _SBC.subunitAccent.withValues(alpha: 0.4)),
+                      child: Icon(Icons.history_toggle_off_rounded, size: 46, color: _AC.areaAccent.withValues(alpha: 0.4)),
                     ),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     _t('No audit history yet', 'Belum Ada Riwayat Audit', '暂无审计历史'),
-                    style: GoogleFonts.poppins(fontSize: 14.5, fontWeight: FontWeight.w700, color: _SBC.subunitAccent),
+                    style: GoogleFonts.poppins(fontSize: 14.5, fontWeight: FontWeight.w700, color: _AC.areaAccent),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 6),
                   Text(
                     _t(
-                        'This subunit hasn\'t been audited yet. Once an audit is completed, the results will appear here.',
-                        'Subunit ini belum pernah diaudit. Hasil audit akan muncul di sini setelah selesai dilakukan.',
-                        '该子单元尚未进行审计。审计完成后结果将显示在此处。'),
-                    style: GoogleFonts.poppins(fontSize: 12, color: _SBC.textSub, height: 1.5),
+                        'This area hasn\'t been audited yet. Once an audit is completed, the results will appear here.',
+                        'Area ini belum pernah diaudit. Hasil audit akan muncul di sini setelah selesai dilakukan.',
+                        '该区域尚未进行审计。审计完成后结果将显示在此处。'),
+                    style: GoogleFonts.poppins(fontSize: 12, color: _AC.textSub, height: 1.5),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -2023,7 +2273,7 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
                 final auditorImage = auditorData?['gambar_user']?.toString();
                 final date = row['tanggal_audit']?.toString() ?? '';
                 final formattedDate = date.isNotEmpty ? _formatDate(date) : '-';
-                final color = isFinalized ? _SBC.amber : _scoreColor(score);
+                final color = isFinalized ? _AC.amber : _scoreColor(score);
                 final idResult = row['id_result']?.toString() ?? '';
 
                 return GestureDetector(
@@ -2035,7 +2285,7 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
                           lang: widget.lang,
                           idResult: idResult,
                           locationName: item.name,
-                          levelType: 'subunit',
+                          levelType: 'area',
                         ),
                       ),
                     );
@@ -2070,12 +2320,12 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
                                     mainAxisSize: MainAxisSize.min,
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const Icon(Icons.build_rounded, size: 16, color: _SBC.amber),
+                                      const Icon(Icons.build_rounded, size: 16, color: _AC.amber),
                                       const SizedBox(height: 2),
                                       Text(_t('Needs\nFix', 'Perlu\nPerbaikan', '需要\n修复'),
                                           textAlign: TextAlign.center,
                                           style: GoogleFonts.poppins(
-                                              fontSize: 7.5, fontWeight: FontWeight.w700, color: _SBC.amber)),
+                                              fontSize: 7.5, fontWeight: FontWeight.w700, color: _AC.amber)),
                                     ],
                                   )
                                 : Column(
@@ -2099,11 +2349,11 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
                             children: [
                               Row(
                                 children: [
-                                  Icon(Icons.person_rounded, size: 13, color: _SBC.blue),
+                                  Icon(Icons.person_rounded, size: 13, color: _AC.blue),
                                   const SizedBox(width: 5),
                                   Text(_t('Auditor', 'Auditor', '审计员'),
                                       style: GoogleFonts.poppins(
-                                          fontSize: 10.5, fontWeight: FontWeight.w700, color: _SBC.blue)),
+                                          fontSize: 10.5, fontWeight: FontWeight.w700, color: _AC.blue)),
                                 ],
                               ),
                               const SizedBox(height: 5),
@@ -2111,12 +2361,12 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
                                 children: [
                                   CircleAvatar(
                                     radius: 11,
-                                    backgroundColor: _SBC.blue.withValues(alpha: 0.15),
+                                    backgroundColor: _AC.blue.withValues(alpha: 0.15),
                                     backgroundImage: (auditorImage != null && auditorImage.isNotEmpty)
                                         ? NetworkImage(auditorImage)
                                         : null,
                                     child: (auditorImage == null || auditorImage.isEmpty)
-                                        ? Icon(Icons.person_rounded, size: 12, color: _SBC.blue)
+                                        ? Icon(Icons.person_rounded, size: 12, color: _AC.blue)
                                         : null,
                                   ),
                                   const SizedBox(width: 8),
@@ -2131,11 +2381,11 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
                               const SizedBox(height: 10),
                               Row(
                                 children: [
-                                  Icon(Icons.event_available_rounded, size: 13, color: _SBC.amber),
+                                  Icon(Icons.event_available_rounded, size: 13, color: _AC.amber),
                                   const SizedBox(width: 5),
                                   Text(_t('Audited At', 'Diaudit Pada', '审计日期'),
                                       style: GoogleFonts.poppins(
-                                          fontSize: 10.5, fontWeight: FontWeight.w700, color: _SBC.amber)),
+                                          fontSize: 10.5, fontWeight: FontWeight.w700, color: _AC.amber)),
                                 ],
                               ),
                               const SizedBox(height: 5),
@@ -2151,18 +2401,18 @@ class _SubunitDetailSheetState extends State<_SubunitDetailSheet> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                             decoration: BoxDecoration(
-                              color: _SBC.subunitAccent.withValues(alpha: 0.1),
+                              color: _AC.areaAccent.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: _SBC.subunitAccent.withValues(alpha: 0.3)),
+                              border: Border.all(color: _AC.areaAccent.withValues(alpha: 0.3)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.open_in_new_rounded, size: 12, color: _SBC.subunitAccent),
+                                Icon(Icons.open_in_new_rounded, size: 12, color: _AC.areaAccent),
                                 const SizedBox(width: 4),
                                 Text(_t('Detail', 'Detail', '详情'),
                                     style: GoogleFonts.poppins(
-                                        fontSize: 11, fontWeight: FontWeight.w700, color: _SBC.subunitAccent)),
+                                        fontSize: 11, fontWeight: FontWeight.w700, color: _AC.areaAccent)),
                               ],
                             ),
                           ),
@@ -2264,14 +2514,14 @@ class _PickerTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 16, color: isSelected ? color : _SBC.textSub),
+            Icon(icon, size: 16, color: isSelected ? color : _AC.textSub),
             const SizedBox(width: 10),
             Expanded(
               child: Text(name,
                   style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                      color: isSelected ? color : _SBC.textMain)),
+                      color: isSelected ? color : _AC.textMain)),
             ),
             if (isSelected) Icon(Icons.check_circle_rounded, color: color, size: 18),
           ],
@@ -2318,7 +2568,7 @@ class _FilterChipItem extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 11.5,
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected ? Colors.white : _SBC.textSub,
+            color: isSelected ? Colors.white : _AC.textSub,
           ),
         ),
       ),
@@ -2326,18 +2576,18 @@ class _FilterChipItem extends StatelessWidget {
   }
 }
 
-class _SubunitPageIndicator extends StatelessWidget {
+class _AreaPageIndicator extends StatelessWidget {
   final int currentPage;
   final int totalPages;
   final ValueChanged<int> onPageChanged;
 
-  const _SubunitPageIndicator({
+  const _AreaPageIndicator({
     required this.currentPage,
     required this.totalPages,
     required this.onPageChanged,
   });
 
-  static const Color _mainColor = _SBC.subunitAccent;
+  static const Color _mainColor = _AC.areaAccent;
   static const int _maxVisibleButtons = 5;
 
   List<int> _visiblePageNumbers() {
@@ -2366,9 +2616,6 @@ class _SubunitPageIndicator extends StatelessWidget {
       top: false,
       minimum: const EdgeInsets.only(bottom: 12),
       child: Container(
-        // Container solid putih menutupi seluruh area (termasuk celah
-        // safe-area di bawah, baik gesture nav, 3-button nav, maupun device
-        // tanpa navbar bawaan), supaya indikator selalu full visible.
         color: Colors.white,
         padding: const EdgeInsets.fromLTRB(15, 8, 15, 8),
         child: Container(

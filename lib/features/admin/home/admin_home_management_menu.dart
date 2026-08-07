@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../audit/settings/admin_audit_screen.dart';
+import '../../audit/admin/settings/admin_audit_screen.dart';
 import '../help/admin_help_reports_screen.dart';
 import '../verification/admin_verification_screen.dart';
 import '../settings/admin_settings_screen.dart';

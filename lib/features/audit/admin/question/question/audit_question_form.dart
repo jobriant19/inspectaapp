@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../../core/services/translation_service.dart';
-import '../../../user/home/alert/required_field_alert.dart';
+import '../../../../../core/services/translation_service.dart';
+import '../../../../user/home/alert/required_field_alert.dart';
 import '../theme/audit_theme_settings.dart';
 
 class _C {

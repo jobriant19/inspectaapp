@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../audit/form/audit_evidence_camera_screen.dart';
+import '../../../audit/user/form/audit_evidence_camera_screen.dart';
 import '../../../user/home/alert/required_field_alert.dart';
 
 class AuditNotifDetailScreen extends StatefulWidget {
