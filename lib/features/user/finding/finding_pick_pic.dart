@@ -262,6 +262,9 @@ class _FindingPicPickerDialogState extends State<_FindingPicPickerDialog> {
   List<Map<String, dynamic>> _filtered = [];
   bool _loading = true;
 
+  int _currentPage = 1;
+  static const int _perPage = 5;
+
   @override
   void initState() {
     super.initState();
@@ -358,6 +361,7 @@ class _FindingPicPickerDialogState extends State<_FindingPicPickerDialog> {
     _filtered = q.isEmpty
         ? List.from(_items)
         : _items.where((e) => (e['nama'] ?? '').toString().toLowerCase().contains(q)).toList();
+    _currentPage = 1;
   }
 
   Future<void> _openLocationFilter() async {
@@ -516,20 +520,29 @@ class _FindingPicPickerDialogState extends State<_FindingPicPickerDialog> {
             ]),
           ),
           const Divider(height: 1, color: _PicColors.divider),
-          // LIST USER
+          // LIST USER (DIPAGINASI 5 PER HALAMAN)
           Expanded(
-            child: _loading
-                ? _buildPicShimmerList()
-                : _filtered.isEmpty
-                    ? Center(
-                        child: Text(_emptyText,
-                            style: const TextStyle(fontSize: 12.5, color: _PicColors.textSecondary)),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.only(top: 6, bottom: 12),
-                        itemCount: _filtered.length,
-                        itemBuilder: (_, i) {
-                          final item = _filtered[i];
+            child: Builder(builder: (context) {
+              if (_loading) return _buildPicShimmerList();
+              if (_filtered.isEmpty) {
+                return Center(
+                  child: Text(_emptyText,
+                      style: const TextStyle(fontSize: 12.5, color: _PicColors.textSecondary)),
+                );
+              }
+              final totalPages = (_filtered.length / _perPage).ceil().clamp(1, 999999);
+              final safePage = _currentPage.clamp(1, totalPages);
+              final startIdx = (safePage - 1) * _perPage;
+              final endIdx = (startIdx + _perPage) > _filtered.length ? _filtered.length : startIdx + _perPage;
+              final pageItems = _filtered.sublist(startIdx, endIdx);
+
+              return Column(children: [
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.only(top: 6, bottom: 12),
+                    itemCount: pageItems.length,
+                    itemBuilder: (_, i) {
+                      final item = pageItems[i];
                           final name = (item['nama'] ?? '').toString();
                           final id = item['id_user']?.toString();
                           final avatarUrl = item['gambar_user'] as String?;
@@ -601,8 +614,18 @@ class _FindingPicPickerDialogState extends State<_FindingPicPickerDialog> {
                               ]),
                             ),
                           );
-                        },
-                      ),
+                    },
+                  ),
+                ),
+                if (totalPages > 1)
+                  _PicPageIndicator(
+                    currentPage: safePage,
+                    totalPages: totalPages,
+                    color: _PicColors.primary,
+                    onPageChanged: (p) => setState(() => _currentPage = p),
+                  ),
+              ]);
+            }),
           ),
         ]),
       ),
@@ -1060,6 +1083,109 @@ class _PicLocationFilterDialogState extends State<_PicLocationFilterDialog> {
             Icon(Icons.chevron_right_rounded, color: color, size: 20),
         ]),
       ),
+    );
+  }
+}
+
+class _PicPageIndicator extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final Color color;
+  final ValueChanged<int> onPageChanged;
+
+  const _PicPageIndicator({
+    required this.currentPage,
+    required this.totalPages,
+    required this.color,
+    required this.onPageChanged,
+  });
+
+  static const int _maxVisibleButtons = 5;
+
+  List<int> _visiblePageNumbers() {
+    if (totalPages <= _maxVisibleButtons) {
+      return List.generate(totalPages, (i) => i + 1);
+    }
+    int start = currentPage - 2;
+    int end = currentPage + 2;
+    if (start < 1) {
+      start = 1;
+      end = _maxVisibleButtons;
+    } else if (end > totalPages) {
+      end = totalPages;
+      start = totalPages - (_maxVisibleButtons - 1);
+    }
+    return List.generate(end - start + 1, (i) => start + i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canPrev = currentPage > 1;
+    final bool canNext = currentPage < totalPages;
+    final pageNumbers = _visiblePageNumbers();
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.12), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Row(children: [
+        GestureDetector(
+          onTap: canPrev ? () => onPageChanged(currentPage - 1) : null,
+          child: Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: canPrev ? color.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.arrow_back_ios_new_rounded, size: 15, color: canPrev ? color : Colors.grey.shade400),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Row(children: [
+            for (final p in pageNumbers) ...[
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => p == currentPage ? null : onPageChanged(p),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: p == currentPage ? color : color.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: p == currentPage ? null : Border.all(color: color.withValues(alpha: 0.25)),
+                    ),
+                    child: Text('$p',
+                        style: GoogleFonts.poppins(
+                            color: p == currentPage ? Colors.white : color,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13)),
+                  ),
+                ),
+              ),
+              if (p != pageNumbers.last) const SizedBox(width: 8),
+            ],
+          ]),
+        ),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: canNext ? () => onPageChanged(currentPage + 1) : null,
+          child: Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: canNext ? color.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.arrow_forward_ios_rounded, size: 15, color: canNext ? color : Colors.grey.shade400),
+          ),
+        ),
+      ]),
     );
   }
 }

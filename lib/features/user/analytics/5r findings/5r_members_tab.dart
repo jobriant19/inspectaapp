@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
@@ -9,10 +10,8 @@ class _AppColors {
   static const primary             = Color(0xFF0EA5E9);
   static const primaryLight        = Color(0xFFE0F2FE);
   static const textPrimary         = Color(0xFF0C4A6E);
-  static const textSecondary       = Color(0xFF64748B);
   static const divider             = Color(0xFFE0F2FE);
   static const selfHighlight       = Color(0xFFFFF7ED);
-  static const selfHighlightBorder = Color(0xFFFED7AA);
 }
 
 // ─── Model ───────────────────────────────────────────────────────────────────
@@ -49,8 +48,11 @@ class FiveRMembersTab extends StatefulWidget {
   final String    filterMode;
   final int       selectedMonthIndex;
   final DateTime? selectedDate;
-  final String?   selectedUnitId;
-  final List<Map<String, dynamic>> unitList;
+
+  // FILTER LOKASI (Lokasi/Unit/Subunit/Area)
+  final String    selectedLocationLevel;
+  final String?   selectedLocationId;
+  final String?   selectedLocationName;
 
   // TARGET
   final int targetAnggota;
@@ -68,7 +70,8 @@ class FiveRMembersTab extends StatefulWidget {
   }) buildFilterBtn;
 
   final void Function(VoidCallback onChanged) showMonthPicker;
-  final VoidCallback showGroupPicker;
+  final VoidCallback showLocationPicker;
+  final VoidCallback onResetLocation;
 
   final String Function(String key) getTxt;
 
@@ -78,14 +81,16 @@ class FiveRMembersTab extends StatefulWidget {
     required this.filterMode,
     required this.selectedMonthIndex,
     this.selectedDate,
-    this.selectedUnitId,
-    required this.unitList,
+    required this.selectedLocationLevel,
+    this.selectedLocationId,
+    this.selectedLocationName,
     required this.targetAnggota,
     required this.targetAnggotaSelesai,
     required this.lastUpdatedText,
     required this.buildFilterBtn,
     required this.showMonthPicker,
-    required this.showGroupPicker,
+    required this.showLocationPicker,
+    required this.onResetLocation,
     required this.getTxt,
   });
 
@@ -102,21 +107,23 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     String?   filterMode,
     int?      selectedMonthIndex,
     DateTime? selectedDate,
-    String?   selectedUnitId,
+    String?   selectedLocationLevel,
+    String?   selectedLocationId,
   }) {
-    final mode     = filterMode         ?? widget.filterMode;
-    final monthIdx = selectedMonthIndex ?? widget.selectedMonthIndex;
-    final date     = selectedDate       ?? widget.selectedDate;
-    final unitId   = selectedUnitId     ?? widget.selectedUnitId;
+    final mode       = filterMode           ?? widget.filterMode;
+    final monthIdx    = selectedMonthIndex   ?? widget.selectedMonthIndex;
+    final date        = selectedDate         ?? widget.selectedDate;
+    final level       = selectedLocationLevel ?? widget.selectedLocationLevel;
+    final locationId  = selectedLocationId   ?? widget.selectedLocationId;
 
     final month = monthIdx + 1;
     final year  = DateTime.now().year;
 
     setState(() {
       if (mode == 'daily' && date != null) {
-        membersFuture = _fetchAnggotaDataDaily(date, unitId);
+        membersFuture = _fetchAnggotaDataDaily(date, level, locationId);
       } else {
-        membersFuture = _fetchAnggotaData(month, year, unitId);
+        membersFuture = _fetchAnggotaData(month, year, level, locationId);
       }
     });
   }
@@ -129,15 +136,25 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     fetchData();
   }
 
+  static const Map<String, String> _locationIdColumnMap = {
+    'Lokasi': 'id_lokasi',
+    'Unit': 'id_unit',
+    'Subunit': 'id_subunit',
+    'Area': 'id_area',
+  };
+
   Future<List<MemberData5R>> _fetchAnggotaData(
-      int month, int year, String? unitId) async {
+      int month, int year, String level, String? locationId) async {
     try {
       var userQuery = _supabase
           .from('User')
           .select(
               'id_user, nama, gambar_user, id_unit, id_jabatan, is_verificator, unit!user_id_unit_fkey(nama_unit), jabatan!User_id_jabatan_fkey(nama_jabatan)')
           .or('id_jabatan.is.null,id_jabatan.neq.6');
-      if (unitId != null) userQuery = userQuery.eq('id_unit', unitId);
+      if (locationId != null) {
+        final idCol = _locationIdColumnMap[level] ?? 'id_lokasi';
+        userQuery = userQuery.eq(idCol, locationId);
+      }
       final List<dynamic> users = await userQuery;
       if (users.isEmpty) return [];
 
@@ -191,7 +208,7 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
   }
 
   Future<List<MemberData5R>> _fetchAnggotaDataDaily(
-      DateTime date, String? unitId) async {
+      DateTime date, String level, String? locationId) async {
     try {
       final start = DateTime(date.year, date.month, date.day);
       final end   = DateTime(date.year, date.month, date.day, 23, 59, 59);
@@ -201,7 +218,10 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
           .select(
               'id_user, nama, gambar_user, id_unit, id_jabatan, is_verificator, unit!user_id_unit_fkey(nama_unit), jabatan!User_id_jabatan_fkey(nama_jabatan)')
           .or('id_jabatan.is.null,id_jabatan.neq.6');
-      if (unitId != null) userQuery = userQuery.eq('id_unit', unitId);
+      if (locationId != null) {
+        final idCol = _locationIdColumnMap[level] ?? 'id_lokasi';
+        userQuery = userQuery.eq(idCol, locationId);
+      }
       final List<dynamic> users = await userQuery;
       if (users.isEmpty) return [];
 
@@ -266,7 +286,7 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
         child: Row(children: [
           Expanded(child: _buildMemberTimeFilterButton()),
           const SizedBox(width: 10),
-          Expanded(child: _buildMemberGroupFilterButton()),
+          Expanded(child: _buildMemberLocationFilterButton()),
         ]),
       ),
       // LAST UPDATED
@@ -313,27 +333,15 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
                           Text(widget.getTxt('tidak_ada_data_anggota')));
                 }
                 final list = snap.data!;
-                final self = list.firstWhere(
-                  (m) => m.isSelf,
-                  orElse: () => MemberData5R(
-                    name:      widget.getTxt('saya'),
-                    findings:  0,
-                    completed: 0,
-                    isSelf:    true,
-                  ),
+                return ListView.separated(
+                  padding: EdgeInsets.zero,
+                  itemCount: list.length,
+                  separatorBuilder: (_, __) => const Divider(
+                      height: 1,
+                      color: _AppColors.divider,
+                      indent: 16),
+                  itemBuilder: (_, i) => _buildMemberRow(list[i]),
                 );
-                return Column(children: [
-                  Expanded(child: ListView.separated(
-                    padding: EdgeInsets.zero,
-                    itemCount: list.length,
-                    separatorBuilder: (_, __) => const Divider(
-                        height: 1,
-                        color: _AppColors.divider,
-                        indent: 16),
-                    itemBuilder: (_, i) => _buildMemberRow(list[i]),
-                  )),
-                  _buildSelfPinnedRow(self),
-                ]);
               },
             )),
     ]);
@@ -356,7 +364,7 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
               style: const TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: _AppColors.textSecondary,
+                  color: Colors.black,
                   letterSpacing: 0.2)),
         );
       })),
@@ -465,91 +473,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
         Expanded(
           flex: 1,
           child: Text('${m.completed}',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                  color: completedColor)),
-        ),
-      ]),
-    );
-  }
-
-  Widget _buildSelfPinnedRow(MemberData5R self) {
-    final target = widget.targetAnggota;
-    final findingsColor = (target > 0 && self.findings >= target)
-        ? const Color(0xFF16A34A)
-        : _AppColors.textSecondary;
-    final completedTarget = widget.targetAnggotaSelesai;
-    final completedColor =
-        (completedTarget > 0 && self.completed >= completedTarget)
-            ? const Color(0xFF16A34A)
-            : _AppColors.textSecondary;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: _AppColors.selfHighlight,
-        border: const Border(
-            top: BorderSide(
-                color: _AppColors.selfHighlightBorder, width: 1.5)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha:0.05),
-              blurRadius: 6,
-              offset: const Offset(0, -2))
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        Expanded(flex: 3, child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            _Avatar5R(
-                name: self.name,
-                avatarUrl: self.avatarUrl,
-                color: self.avatarColor,
-                size: 36),
-            const SizedBox(width: 10),
-            Expanded(child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(self.name,
-                    textAlign: TextAlign.left,
-                    maxLines: 1,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _AppColors.textPrimary),
-                    overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    _buildJabatanBadge(
-                        idJabatan: self.idJabatan,
-                        jabatanNama: self.jabatanNama,
-                        isVerificator: self.isVerificator),
-                    _buildUnitBadge(self.unitName),
-                  ],
-                ),
-              ],
-            )),
-          ],
-        )),
-        Expanded(
-          flex: 1,
-          child: Text('${self.findings}',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                  color: findingsColor)),
-        ),
-        Expanded(
-          flex: 1,
-          child: Text('${self.completed}',
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: 13.5,
@@ -680,6 +603,22 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
         .format(DateTime(2000, widget.selectedMonthIndex + 1));
   }
 
+  static const Color _timeAccent = Color(0xFF1D72F3);  // BIRU - FILTER WAKTU
+
+  static const List<Color> _locationLevelColors = [
+    Color(0xFF10B981), // Lokasi
+    Color(0xFF6366F1), // Unit
+    Color(0xFFFBBF24), // Subunit
+    Color(0xFFF472B6), // Area
+  ];
+  static const List<IconData> _locationLevelIcons = [
+    Icons.location_city_rounded, // Lokasi
+    Icons.business_rounded,      // Unit
+    Icons.layers_rounded,        // Subunit
+    Icons.place_rounded,         // Area
+  ];
+  static const List<String> _locationLevelOrder = ['Lokasi', 'Unit', 'Subunit', 'Area'];
+
   Widget _buildMemberTimeFilterButton() {
     final isActive = widget.filterMode == 'daily';
     final modeLabel = widget.filterMode == 'daily'
@@ -697,14 +636,14 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: isActive ? _AppColors.primary : Colors.white,
+          color: isActive ? _timeAccent : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isActive ? _AppColors.primary : const Color(0xFF7DD3FC),
+            color: isActive ? _timeAccent : const Color(0xFF93C5FD),
             width: 1.5,
           ),
           boxShadow: [BoxShadow(
-              color: _AppColors.primary.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _timeAccent.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
           Expanded(
@@ -712,59 +651,81 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.calendar_month_rounded, size: 15,
-                    color: isActive ? Colors.white : _AppColors.primary),
+                    color: isActive ? Colors.white : _timeAccent),
                 const SizedBox(width: 5),
                 Flexible(
                   child: Text('$modeLabel · $valueLabel',
                       textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
-                          color: isActive ? Colors.white : _AppColors.primary)),
+                      style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600,
+                          color: isActive ? Colors.white : _timeAccent)),
                 ),
               ],
             ),
           ),
           Icon(Icons.keyboard_arrow_down_rounded,
-              color: isActive ? Colors.white : _AppColors.primary, size: 18),
+              color: isActive ? Colors.white : _timeAccent, size: 18),
         ]),
       ),
     );
   }
 
-  Widget _buildMemberGroupFilterButton() {
-    final isActive = widget.selectedUnitId != null;
-    final label = widget.selectedUnitId == null
-        ? widget.getTxt('semua_grup_anggota')
-        : (widget.unitList.firstWhere(
-                (u) => u['id_unit'].toString() == widget.selectedUnitId,
-                orElse: () => {'nama_unit': widget.getTxt('semua_grup')})['nama_unit']
-            as String);
+  String get _allLocationLabel {
+    switch (widget.lang) {
+      case 'EN':
+        return 'All Location';
+      case 'ZH':
+        return '所有位置';
+      default:
+        return 'Semua Lokasi';
+    }
+  }
+
+  Widget _buildMemberLocationFilterButton() {
+    final hasSelection = widget.selectedLocationId != null;
+    final levelIdx = _locationLevelOrder.indexOf(widget.selectedLocationLevel).clamp(0, 3);
+    final color = _locationLevelColors[levelIdx];
+    final icon  = hasSelection ? _locationLevelIcons[levelIdx] : Icons.map;
+    final label = hasSelection
+        ? (widget.selectedLocationName ?? widget.selectedLocationLevel)
+        : _allLocationLabel;
 
     return GestureDetector(
-      onTap: widget.showGroupPicker,
+      onTap: widget.showLocationPicker,
       child: Container(
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: isActive ? _AppColors.primary : Colors.white,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive ? _AppColors.primary : const Color(0xFF7DD3FC),
-            width: 1.5,
-          ),
+          border: Border.all(color: color, width: 1.5),
           boxShadow: [BoxShadow(
-              color: _AppColors.primary.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: color.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 5),
           Expanded(
             child: Text(label,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                    color: isActive ? Colors.white : _AppColors.primary)),
+                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
           ),
-          Icon(Icons.keyboard_arrow_down_rounded,
-              color: isActive ? Colors.white : _AppColors.primary, size: 18),
+          if (hasSelection)
+            GestureDetector(
+              onTap: widget.onResetLocation,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.45)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            )
+          else
+            Icon(Icons.keyboard_arrow_down_rounded, color: color, size: 18),
         ]),
       ),
     );

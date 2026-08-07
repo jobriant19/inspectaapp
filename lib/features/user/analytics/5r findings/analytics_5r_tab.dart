@@ -1,13 +1,14 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import 'package:shimmer/shimmer.dart';
 import '../analytics_selector_bar.dart';
 import '5r_inspection_tab.dart';
 import '5r_location_tab.dart';
 import '5r_members_tab.dart';
 import '5r_recurring_tab.dart';
+import 'picker/5r_members_location_picker.dart';
 
 class _AppColors {
   static const primary = Color(0xFF0EA5E9);
@@ -15,7 +16,6 @@ class _AppColors {
   static const surface = Color(0xFFF0F9FF);
   static const textPrimary = Color(0xFF0C4A6E);
   static const textSecondary = Color(0xFF64748B);
-  static const textMuted = Color(0xFFBDBDBD);
   static const divider = Color(0xFFE0F2FE);
 }
 
@@ -130,7 +130,9 @@ class Analytics5RTabState extends State<Analytics5RTab>
   int _selectedMonthIndex = DateTime.now().month - 1;
   String _filterMode = 'monthly';
   DateTime? _selectedDate;
-  String? _selectedUnitId;
+  String? _selectedMemberLocationId;
+  String? _selectedMemberLocationName;
+  String _selectedMemberLocationLevel = 'Lokasi';
   String _selectedInspectionRole = 'Eksekutif';
   String _selectedLocationLevel = 'Lokasi';
   DateTime? _lastUpdated;
@@ -139,7 +141,6 @@ class Analytics5RTabState extends State<Analytics5RTab>
   // CHART COLAPSE STATE
   bool _isChartExpanded = false;
   int _currentTabCount = 4;
-  bool _isChartLoadingForTab = false;
 
   // CHART DATA
   Future<List<_ChartBarData>>? _chartFuture;
@@ -160,6 +161,7 @@ class Analytics5RTabState extends State<Analytics5RTab>
   Future<List<LocationData5R>>? _lokasiFuture;
   Future<List<AuditLocationData5R>>? _auditLokasiFuture;
 
+  // ignore: unused_field
   List<Map<String, dynamic>> _unitList = [];
   int _targetAnggota = 2;
   int _targetInspeksi = 2;
@@ -181,7 +183,6 @@ class Analytics5RTabState extends State<Analytics5RTab>
     _initLocaleDependentLists();
     _fetchUnits().then((_) {
       _fetchAllData();
-      setState(() => _isChartLoadingForTab = false);
     });
     _fetchTarget();
   }
@@ -360,7 +361,6 @@ class Analytics5RTabState extends State<Analytics5RTab>
 
   void _fetchAllData({bool fromTabFilter = false}) {
     if (!fromTabFilter) {
-      _isChartLoadingForTab = false;
     }
 
     _fetchTarget();
@@ -396,10 +396,11 @@ class Analytics5RTabState extends State<Analytics5RTab>
     });
 
     _membersTabKey.currentState?.fetchData(
-      filterMode:         _filterMode,
-      selectedMonthIndex: _selectedMonthIndex,
-      selectedDate:       _selectedDate,
-      selectedUnitId:     _selectedUnitId,
+      filterMode:            _filterMode,
+      selectedMonthIndex:    _selectedMonthIndex,
+      selectedDate:          _selectedDate,
+      selectedLocationLevel: _selectedMemberLocationLevel,
+      selectedLocationId:    _selectedMemberLocationId,
     );
   }
 
@@ -413,7 +414,6 @@ class Analytics5RTabState extends State<Analytics5RTab>
     final year = DateTime.now().year;
 
     setState(() {
-      _isChartLoadingForTab = true;
       _activeTabIndex = newIdx;
     });
 
@@ -424,7 +424,6 @@ class Analytics5RTabState extends State<Analytics5RTab>
       setState(() {
         _chartFuture = Future.value(results[0]);
         _chartRefreshKey++;
-        _isChartLoadingForTab = false;
         if (newIdx == 3) {
           _recurringTabKey.currentState?.refresh();
         }
@@ -859,12 +858,17 @@ class Analytics5RTabState extends State<Analytics5RTab>
             .gte('created_at', startDt.toIso8601String())
             .lte('created_at', endDt.toIso8601String());
 
-        if (_selectedUnitId != null) {
-          final List<dynamic> usersInUnit = await _supabase
+        if (_selectedMemberLocationId != null) {
+          const memberLocIdColMap = {
+            'Lokasi': 'id_lokasi', 'Unit': 'id_unit',
+            'Subunit': 'id_subunit', 'Area': 'id_area',
+          };
+          final memberLocIdCol = memberLocIdColMap[_selectedMemberLocationLevel] ?? 'id_lokasi';
+          final List<dynamic> usersInLocation = await _supabase
               .from('User')
               .select('id_user')
-              .eq('id_unit', _selectedUnitId!);
-          final userIds = usersInUnit.map((u) => u['id_user'].toString()).toList();
+              .eq(memberLocIdCol, _selectedMemberLocationId!);
+          final userIds = usersInLocation.map((u) => u['id_user'].toString()).toList();
           if (userIds.isEmpty) {
             return isDaily
                 ? [_ChartBarData(date: _selectedDate!.day, temuan: 0, penyelesaian: 0)]
@@ -995,28 +999,12 @@ class Analytics5RTabState extends State<Analytics5RTab>
   // CONDITIONAL CHART
   Widget _buildConditionalChart() {
     if (_activeTabIndex == 3) return const SizedBox.shrink();
-    if (_isChartLoadingForTab) return _buildChartShimmerSmall();
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 250),
       child: KeyedSubtree(
         key: ValueKey('collapsible-5R-$_activeTabIndex'),
         child: _buildCollapsibleChart(),
-      ),
-    );
-  }
-
-  Widget _buildChartShimmerSmall() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[200]!,
-      highlightColor: Colors.grey[50]!,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-        height: 158,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
       ),
     );
   }
@@ -1278,17 +1266,18 @@ class Analytics5RTabState extends State<Analytics5RTab>
   // MEMBERS TAB
   Widget _buildAnggotaTab() {
     return FiveRMembersTab(
-      key:                  _membersTabKey,
-      lang:                 widget.lang,
-      filterMode:           _filterMode,
-      selectedMonthIndex:   _selectedMonthIndex,
-      selectedDate:         _selectedDate,
-      selectedUnitId:       _selectedUnitId,
-      unitList:             _unitList,
-      targetAnggota:        _targetAnggota,
-      targetAnggotaSelesai: _chartTargetAnggotaSelesai,
-      lastUpdatedText:      _lastUpdatedText,
-      getTxt:               getTxt,
+      key:                    _membersTabKey,
+      lang:                   widget.lang,
+      filterMode:             _filterMode,
+      selectedMonthIndex:     _selectedMonthIndex,
+      selectedDate:           _selectedDate,
+      selectedLocationLevel:  _selectedMemberLocationLevel,
+      selectedLocationId:     _selectedMemberLocationId,
+      selectedLocationName:   _selectedMemberLocationName,
+      targetAnggota:          _targetAnggota,
+      targetAnggotaSelesai:   _chartTargetAnggotaSelesai,
+      lastUpdatedText:        _lastUpdatedText,
+      getTxt:                 getTxt,
       buildFilterBtn: ({
         required String    label,
         required VoidCallback onTap,
@@ -1300,7 +1289,15 @@ class Analytics5RTabState extends State<Analytics5RTab>
       showMonthPicker: (_) => _showMonthPicker(
         () => _fetchAllData(fromTabFilter: true),
       ),
-      showGroupPicker: _showGroupPicker,
+      showLocationPicker: _showMemberLocationPicker,
+      onResetLocation: () {
+        setState(() {
+          _selectedMemberLocationLevel = 'Lokasi';
+          _selectedMemberLocationId = null;
+          _selectedMemberLocationName = null;
+        });
+        _fetchAllData(fromTabFilter: true);
+      },
     );
   }
 
@@ -1381,6 +1378,8 @@ class Analytics5RTabState extends State<Analytics5RTab>
   }
 
   // FILTER BUTTON
+  static const Color _timeAccent = Color(0xFF1D72F3); // BIRU - FILTER WAKTU
+
   Widget _buildFilterButton({
     required String label,
     required VoidCallback onTap,
@@ -1393,22 +1392,22 @@ class Analytics5RTabState extends State<Analytics5RTab>
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: isActive ? _AppColors.primary : Colors.white,
+          color: isActive ? _timeAccent : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isActive ? _AppColors.primary : const Color(0xFF7DD3FC),
+            color: isActive ? _timeAccent : const Color(0xFF93C5FD),
             width: 1.5,
           ),
           boxShadow: [BoxShadow(
-              color: _AppColors.primary.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _timeAccent.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Flexible(child: Text(label,
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                color: isActive ? Colors.white : _AppColors.primary),
+            style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600,
+                color: isActive ? Colors.white : _timeAccent),
             overflow: TextOverflow.ellipsis)),
           const SizedBox(width: 4),
-          Icon(icon, color: isActive ? Colors.white : _AppColors.primary, size: 18),
+          Icon(icon, color: isActive ? Colors.white : _timeAccent, size: 18),
         ]),
       ),
     );
@@ -1420,6 +1419,8 @@ class Analytics5RTabState extends State<Analytics5RTab>
     DateTime tempDate = _selectedDate ?? DateTime.now();
     DateTime tempDisplayMonth = DateTime(tempDate.year, tempDate.month, 1);
 
+    const accent = Color(0xFF1D72F3); // BIRU - FILTER WAKTU
+
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -1427,48 +1428,79 @@ class Analytics5RTabState extends State<Analytics5RTab>
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Container(
             constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.65, maxWidth: 340),
+                maxHeight: MediaQuery.of(context).size.height * 0.68, maxWidth: 340),
             decoration: BoxDecoration(
               color: Colors.white, borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _AppColors.primaryLight, width: 1.5)),
+              border: Border.all(color: accent.withValues(alpha: 0.25), width: 1.5)),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-                decoration: const BoxDecoration(
-                  color: _AppColors.primaryLight,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+              // HEADER GAYA SELECT-VIEW
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
                 child: Row(children: [
-                  const Icon(Icons.calendar_month_rounded, color: _AppColors.primary, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(getTxt('pilih_bulan'),
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _AppColors.textPrimary))),
-                  IconButton(icon: const Icon(Icons.close, size: 18, color: _AppColors.textSecondary),
-                    onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.calendar_month_rounded, color: accent, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(getTxt('pilih_bulan'),
+                        style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700, fontSize: 15, color: accent)),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
+                    ),
+                  ),
                 ]),
               ),
+              const SizedBox(height: 12),
+              Container(height: 1, color: const Color(0xFFF1F5F9)),
+              // TOGGLE MONTHLY / DAILY + ICON
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
                 child: Container(
-                  decoration: BoxDecoration(color: _AppColors.surface,
+                  decoration: BoxDecoration(color: const Color(0xFFEFF6FF),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _AppColors.primaryLight)),
+                    border: Border.all(color: accent.withValues(alpha: 0.2))),
                   padding: const EdgeInsets.all(4),
                   child: Row(children: ['monthly', 'daily'].map((mode) {
                     final isSel = tempMode == mode;
                     final label = mode == 'monthly'
                         ? (widget.lang == 'ID' ? 'Bulanan' : widget.lang == 'ZH' ? '按月' : 'Monthly')
                         : (widget.lang == 'ID' ? 'Harian' : widget.lang == 'ZH' ? '按日' : 'Daily');
+                    final icon = mode == 'monthly'
+                        ? Icons.calendar_view_month_rounded
+                        : Icons.event_rounded;
                     return Expanded(child: GestureDetector(
                       onTap: () => setSt(() => tempMode = mode),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        height: 36,
+                        height: 38,
                         decoration: BoxDecoration(
-                          color: isSel ? _AppColors.primary : Colors.transparent,
+                          color: isSel ? accent : Colors.transparent,
                           borderRadius: BorderRadius.circular(9)),
-                        child: Center(child: Text(label, style: TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w700,
-                          color: isSel ? Colors.white : _AppColors.textSecondary))),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(icon, size: 15,
+                                color: isSel ? Colors.white : const Color(0xFF64748B)),
+                            const SizedBox(width: 6),
+                            Text(label, style: GoogleFonts.poppins(
+                              fontSize: 13, fontWeight: FontWeight.w600,
+                              color: isSel ? Colors.white : const Color(0xFF64748B))),
+                          ],
+                        ),
                       ),
                     ));
                   }).toList()),
@@ -1498,18 +1530,18 @@ class Analytics5RTabState extends State<Analytics5RTab>
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
                           decoration: BoxDecoration(
-                            color: isSel ? _AppColors.primary : _AppColors.surface,
+                            color: isSel ? accent : const Color(0xFFEFF6FF),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: isSel ? _AppColors.primary : _AppColors.divider,
+                              color: isSel ? accent : const Color(0xFFDBEAFE),
                               width: isSel ? 1.5 : 1),
                             boxShadow: isSel ? [BoxShadow(
-                              color: _AppColors.primary.withValues(alpha:0.3),
+                              color: accent.withValues(alpha:0.3),
                               blurRadius: 6, offset: const Offset(0, 2))] : []),
-                          child: Center(child: Text(_translatedMonths[i], style: TextStyle(
+                          child: Center(child: Text(_translatedMonths[i], style: GoogleFonts.poppins(
                             fontSize: 13,
-                            fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
-                            color: isSel ? Colors.white : _AppColors.textPrimary))),
+                            fontWeight: isSel ? FontWeight.w700 : FontWeight.w600,
+                            color: isSel ? Colors.white : const Color(0xFF0C4A6E)))),
                         ),
                       );
                     },
@@ -1523,6 +1555,7 @@ class Analytics5RTabState extends State<Analytics5RTab>
                     tempDisplayMonth,
                     (picked) => setSt(() => tempDate = picked),
                     (newMonth) => setSt(() => tempDisplayMonth = newMonth),
+                    accent: accent,
                     onConfirm: () {
                       Navigator.pop(ctx);
                       setState(() {
@@ -1543,7 +1576,8 @@ class Analytics5RTabState extends State<Analytics5RTab>
 
   Widget _buildDailyCalendar(DateTime selectedDate, DateTime displayMonth,
       ValueChanged<DateTime> onDateChanged,
-      ValueChanged<DateTime> onMonthChanged, {required VoidCallback onConfirm}) {
+      ValueChanged<DateTime> onMonthChanged,
+      {required Color accent, required VoidCallback onConfirm}) {
     final now = DateTime.now();
     final year = displayMonth.year;
     final month = displayMonth.month;
@@ -1560,7 +1594,6 @@ class Analytics5RTabState extends State<Analytics5RTab>
 
     return StatefulBuilder(
       builder: (_, setInner) => Column(children: [
-        // HEADER: PREV / MONTH LABEL / NEXT
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -1569,15 +1602,14 @@ class Analytics5RTabState extends State<Analytics5RTab>
               child: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: _AppColors.primaryLight,
+                  color: accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.chevron_left_rounded,
-                    size: 18, color: _AppColors.primary),
+                child: Icon(Icons.chevron_left_rounded, size: 18, color: accent),
               ),
             ),
-            Text(monthLabel, style: const TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w700, color: _AppColors.textPrimary)),
+            Text(monthLabel, style: GoogleFonts.poppins(
+                fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF0C4A6E))),
             GestureDetector(
               onTap: isCurrentMonth
                   ? null
@@ -1587,22 +1619,20 @@ class Analytics5RTabState extends State<Analytics5RTab>
                 decoration: BoxDecoration(
                   color: isCurrentMonth
                       ? Colors.grey.shade100
-                      : _AppColors.primaryLight,
+                      : accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(Icons.chevron_right_rounded,
                     size: 18,
-                    color: isCurrentMonth
-                        ? Colors.grey.shade400
-                        : _AppColors.primary),
+                    color: isCurrentMonth ? Colors.grey.shade400 : accent),
               ),
             ),
           ],
         ),
         const SizedBox(height: 10),
         Row(children: dayLabels.map((d) => Expanded(child: Center(
-          child: Text(d, style: const TextStyle(
-              fontSize: 10, fontWeight: FontWeight.w600, color: _AppColors.textSecondary))))).toList()),
+          child: Text(d, style: GoogleFonts.poppins(
+              fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF64748B)))))).toList()),
         const SizedBox(height: 6),
         GridView.builder(
           shrinkWrap: true,
@@ -1624,16 +1654,16 @@ class Analytics5RTabState extends State<Analytics5RTab>
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 decoration: BoxDecoration(
-                  color: isSelected ? _AppColors.primary
-                      : isToday ? _AppColors.primaryLight : Colors.transparent,
+                  color: isSelected ? accent
+                      : isToday ? accent.withValues(alpha: 0.12) : Colors.transparent,
                   shape: BoxShape.circle,
                   border: isToday && !isSelected
-                      ? Border.all(color: _AppColors.primary, width: 1.2) : null),
-                child: Center(child: Text('$day', style: TextStyle(
+                      ? Border.all(color: accent, width: 1.2) : null),
+                child: Center(child: Text('$day', style: GoogleFonts.poppins(
                   fontSize: 12,
-                  fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: isSelected || isToday ? FontWeight.w700 : FontWeight.w600,
                   color: isSelected ? Colors.white
-                      : isFuture ? _AppColors.textMuted : _AppColors.textPrimary))),
+                      : isFuture ? const Color(0xFFBDBDBD) : const Color(0xFF0C4A6E)))),
               ),
             );
           },
@@ -1644,132 +1674,31 @@ class Analytics5RTabState extends State<Analytics5RTab>
           child: ElevatedButton(
             onPressed: onConfirm,
             style: ElevatedButton.styleFrom(
-              backgroundColor: _AppColors.primary, foregroundColor: Colors.white,
+              backgroundColor: accent, foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               padding: const EdgeInsets.symmetric(vertical: 10)),
             child: Text(getTxt('terapkan'),
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13)),
           ),
         ),
       ]),
     );
   }
 
-  void _showGroupPicker() async {
-    final allItem = {'id_unit': null, 'nama_unit': getTxt('semua_grup_anggota')};
-    final items = [allItem, ..._unitList];
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) {
-          final ctrl = TextEditingController();
-          List<Map<String, dynamic>> filtered = List.from(items);
-
-          return Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            child: Container(
-              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
-              decoration: BoxDecoration(
-                color: Colors.white, borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _AppColors.primaryLight, width: 1.5)),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-                  decoration: const BoxDecoration(
-                    color: _AppColors.primaryLight,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-                  child: Row(children: [
-                    const Icon(Icons.group_rounded, color: _AppColors.primary, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(getTxt('pilih_grup'),
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _AppColors.textPrimary))),
-                    IconButton(icon: const Icon(Icons.close, size: 18, color: _AppColors.textSecondary),
-                      onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
-                  ]),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-                  child: StatefulBuilder(
-                    builder: (_, setInner) => TextField(
-                      controller: ctrl,
-                      onChanged: (q) {
-                        setInner(() {
-                          filtered = items.where((e) =>
-                            (e['nama_unit'] as String).toLowerCase().contains(q.toLowerCase())).toList();
-                        });
-                        setSt(() {});
-                      },
-                      decoration: InputDecoration(
-                        hintText: getTxt('cari'),
-                        hintStyle: const TextStyle(fontSize: 13, color: _AppColors.textMuted),
-                        prefixIcon: const Icon(Icons.search, color: _AppColors.primary, size: 18),
-                        filled: true, fillColor: _AppColors.surface,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _AppColors.divider)),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _AppColors.divider)),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _AppColors.primary, width: 1.5)),
-                      ),
-                    ),
-                  ),
-                ),
-                Flexible(child: StatefulBuilder(
-                  builder: (_, __) => ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    itemCount: filtered.length,
-                    itemBuilder: (_, i) {
-                      final item = filtered[i];
-                      final lbl = item['nama_unit'] as String;
-                      final id = item['id_unit']?.toString();
-                      final isSelected = id == _selectedUnitId || (id == null && _selectedUnitId == null);
-                      return InkWell(
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          setState(() => _selectedUnitId = id);
-                          _fetchAllData(fromTabFilter: true);
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: isSelected ? _AppColors.primaryLight : Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected ? _AppColors.primary : _AppColors.divider,
-                              width: isSelected ? 1.5 : 1)),
-                          child: Row(children: [
-                            Container(
-                              width: 36, height: 36,
-                              decoration: BoxDecoration(
-                                color: isSelected ? _AppColors.primary : _AppColors.surface,
-                                borderRadius: BorderRadius.circular(10)),
-                              child: Center(child: Text(
-                                lbl.isNotEmpty ? lbl[0].toUpperCase() : '?',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15,
-                                    color: isSelected ? Colors.white : _AppColors.primary))),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(child: Text(lbl, style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              color: isSelected ? _AppColors.primary : _AppColors.textPrimary))),
-                            if (isSelected)
-                              const Icon(Icons.check_circle_rounded, color: _AppColors.primary, size: 18),
-                          ]),
-                        ),
-                      );
-                    },
-                  ),
-                )),
-              ]),
-            ),
-          );
-        },
-      ),
+  void _showMemberLocationPicker() async {
+    final result = await showMemberLocationFilterDialog(
+      context,
+      lang: widget.lang,
+      initialLevel: _selectedMemberLocationLevel,
+      initialId: _selectedMemberLocationId,
     );
+    if (result == null || !mounted) return;
+    setState(() {
+      _selectedMemberLocationLevel = result['level'] ?? _selectedMemberLocationLevel;
+      _selectedMemberLocationId    = result['id'];
+      _selectedMemberLocationName  = result['name'];
+    });
+    _fetchAllData(fromTabFilter: true);
   }
 
   void _showLevelPicker() async {
@@ -1779,6 +1708,10 @@ class Analytics5RTabState extends State<Analytics5RTab>
     List<Map<String, dynamic>> items = [];
     bool loadingItems = true;
     bool levelDropdownOpen = false;
+    int currentPage = 1;
+    const int itemsPerPage = 7;
+
+    const outerAccent = Color(0xFF0D9488); // TEAL - AKSEN UTAMA POPUP LOKASI
 
     final GlobalKey levelBtnKey = GlobalKey();
     final GlobalKey stackKey = GlobalKey();
@@ -1842,33 +1775,61 @@ class Analytics5RTabState extends State<Analytics5RTab>
               : items.where((e) => (e['name'] as String).toLowerCase().contains(query)).toList();
           final currentLevelColor = levelColor(tempLevelLabel);
 
+          final totalPages = filteredItems.isEmpty ? 1 : (filteredItems.length / itemsPerPage).ceil();
+          final safePage = currentPage.clamp(1, totalPages);
+          final startIdx = (safePage - 1) * itemsPerPage;
+          final endIdx = (startIdx + itemsPerPage) > filteredItems.length
+              ? filteredItems.length
+              : startIdx + itemsPerPage;
+          final pageItems = filteredItems.isEmpty
+              ? <Map<String, dynamic>>[]
+              : filteredItems.sublist(startIdx, endIdx);
+
           return Dialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Container(
               width: 340,
-              height: MediaQuery.of(context).size.height * 0.75,
+              height: MediaQuery.of(context).size.height * 0.78,
               decoration: BoxDecoration(
                 color: Colors.white, borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _AppColors.primaryLight, width: 1.5)),
+                border: Border.all(color: outerAccent.withValues(alpha: 0.25), width: 1.5)),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
                 child: Stack(key: stackKey, clipBehavior: Clip.none, children: [
                   Column(children: [
-                    // HEADER
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-                      decoration: const BoxDecoration(
-                        color: _AppColors.primaryLight,
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+                    // HEADER GAYA SELECT-VIEW
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
                       child: Row(children: [
-                        const Icon(Icons.tune_rounded, color: _AppColors.primary, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(getTxt('pilih_lokasi'),
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _AppColors.textPrimary))),
-                        IconButton(icon: const Icon(Icons.close, size: 18, color: _AppColors.textSecondary),
-                          onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: outerAccent.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.tune_rounded, color: outerAccent, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(getTxt('pilih_lokasi'),
+                              style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w700, fontSize: 15, color: outerAccent)),
+                        ),
+                        GestureDetector(
+                          onTap: () => Navigator.pop(ctx),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
+                          ),
+                        ),
                       ]),
                     ),
+                    const SizedBox(height: 10),
+                    Container(height: 1, color: const Color(0xFFF1F5F9)),
                     // SEARCH + LEVEL DROPDOWN TRIGGER
                     Padding(
                       padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
@@ -1879,22 +1840,40 @@ class Analytics5RTabState extends State<Analytics5RTab>
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: _AppColors.primary.withValues(alpha: 0.35), width: 1.3),
+                              border: Border.all(color: outerAccent.withValues(alpha: 0.35), width: 1.3),
                               boxShadow: [BoxShadow(
-                                  color: _AppColors.primary.withValues(alpha: 0.08),
+                                  color: outerAccent.withValues(alpha: 0.08),
                                   blurRadius: 6, offset: const Offset(0, 2))],
                             ),
                             child: TextField(
                               controller: searchCtrl,
-                              onChanged: (_) => setSt(() {}),
-                              style: const TextStyle(fontSize: 13, color: _AppColors.textPrimary, fontWeight: FontWeight.w500),
+                              textAlignVertical: TextAlignVertical.center,
+                              onChanged: (_) => setSt(() { currentPage = 1; }),
+                              style: GoogleFonts.poppins(fontSize: 13, color: Colors.black, fontWeight: FontWeight.w600),
                               decoration: InputDecoration(
                                 hintText: getTxt('cari'),
-                                hintStyle: const TextStyle(fontSize: 12.5, color: _AppColors.textMuted),
-                                prefixIcon: const Icon(Icons.search_rounded, color: _AppColors.primary, size: 19),
+                                hintStyle: GoogleFonts.poppins(fontSize: 12.5, color: const Color(0xFFBDBDBD), fontWeight: FontWeight.w500),
+                                prefixIcon: const Icon(Icons.search_rounded, color: outerAccent, size: 19),
+                                suffixIcon: searchCtrl.text.isNotEmpty
+                                    ? GestureDetector(
+                                        onTap: () {
+                                          searchCtrl.clear();
+                                          setSt(() { currentPage = 1; });
+                                        },
+                                        child: Container(
+                                          margin: const EdgeInsets.all(10),
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(Icons.close_rounded, size: 14, color: Color(0xFFEF4444)),
+                                        ),
+                                      )
+                                    : null,
                                 border: InputBorder.none,
                                 isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                                contentPadding: EdgeInsets.zero,
                               ),
                             ),
                           ),
@@ -1932,7 +1911,7 @@ class Analytics5RTabState extends State<Analytics5RTab>
                               const SizedBox(width: 6),
                               Expanded(child: Text(tempLevelLabel,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white))),
+                                  style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white))),
                               AnimatedRotation(
                                 turns: levelDropdownOpen ? 0.5 : 0,
                                 duration: const Duration(milliseconds: 200),
@@ -1944,12 +1923,14 @@ class Analytics5RTabState extends State<Analytics5RTab>
                       ]),
                     ),
                     const Divider(height: 1, color: _AppColors.divider),
+                    // HASIL (SCROLLABLE, DIPAGINASI 7 PER HALAMAN)
                     Expanded(
                       child: loadingItems
-                          ? const Center(child: CircularProgressIndicator(color: _AppColors.primary, strokeWidth: 2))
+                          ? const Center(child: CircularProgressIndicator(color: outerAccent, strokeWidth: 2))
                           : ListView(
                               padding: const EdgeInsets.symmetric(vertical: 6),
                               children: [
+                                // OPSI "SEMUA" (SELALU DI ATAS, DI LUAR PAGINASI)
                                 InkWell(
                                   onTap: () {
                                     Navigator.pop(ctx);
@@ -1978,10 +1959,10 @@ class Analytics5RTabState extends State<Analytics5RTab>
                                           color: tempSelectedId == null ? currentLevelColor : _AppColors.textSecondary),
                                       const SizedBox(width: 10),
                                       Expanded(child: Text('${getTxt('semua_grup_anggota')} ($tempLevelLabel)',
-                                          style: TextStyle(
+                                          style: GoogleFonts.poppins(
                                               fontSize: 13,
-                                              fontWeight: tempSelectedId == null ? FontWeight.bold : FontWeight.w500,
-                                              color: tempSelectedId == null ? currentLevelColor : _AppColors.textPrimary))),
+                                              fontWeight: FontWeight.w600,
+                                              color: tempSelectedId == null ? currentLevelColor : Colors.black))),
                                       if (tempSelectedId == null)
                                         Icon(Icons.check_circle_rounded, color: currentLevelColor, size: 18),
                                     ]),
@@ -1989,14 +1970,50 @@ class Analytics5RTabState extends State<Analytics5RTab>
                                 ),
                                 if (filteredItems.isEmpty)
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 24),
-                                    child: Center(
-                                      child: Text(getTxt('tidak_ada_data_level'),
-                                          style: const TextStyle(fontSize: 12.5, color: _AppColors.textSecondary)),
-                                    ),
+                                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+                                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                      Image.asset(
+                                        'assets/images/team_illustration.png',
+                                        height: 110,
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          width: 84, height: 84,
+                                          decoration: BoxDecoration(
+                                            color: outerAccent.withValues(alpha: 0.08), shape: BoxShape.circle),
+                                          child: const Icon(Icons.search_off_rounded, size: 36, color: outerAccent),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(getTxt('tidak_ada_data_level'),
+                                          style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: outerAccent),
+                                          textAlign: TextAlign.center),
+                                      const SizedBox(height: 12),
+                                      GestureDetector(
+                                        onTap: () {
+                                          searchCtrl.clear();
+                                          setSt(() { currentPage = 1; });
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                                          decoration: BoxDecoration(
+                                            color: outerAccent.withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(30),
+                                            border: Border.all(color: outerAccent.withValues(alpha: 0.35)),
+                                          ),
+                                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                            const Icon(Icons.refresh_rounded, size: 14, color: outerAccent),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              widget.lang == 'EN' ? 'Clear search' : widget.lang == 'ZH' ? '清除搜索' : 'Hapus pencarian',
+                                              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: outerAccent),
+                                            ),
+                                          ]),
+                                        ),
+                                      ),
+                                    ]),
                                   )
-                                else
-                                  ...filteredItems.map((item) {
+                                else ...[
+                                  ...pageItems.map((item) {
                                     final isSel = item['id'] == tempSelectedId;
                                     return InkWell(
                                       onTap: () {
@@ -2035,10 +2052,10 @@ class Analytics5RTabState extends State<Analytics5RTab>
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Text(item['name'] as String,
-                                                    style: TextStyle(
+                                                    style: GoogleFonts.poppins(
                                                         fontSize: 13,
-                                                        fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
-                                                        color: isSel ? currentLevelColor : _AppColors.textPrimary),
+                                                        fontWeight: FontWeight.w600,
+                                                        color: isSel ? currentLevelColor : Colors.black),
                                                     overflow: TextOverflow.ellipsis),
                                                 const SizedBox(height: 4),
                                                 Container(
@@ -2066,11 +2083,37 @@ class Analytics5RTabState extends State<Analytics5RTab>
                                       ),
                                     );
                                   }),
+                                  if (totalPages > 1)
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          GestureDetector(
+                                            onTap: safePage > 1 ? () => setSt(() => currentPage = safePage - 1) : null,
+                                            child: Icon(Icons.chevron_left_rounded,
+                                                size: 20, color: safePage > 1 ? outerAccent : Colors.grey.shade300),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Text('$safePage / $totalPages',
+                                              style: GoogleFonts.poppins(
+                                                  fontSize: 12, fontWeight: FontWeight.w700, color: outerAccent)),
+                                          const SizedBox(width: 10),
+                                          GestureDetector(
+                                            onTap: safePage < totalPages ? () => setSt(() => currentPage = safePage + 1) : null,
+                                            child: Icon(Icons.chevron_right_rounded,
+                                                size: 20, color: safePage < totalPages ? outerAccent : Colors.grey.shade300),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
                               ],
                             ),
                     ),
                   ]),
 
+                  // BARRIER: TUTUP DROPDOWN JIKA TAP DI LUAR PANEL
                   if (levelDropdownOpen)
                     Positioned.fill(
                       child: GestureDetector(
@@ -2107,6 +2150,7 @@ class Analytics5RTabState extends State<Analytics5RTab>
                                   tempLevelLabel = lvl;
                                   tempSelectedId = null;
                                   loadingItems = true;
+                                  currentPage = 1;
                                   searchCtrl.clear();
                                   levelDropdownOpen = false;
                                   setSt(() {});

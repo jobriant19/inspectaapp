@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
@@ -146,6 +147,9 @@ class FiveRLocationTab extends StatelessWidget {
     );
   }
 
+  static const Color _timeAccent = Color(0xFF1D72F3);   // BIRU
+  static const Color _levelAccent = Color(0xFF0D9488);  // TEAL (tetap, bukan filter waktu)
+
   Widget _buildLocationTimeFilterButton() {
     final isActive = filterMode == 'daily';
     final modeLabel = filterMode == 'daily'
@@ -163,14 +167,14 @@ class FiveRLocationTab extends StatelessWidget {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: isActive ? _AppColors.primary : Colors.white,
+          color: isActive ? _timeAccent : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isActive ? _AppColors.primary : const Color(0xFF7DD3FC),
+            color: isActive ? _timeAccent : const Color(0xFF93C5FD),
             width: 1.5,
           ),
           boxShadow: [BoxShadow(
-              color: _AppColors.primary.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _timeAccent.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
           Expanded(
@@ -178,20 +182,20 @@ class FiveRLocationTab extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.calendar_month_rounded, size: 15,
-                    color: isActive ? Colors.white : _AppColors.primary),
+                    color: isActive ? Colors.white : _timeAccent),
                 const SizedBox(width: 5),
                 Flexible(
                   child: Text('$modeLabel · $valueLabel',
                       textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
-                          color: isActive ? Colors.white : _AppColors.primary)),
+                      style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600,
+                          color: isActive ? Colors.white : _timeAccent)),
                 ),
               ],
             ),
           ),
           Icon(Icons.keyboard_arrow_down_rounded,
-              color: isActive ? Colors.white : _AppColors.primary, size: 18),
+              color: isActive ? Colors.white : _timeAccent, size: 18),
         ]),
       ),
     );
@@ -210,25 +214,25 @@ class FiveRLocationTab extends StatelessWidget {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: isActive ? _AppColors.primary : Colors.white,
+          color: isActive ? _levelAccent : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isActive ? _AppColors.primary : const Color(0xFF7DD3FC),
+            color: isActive ? _levelAccent : const Color(0xFF5EEAD4),
             width: 1.5,
           ),
           boxShadow: [BoxShadow(
-              color: _AppColors.primary.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _levelAccent.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
           Expanded(
             child: Text(label,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                    color: isActive ? Colors.white : _AppColors.primary)),
+                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600,
+                    color: isActive ? Colors.white : _levelAccent)),
           ),
           Icon(Icons.keyboard_arrow_down_rounded,
-              color: isActive ? Colors.white : _AppColors.primary, size: 18),
+              color: isActive ? Colors.white : _levelAccent, size: 18),
         ]),
       ),
     );

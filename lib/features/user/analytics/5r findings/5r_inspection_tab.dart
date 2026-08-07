@@ -354,7 +354,7 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
               style: const TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: _AppColors.textSecondary,
+                  color: Colors.black,
                   letterSpacing: 0.2),
             ),
           );
