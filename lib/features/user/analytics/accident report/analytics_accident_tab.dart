@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
+import '../analytics_selector_bar.dart';
 import 'accident_location_tab.dart';
 import 'accident_members_tab.dart';
 import 'accident_recurring_tab.dart';
@@ -22,11 +23,18 @@ class AnalyticsAccidentTab extends StatefulWidget {
   const AnalyticsAccidentTab({super.key, required this.lang});
 
   @override
-  State<AnalyticsAccidentTab> createState() => _AnalyticsAccidentTabState();
+  State<AnalyticsAccidentTab> createState() => AnalyticsAccidentTabState();
 }
 
-class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
-    with TickerProviderStateMixin {
+class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
+    with TickerProviderStateMixin implements AnalyticsSubTabController {
+
+  @override
+  void setActiveSubTab(int index) {
+    if (index < 0 || index >= _tabController.length) return;
+    if (_tabController.index == index) return;
+    _tabController.animateTo(index);
+  }
   final _supabase = Supabase.instance.client;
   late TabController _tabController;
   int _activeTabIndex = 0;
@@ -47,7 +55,7 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
   bool _isChartExpanded      = false;
   bool _isChartLoadingForTab = false;
 
-  // POPUP GUARD (mencegah popup terbuka dobel)
+  // POPUP GUARD
   bool _isMonthPickerOpen = false;
   bool _isGroupPickerOpen = false;
   bool _isLevelPickerOpen = false;
@@ -168,10 +176,10 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      _buildTabBar(),
       _buildConditionalChart(),
       Expanded(child: TabBarView(
         controller: _tabController,
+        physics: const NeverScrollableScrollPhysics(),
         children: [
           _buildMembersTab(),
           _buildLocationTab(),
@@ -179,34 +187,6 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
         ],
       )),
     ]);
-  }
-
-  Widget _buildTabBar() {
-    final labels = [
-      _t('Anggota', 'Members', '成员'),
-      _t('Lokasi', 'Location', '位置'),
-      _t('Kecelakaan Berulang', 'Recurring Accident', '重复事故'),
-    ];
-    return Container(
-      color: Colors.transparent,
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-      child: Container(
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-        padding: const EdgeInsets.all(3),
-        child: TabBar(
-          controller: _tabController,
-          indicator: BoxDecoration(color: _C.red, borderRadius: BorderRadius.circular(8)),
-          indicatorSize: TabBarIndicatorSize.tab,
-          labelColor: Colors.white,
-          unselectedLabelColor: _C.red,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11.5),
-          dividerColor: Colors.transparent,
-          overlayColor: WidgetStateProperty.all(Colors.transparent),
-          tabs: labels.map((t) => Tab(child: Text(t))).toList(),
-        ),
-      ),
-    );
   }
 
   Widget _buildConditionalChart() {
@@ -941,7 +921,6 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
       }
     }
 
-    // FETCH DATA DULU SEBELUM DIALOG DIBUKA -> POPUP LANGSUNG MUNCUL DENGAN DATA SIAP, TANPA SPINNER
     items = await fetchItemsForLevel(tempLevelLabel);
 
     if (!mounted) {
@@ -1061,12 +1040,10 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
                       ]),
                     ),
                     const Divider(height: 1, color: _C.divider),
-                    // HASIL
                     Expanded(
                       child: ListView(
                               padding: const EdgeInsets.symmetric(vertical: 6),
                               children: [
-                                // OPSI "SEMUA"
                                 InkWell(
                                   onTap: () {
                                     Navigator.pop(ctx);
@@ -1227,7 +1204,7 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
                                   tempSelectedId = null;
                                   searchCtrl.clear();
                                   levelDropdownOpen = false;
-                                  items = []; // KOSONGKAN DULU biar tidak nyangkut hasil level lama
+                                  items = [];
                                   setSt(() {});
                                   final res = await fetchItemsForLevel(lvl);
                                   items = res;

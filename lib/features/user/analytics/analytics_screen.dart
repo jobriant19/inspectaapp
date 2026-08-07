@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '5r findings/analytics_5r_tab.dart';
 import 'kts production/analytics_kts_tab.dart';
 import 'accident report/analytics_accident_tab.dart';
 import 'preventif_maintenance/analytics_preventif_tab.dart';
+import 'analytics_selector_bar.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   final String lang;
@@ -17,8 +17,167 @@ class AnalyticsScreen extends StatefulWidget {
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  // FINDING TYPE SELECTOR
   String _selectedFindingType = '5R';
+  int _selectedSubTabIndex = 0;
+
+  static const String _defaultFindingType = '5R';
+  static const int _defaultSubTabIndex = 0;
+
+  final _fiveRKey = GlobalKey<Analytics5RTabState>();
+  final _ktsKey = GlobalKey<KTSAnalyticsTabState>();
+  final _accidentKey = GlobalKey<AnalyticsAccidentTabState>();
+
+  AnalyticsSubTabController? _currentController() {
+    switch (_selectedFindingType) {
+      case '5R':
+        return _fiveRKey.currentState;
+      case 'KTS Production':
+        return _ktsKey.currentState;
+      case 'Accident':
+        return _accidentKey.currentState;
+      default:
+        return null;
+    }
+  }
+
+  void _handleMainTypeChanged(String key) {
+    final sameBranch = _selectedFindingType == key;
+    setState(() {
+      _selectedFindingType = key;
+      _selectedSubTabIndex = _defaultSubTabIndex;
+    });
+    if (sameBranch) {
+      _currentController()?.setActiveSubTab(_defaultSubTabIndex);
+    }
+  }
+
+  void _handleSubTabChanged(int index) {
+    setState(() => _selectedSubTabIndex = index);
+    _currentController()?.setActiveSubTab(index);
+  }
+
+  void _handleResetToDefault() {
+    _handleMainTypeChanged(_defaultFindingType);
+  }
+
+  String _preventifLabel() {
+    if (widget.lang == 'ZH') return '预防性维护';
+    return 'Preventive Maintenance';
+  }
+
+  List<AnalyticsMainTypeMeta> _mainTypes() => [
+        AnalyticsMainTypeMeta(
+          key: '5R',
+          label: widget.lang == 'ZH' ? '5R 发现' : '5R Finding',
+          icon: Icons.search_rounded,
+          color: const Color(0xFF0EA5E9),
+          borderColor: const Color(0xFF7DD3FC),
+        ),
+        const AnalyticsMainTypeMeta(
+          key: 'KTS Production',
+          label: 'KTS Production',
+          icon: Icons.precision_manufacturing_rounded,
+          color: Color(0xFFF59E0B),
+          borderColor: Color(0xFFFCD34D),
+        ),
+        AnalyticsMainTypeMeta(
+          key: 'Accident',
+          label: widget.lang == 'ZH' ? '事故报告' : 'Accident Report',
+          icon: Icons.warning_amber_rounded,
+          color: const Color(0xFFEF4444),
+          borderColor: const Color(0xFFFCA5A5),
+        ),
+        AnalyticsMainTypeMeta(
+          key: 'Preventif',
+          label: _preventifLabel(),
+          icon: Icons.build_circle_rounded,
+          color: const Color(0xFF1D4ED8),
+          borderColor: const Color(0xFFBFDBFE),
+        ),
+      ];
+
+  List<AnalyticsSubTabMeta> _subTabsFor(String type) {
+    switch (type) {
+      case '5R':
+        return [
+          AnalyticsSubTabMeta(
+            label: widget.lang == 'EN' ? 'Members' : widget.lang == 'ZH' ? '成员' : 'Anggota',
+            icon: Icons.groups_rounded,
+          ),
+          AnalyticsSubTabMeta(
+            label: widget.lang == 'EN' ? 'Inspection' : widget.lang == 'ZH' ? '检查' : 'Inspeksi',
+            icon: Icons.fact_check_rounded,
+          ),
+          AnalyticsSubTabMeta(
+            label: widget.lang == 'EN' ? 'Location' : widget.lang == 'ZH' ? '位置' : 'Lokasi',
+            icon: Icons.map,
+          ),
+          AnalyticsSubTabMeta(
+            label: widget.lang == 'EN'
+                ? 'Recurring Finding'
+                : widget.lang == 'ZH'
+                    ? '重复发现'
+                    : 'Temuan Berulang',
+            icon: Icons.repeat_rounded,
+          ),
+        ];
+      case 'KTS Production':
+        return [
+          AnalyticsSubTabMeta(
+            label: widget.lang == 'EN' ? 'Members' : widget.lang == 'ZH' ? '成员' : 'Anggota',
+            icon: Icons.groups_rounded,
+          ),
+          AnalyticsSubTabMeta(
+            label: widget.lang == 'EN' ? 'Cause' : widget.lang == 'ZH' ? '原因' : 'Penyebab',
+            icon: Icons.psychology_rounded,
+          ),
+          AnalyticsSubTabMeta(
+            label: widget.lang == 'EN'
+                ? 'Recurring KTS'
+                : widget.lang == 'ZH'
+                    ? '重复发现'
+                    : 'Temuan Berulang',
+            icon: Icons.repeat_rounded,
+          ),
+        ];
+      case 'Accident':
+        return [
+          AnalyticsSubTabMeta(
+            label: widget.lang == 'EN' ? 'Members' : widget.lang == 'ZH' ? '成员' : 'Anggota',
+            icon: Icons.groups_rounded,
+          ),
+          AnalyticsSubTabMeta(
+            label: widget.lang == 'EN' ? 'Location' : widget.lang == 'ZH' ? '位置' : 'Lokasi',
+            icon: Icons.map,
+          ),
+          AnalyticsSubTabMeta(
+            label: widget.lang == 'EN'
+                ? 'Recurring Accident'
+                : widget.lang == 'ZH'
+                    ? '重复事故'
+                    : 'Kecelakaan Berulang',
+            icon: Icons.repeat_rounded,
+          ),
+        ];
+      default:
+        return const [];
+    }
+  }
+
+  Widget _buildSelectorBar() {
+    return AnalyticsSelectorBar(
+      lang: widget.lang,
+      mainTypes: _mainTypes(),
+      selectedMainKey: _selectedFindingType,
+      onMainTypeChanged: _handleMainTypeChanged,
+      subTabs: _subTabsFor(_selectedFindingType),
+      selectedSubTabIndex: _selectedSubTabIndex,
+      onSubTabChanged: _handleSubTabChanged,
+      defaultMainKey: _defaultFindingType,
+      defaultSubTabIndex: _defaultSubTabIndex,
+      onResetToDefault: _handleResetToDefault,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,9 +186,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       return Scaffold(
         backgroundColor: Colors.transparent,
         body: Column(children: [
-          _buildFindingTypeSelector(),
+          _buildSelectorBar(),
           Expanded(
             child: KTSAnalyticsTab(
+              key: _ktsKey,
               lang: widget.lang,
               userId: _supabase.auth.currentUser?.id ?? '',
               onTabChanged: () {},
@@ -44,9 +204,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       return Scaffold(
         backgroundColor: Colors.transparent,
         body: Column(children: [
-          _buildFindingTypeSelector(),
+          _buildSelectorBar(),
           Expanded(
-            child: AnalyticsAccidentTab(lang: widget.lang),
+            child: AnalyticsAccidentTab(key: _accidentKey, lang: widget.lang),
           ),
         ]),
       );
@@ -57,7 +217,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       return Scaffold(
         backgroundColor: Colors.transparent,
         body: Column(children: [
-          _buildFindingTypeSelector(),
+          _buildSelectorBar(),
           Expanded(
             child: AnalyticsPreventifTab(lang: widget.lang),
           ),
@@ -69,95 +229,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Column(children: [
-        _buildFindingTypeSelector(),
+        _buildSelectorBar(),
         Expanded(
-          child: Analytics5RTab(lang: widget.lang),
+          child: Analytics5RTab(key: _fiveRKey, lang: widget.lang),
         ),
       ]),
-    );
-  }
-
-  String _preventifLabel() {
-    if (widget.lang == 'EN') return 'Preventive';
-    if (widget.lang == 'ZH') return '预防性';
-    return 'Preventif';
-  }
-
-  // FINDING TYPE SELECTOR BUILD
-  Widget _buildFindingTypeSelector() {
-    final types = [
-      {'key': '5R', 'label': '5R', 'icon': Icons.search_rounded},
-      {'key': 'KTS Production', 'label': 'KTS', 'icon': Icons.precision_manufacturing_rounded},
-      {'key': 'Accident', 'label': 'Accident', 'icon': Icons.warning_amber_rounded},
-      {'key': 'Preventif', 'label': _preventifLabel(), 'icon': Icons.build_circle_rounded},
-    ];
-    const activeColors = {
-      '5R': Color(0xFF0EA5E9),
-      'KTS Production': Color(0xFFF59E0B),
-      'Accident': Color(0xFFEF4444),
-      'Preventif': Color(0xFF1D4ED8),
-    };
-    const borderColors = {
-      '5R': Color(0xFF7DD3FC),
-      'KTS Production': Color(0xFFFCD34D),
-      'Accident': Color(0xFFFCA5A5),
-      'Preventif': Color(0xFFBFDBFE),
-    };
-
-    return Container(
-      color: Colors.transparent,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Row(
-        children: types.map((t) {
-          final key = t['key'] as String;
-          final isSelected = _selectedFindingType == key;
-          final activeColor = activeColors[key]!;
-          final borderColor = isSelected ? activeColor : borderColors[key]!;
-          return Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(right: key != 'Preventif' ? 6 : 0),
-              child: GestureDetector(
-                onTap: () {
-                  if (_selectedFindingType != key) {
-                    setState(() => _selectedFindingType = key);
-                  }
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: isSelected ? activeColor : Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: borderColor, width: 1.5),
-                    boxShadow: isSelected ? [BoxShadow(
-                      color: activeColor.withValues(alpha:0.28), blurRadius: 8, offset: const Offset(0, 3),
-                    )] : [],
-                  ),
-                  child: Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(t['icon'] as IconData, size: 12,
-                            color: isSelected ? Colors.white : activeColor),
-                        const SizedBox(width: 4),
-                        Flexible(child: Text(
-                          t['label'] as String,
-                          style: GoogleFonts.poppins(
-                            fontSize: 10, fontWeight: FontWeight.w700,
-                            color: isSelected ? Colors.white : activeColor,
-                          ),
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                        )),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
     );
   }
 }

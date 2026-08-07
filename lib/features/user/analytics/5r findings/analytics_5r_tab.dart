@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
+import '../analytics_selector_bar.dart';
 import '5r_inspection_tab.dart';
 import '5r_location_tab.dart';
 import '5r_members_tab.dart';
@@ -30,11 +31,18 @@ class Analytics5RTab extends StatefulWidget {
   const Analytics5RTab({super.key, required this.lang});
 
   @override
-  State<Analytics5RTab> createState() => _Analytics5RTabState();
+  State<Analytics5RTab> createState() => Analytics5RTabState();
 }
 
-class _Analytics5RTabState extends State<Analytics5RTab>
-    with TickerProviderStateMixin {
+class Analytics5RTabState extends State<Analytics5RTab>
+    with TickerProviderStateMixin implements AnalyticsSubTabController {
+
+  @override
+  void setActiveSubTab(int index) {
+    if (index < 0 || index >= _tabController.length) return;
+    if (_tabController.index == index) return;
+    _tabController.animateTo(index);
+  }
   late TabController _tabController;
   final SupabaseClient _supabase = Supabase.instance.client;
 
@@ -968,11 +976,11 @@ class _Analytics5RTabState extends State<Analytics5RTab>
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      _buildTabBar(),
       _buildConditionalChart(),
       Expanded(
         child: TabBarView(
           controller: _tabController,
+          physics: const NeverScrollableScrollPhysics(),
           children: [
             _buildAnggotaTab(),
             _buildInspeksiTab(),
@@ -982,41 +990,6 @@ class _Analytics5RTabState extends State<Analytics5RTab>
         ),
       ),
     ]);
-  }
-
-  // TAB BAR
-  Widget _buildTabBar() {
-    final tabLabels = [getTxt('anggota'), getTxt('inspeksi'), getTxt('lokasi'), getTxt('temuan_berulang')];
-    const activeColor = _AppColors.primary;
-
-    return Container(
-      color: Colors.transparent,
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        padding: const EdgeInsets.all(3),
-        child: TabBar(
-          controller: _tabController,
-          isScrollable: tabLabels.length > 4,
-          tabAlignment: tabLabels.length > 4 ? TabAlignment.center : TabAlignment.fill,
-          indicator: BoxDecoration(
-            color: activeColor,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          indicatorSize: TabBarIndicatorSize.tab,
-          labelColor: Colors.white,
-          unselectedLabelColor: activeColor,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11.5),
-          dividerColor: Colors.transparent,
-          overlayColor: WidgetStateProperty.all(Colors.transparent),
-          tabs: tabLabels.map((t) => Tab(child: Text(t))).toList(),
-        ),
-      ),
-    );
   }
 
   // CONDITIONAL CHART
@@ -1896,7 +1869,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                           onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
                       ]),
                     ),
-                    // SEARCH + LEVEL DROPDOWN TRIGGER (FIXED, TIDAK IKUT SCROLL)
+                    // SEARCH + LEVEL DROPDOWN TRIGGER
                     Padding(
                       padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
                       child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
@@ -1971,14 +1944,12 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                       ]),
                     ),
                     const Divider(height: 1, color: _AppColors.divider),
-                    // HASIL (SCROLLABLE, AREA TETAP KONSISTEN)
                     Expanded(
                       child: loadingItems
                           ? const Center(child: CircularProgressIndicator(color: _AppColors.primary, strokeWidth: 2))
                           : ListView(
                               padding: const EdgeInsets.symmetric(vertical: 6),
                               children: [
-                                // OPSI "SEMUA"
                                 InkWell(
                                   onTap: () {
                                     Navigator.pop(ctx);
@@ -2100,7 +2071,6 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                     ),
                   ]),
 
-                  // BARRIER: TUTUP DROPDOWN JIKA TAP DI LUAR PANEL
                   if (levelDropdownOpen)
                     Positioned.fill(
                       child: GestureDetector(
@@ -2110,7 +2080,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                       ),
                     ),
 
-                  // DROPDOWN PANEL (MENURUN DARI BUTTON, TETAP DI DALAM AREA POPUP)
+                  // DROPDOWN PANEL
                   if (levelDropdownOpen)
                     Positioned(
                       top: dropdownTop,
