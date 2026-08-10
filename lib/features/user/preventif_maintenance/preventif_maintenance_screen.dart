@@ -421,19 +421,31 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
     await showDialog(context: context, builder: (ctx) => Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: _PC.primaryLight, width: 1.5)),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: _PC.primary.withValues(alpha: 0.2), width: 1.5)),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-            decoration: const BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
             child: Row(children: [
-              const Icon(Icons.date_range_rounded, color: _PC.primary, size: 20),
-              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: _PC.primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.date_range_rounded, color: _PC.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
               Expanded(child: Text(widget.lang == 'EN' ? 'Select Period' : widget.lang == 'ZH' ? '选择期间' : 'Pilih Periode',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _PC.textPrimary))),
-              IconButton(icon: const Icon(Icons.close, size: 18, color: _PC.textSec), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: _PC.primary))),
+              GestureDetector(
+                onTap: () => Navigator.pop(ctx),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha: 0.1), shape: BoxShape.circle),
+                  child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
+                ),
+              ),
             ]),
           ),
+          const SizedBox(height: 12),
+          Container(height: 1, color: const Color(0xFFF1F5F9)),
           const SizedBox(height: 8),
           ..._PmRange.values.where((r) => r != _PmRange.custom).map((r) {
             final sel = _range == r;
@@ -446,7 +458,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: sel ? _PC.primary : const Color(0xFFE2E8F0), width: sel ? 1.8 : 1)),
                 child: Row(children: [
-                  Expanded(child: Text(r.label(widget.lang), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: sel ? _PC.primaryDark : const Color(0xFF1E293B)))),
+                  Expanded(child: Text(r.label(widget.lang), style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: sel ? _PC.primaryDark : const Color(0xFF1E293B)))),
                   if (sel) const Icon(Icons.check_circle_rounded, color: _PC.primary, size: 20),
                 ]),
               ));
@@ -467,7 +479,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
                   _range == _PmRange.custom && _customStart != null && _customEnd != null
                       ? '${DateFormat('MMM yyyy').format(_customStart!)} – ${DateFormat('MMM yyyy').format(_customEnd!)}'
                       : (widget.lang == 'EN' ? 'Custom (Start – End)' : widget.lang == 'ZH' ? '自定义（开始-结束）' : 'Kustom (Mulai – Selesai)'),
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _range == _PmRange.custom ? _PC.primaryDark : const Color(0xFF1E293B)))),
+                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: _range == _PmRange.custom ? _PC.primaryDark : const Color(0xFF1E293B)))),
                 if (_range == _PmRange.custom) const Icon(Icons.check_circle_rounded, color: _PC.primary, size: 20),
               ]),
             ),
@@ -484,30 +496,50 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
     DateTime tempEnd   = _customEnd   ?? DateTime(now.year, now.month, 1);
 
     await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
-      Widget monthYearPicker(String title, DateTime value, ValueChanged<DateTime> onChanged) {
-        return Container(
-          padding: const EdgeInsets.all(12),
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          decoration: BoxDecoration(color: const Color(0xFFF8FAFF), borderRadius: BorderRadius.circular(12), border: Border.all(color: _PC.border)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _PC.textSec)),
-            const SizedBox(height: 8),
+      Widget monthYearField({
+        required String label,
+        required IconData labelIcon,
+        required DateTime value,
+        required ValueChanged<int> onMonthChanged,
+        required ValueChanged<int> onYearChanged,
+      }) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(children: [
-              Expanded(child: DropdownButton<int>(
-                isExpanded: true, value: value.month, underline: const SizedBox.shrink(),
-                items: List.generate(12, (i) => i + 1).map((m) => DropdownMenuItem(value: m,
-                  child: Text(DateFormat('MMMM').format(DateTime(2024, m, 1)), style: const TextStyle(fontSize: 13)))).toList(),
-                onChanged: (m) { if (m != null) onChanged(DateTime(value.year, m, 1)); },
-              )),
-              const SizedBox(width: 8),
-              Expanded(child: DropdownButton<int>(
-                isExpanded: true, value: value.year, underline: const SizedBox.shrink(),
-                items: List.generate(6, (i) => now.year - 4 + i).map((y) => DropdownMenuItem(value: y,
-                  child: Text('$y', style: const TextStyle(fontSize: 13)))).toList(),
-                onChanged: (y) { if (y != null) onChanged(DateTime(y, value.month, 1)); },
-              )),
+              Icon(labelIcon, size: 13, color: _PC.primary),
+              const SizedBox(width: 5),
+              Text(label, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF64748B))),
             ]),
-          ]),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: _PC.primary.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _PC.primary.withValues(alpha: 0.35)),
+              ),
+              child: Row(children: [
+                Icon(Icons.event_rounded, size: 17, color: _PC.primary),
+                const SizedBox(width: 10),
+                Expanded(child: DropdownButton<int>(
+                  isExpanded: true, value: value.month, underline: const SizedBox.shrink(),
+                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF0C3A8C)),
+                  items: List.generate(12, (i) => i + 1).map((m) => DropdownMenuItem(value: m,
+                    child: Text(DateFormat('MMMM').format(DateTime(2024, m, 1)), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)))).toList(),
+                  onChanged: (m) { if (m != null) onMonthChanged(m); },
+                )),
+                const SizedBox(width: 8),
+                Expanded(child: DropdownButton<int>(
+                  isExpanded: true, value: value.year, underline: const SizedBox.shrink(),
+                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF0C3A8C)),
+                  items: List.generate(6, (i) => now.year - 4 + i).map((y) => DropdownMenuItem(value: y,
+                    child: Text('$y', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)))).toList(),
+                  onChanged: (y) { if (y != null) onYearChanged(y); },
+                )),
+              ]),
+            ),
+          ],
         );
       }
 
@@ -517,44 +549,80 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
       return Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-              decoration: const BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-              child: Row(children: [
-                const Icon(Icons.edit_calendar_rounded, color: _PC.primary, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(widget.lang == 'EN' ? 'Custom Period' : widget.lang == 'ZH' ? '自定义期间' : 'Periode Kustom',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _PC.textPrimary))),
-                IconButton(icon: const Icon(Icons.close, size: 18, color: _PC.textSec), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _PC.primary.withValues(alpha: 0.2), width: 1.5),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: _PC.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.edit_calendar_rounded, color: _PC.primary, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    widget.lang == 'EN' ? 'Custom Period' : widget.lang == 'ZH' ? '自定义期间' : 'Periode Kustom',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: _PC.textPrimary),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha: 0.1), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFEF4444)),
+                  ),
+                ),
               ]),
-            ),
-            const SizedBox(height: 8),
-            monthYearPicker(widget.lang == 'EN' ? 'Start' : widget.lang == 'ZH' ? '开始' : 'Mulai', tempStart, (d) => setLocal(() => tempStart = d)),
-            monthYearPicker(widget.lang == 'EN' ? 'End' : widget.lang == 'ZH' ? '结束' : 'Selesai', tempEnd, (d) => setLocal(() => tempEnd = d)),
-            if (!isValid)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  widget.lang == 'EN' ? 'Range must be between 0–12 months' : widget.lang == 'ZH' ? '范围必须在0-12个月之间' : 'Rentang maksimal 12 bulan',
-                  style: const TextStyle(fontSize: 11, color: Color(0xFFEF4444))),
+              const SizedBox(height: 18),
+
+              monthYearField(
+                label: widget.lang == 'EN' ? 'Start' : widget.lang == 'ZH' ? '开始' : 'Mulai',
+                labelIcon: Icons.play_circle_outline_rounded,
+                value: tempStart,
+                onMonthChanged: (m) => setLocal(() => tempStart = DateTime(tempStart.year, m, 1)),
+                onYearChanged: (y) => setLocal(() => tempStart = DateTime(y, tempStart.month, 1)),
               ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: SizedBox(width: double.infinity, child: ElevatedButton(
-                onPressed: isValid ? () {
-                  Navigator.pop(ctx);
-                  setState(() { _range = _PmRange.custom; _customStart = tempStart; _customEnd = tempEnd; });
-                  _loadTableData();
-                } : null,
-                style: ElevatedButton.styleFrom(backgroundColor: _PC.primary, foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                child: Text(widget.lang == 'EN' ? 'Apply' : widget.lang == 'ZH' ? '应用' : 'Terapkan'),
-              )),
-            ),
-          ]),
+              const SizedBox(height: 16),
+              monthYearField(
+                label: widget.lang == 'EN' ? 'End' : widget.lang == 'ZH' ? '结束' : 'Selesai',
+                labelIcon: Icons.flag_circle_rounded,
+                value: tempEnd,
+                onMonthChanged: (m) => setLocal(() => tempEnd = DateTime(tempEnd.year, m, 1)),
+                onYearChanged: (y) => setLocal(() => tempEnd = DateTime(y, tempEnd.month, 1)),
+              ),
+              if (!isValid)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(
+                    widget.lang == 'EN' ? 'Range must be between 0–12 months' : widget.lang == 'ZH' ? '范围必须在0-12个月之间' : 'Rentang maksimal 12 bulan',
+                    style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFFEF4444))),
+                ),
+              const SizedBox(height: 20),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isValid ? () {
+                    Navigator.pop(ctx);
+                    setState(() { _range = _PmRange.custom; _customStart = tempStart; _customEnd = tempEnd; });
+                    _loadTableData();
+                  } : null,
+                  style: ElevatedButton.styleFrom(backgroundColor: _PC.primary, foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  child: Text(widget.lang == 'EN' ? 'Apply' : widget.lang == 'ZH' ? '应用' : 'Terapkan',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }));
@@ -765,7 +833,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
         child: Row(children: [
           const Icon(Icons.bar_chart_rounded, size: 16, color: _PC.primary),
           const SizedBox(width: 8),
-          Expanded(child: Text('${_t('grafik')} ${_t('title')} – $rangeLabel',
+          Expanded(child: Text('${_t('grafik')} ${_t('title')} ($rangeLabel)',
             style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _PC.primaryDark))),
           AnimatedRotation(turns: _chartExpanded ? 0.5 : 0, duration: const Duration(milliseconds: 250),
             child: const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: _PC.primary)),
@@ -855,17 +923,20 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
   Widget _buildFilterBar() {
     String rangeLabel = _range.label(widget.lang);
     if (_range == _PmRange.custom && _customStart != null && _customEnd != null) {
-      rangeLabel = '${DateFormat('MMM yy').format(_customStart!)}–${DateFormat('MMM yy').format(_customEnd!)}';
+      rangeLabel = '${DateFormat('MMM yy').format(_customStart!)} – ${DateFormat('MMM yy').format(_customEnd!)}';
     }
     return Column(children: [
       Row(children: [
-        Expanded(child: _filterBtn(label: rangeLabel, active: true, icon: Icons.date_range_rounded, onTap: _showRangePicker)),
+        Expanded(child: _buildRangeFilterButton(rangeLabel)),
         const SizedBox(width: 8),
         Expanded(child: _filterBtn(
           label: _filterBagian != null ? _displaySectionName(_filterBagian!) : _t('semua_bagian'),
           active: _filterBagian != null,
           icon: Icons.grid_view_rounded,
           onTap: _showBagianPicker,
+          onReset: _filterBagian != null
+              ? () { setState(() => _filterBagian = null); _loadTableData(); }
+              : null,
         )),
       ]),
       const SizedBox(height: 8),
@@ -874,51 +945,127 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
           label: _lateFilter.label(widget.lang),
           active: _lateFilter != _PmLateFilter.all,
           icon: Icons.flag_circle_rounded,
-          onTap: _showLateFilterPicker)),
+          onTap: _showLateFilterPicker,
+          onReset: _lateFilter != _PmLateFilter.all
+              ? () { setState(() => _lateFilter = _PmLateFilter.all); _loadTableData(); }
+              : null,
+        )),
       ]),
     ]);
+  }
+
+  // Tombol filter periode: putih dengan teks/ikon biru selalu.
+  // Default (3 Bulan) → panah bawah. Selain default → tombol reset X merah.
+  Widget _buildRangeFilterButton(String rangeLabel) {
+    final isActive = _range != _PmRange.threeMonths;
+    return GestureDetector(
+      onTap: _showRangePicker,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _PC.primary, width: 1.5),
+          boxShadow: [BoxShadow(color: _PC.primary.withValues(alpha: 0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                Icon(Icons.date_range_rounded, size: 15, color: _PC.primary),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(rangeLabel,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: _PC.primary)),
+                ),
+              ],
+            ),
+          ),
+          if (isActive)
+            GestureDetector(
+              onTap: () {
+                setState(() => _range = _PmRange.threeMonths);
+                _loadTableData();
+              },
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                margin: const EdgeInsets.only(left: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.45)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            )
+          else
+            Icon(Icons.keyboard_arrow_down_rounded, color: _PC.primary, size: 18),
+        ]),
+      ),
+    );
   }
 
   void _showLateFilterPicker() async {
     await showDialog(context: context, builder: (ctx) => Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: _PC.primaryLight, width: 1.5)),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: _PC.primary.withValues(alpha: 0.2), width: 1.5)),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-            decoration: const BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
             child: Row(children: [
-              const Icon(Icons.flag_circle_rounded, color: _PC.primary, size: 20),
-              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: _PC.primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.flag_circle_rounded, color: _PC.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
               Expanded(child: Text(widget.lang == 'EN' ? 'Report Status' : widget.lang == 'ZH' ? '报告状态' : 'Status Laporan',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _PC.textPrimary))),
-              IconButton(icon: const Icon(Icons.close, size: 18, color: _PC.textSec), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: _PC.primary))),
+              GestureDetector(
+                onTap: () => Navigator.pop(ctx),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha: 0.1), shape: BoxShape.circle),
+                  child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
+                ),
+              ),
             ]),
           ),
+          const SizedBox(height: 12),
+          Container(height: 1, color: const Color(0xFFF1F5F9)),
           const SizedBox(height: 8),
           ..._PmLateFilter.values.map((f) {
             final sel = _lateFilter == f;
-            Color dot;
+            IconData icon;
+            Color color;
             switch (f) {
-              case _PmLateFilter.late:        dot = const Color(0xFFEF4444); break;
-              case _PmLateFilter.onTime:      dot = _PC.barColor; break;
-              case _PmLateFilter.notReported: dot = const Color(0xFFCBD5E1); break;
-              case _PmLateFilter.all:         dot = _PC.primary; break;
+              case _PmLateFilter.late:        icon = Icons.priority_high_rounded; color = const Color(0xFFEF4444); break;
+              case _PmLateFilter.onTime:      icon = Icons.check_circle_rounded;  color = _PC.barColor; break;
+              case _PmLateFilter.notReported: icon = Icons.help_outline_rounded;  color = const Color(0xFF94A3B8); break;
+              case _PmLateFilter.all:         icon = Icons.list_alt_rounded;      color = _PC.primary; break;
             }
             return GestureDetector(onTap: () { Navigator.pop(ctx); setState(() => _lateFilter = f); _loadTableData(); },
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                 decoration: BoxDecoration(
-                  color: sel ? _PC.primaryLight : Colors.white,
+                  color: sel ? color.withValues(alpha: 0.10) : Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: sel ? _PC.primary : const Color(0xFFE2E8F0), width: sel ? 1.8 : 1)),
+                  border: Border.all(color: sel ? color : const Color(0xFFE2E8F0), width: sel ? 1.8 : 1)),
                 child: Row(children: [
-                  Container(width: 10, height: 10, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(f.label(widget.lang), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: sel ? _PC.primaryDark : const Color(0xFF1E293B)))),
-                  if (sel) const Icon(Icons.check_circle_rounded, color: _PC.primary, size: 20),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)),
+                    child: Icon(icon, size: 16, color: color),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(f.label(widget.lang), style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: sel ? color : const Color(0xFF1E293B)))),
+                  if (sel) Icon(Icons.check_circle_rounded, color: color, size: 20),
                 ]),
               ));
           }),
@@ -928,7 +1075,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
     ));
   }
 
-  Widget _filterBtn({required String label, required VoidCallback onTap, bool active = false, IconData icon = Icons.keyboard_arrow_down_rounded}) {
+  Widget _filterBtn({required String label, required VoidCallback onTap, bool active = false, IconData icon = Icons.keyboard_arrow_down_rounded, VoidCallback? onReset}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -942,7 +1089,21 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
           const SizedBox(width: 6),
           Expanded(child: Text(label, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: active ? Colors.white : _PC.primary), overflow: TextOverflow.ellipsis)),
           const SizedBox(width: 4),
-          Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: active ? Colors.white : _PC.primary),
+          if (active && onReset != null)
+            GestureDetector(
+              onTap: onReset,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.5)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            )
+          else
+            Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: active ? Colors.white : _PC.primary),
         ]),
       ),
     );
