@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
@@ -8,13 +9,10 @@ import '../../../../core/utils/jabatan_helper.dart';
 class _C {
   static const primary             = Color(0xFF0EA5E9);
   static const textPrimary         = Color(0xFF0C4A6E);
-  static const textSecondary       = Color(0xFF64748B);
   static const divider             = Color(0xFFE0F2FE);
   static const selfHighlight       = Color(0xFFFFF7ED);
-  static const selfHighlightBorder = Color(0xFFFED7AA);
   static const red                 = Color(0xFFEF4444);
   static const redLight            = Color(0xFFFEE2E2);
-  static const redBorderLight      = Color(0xFFFCA5A5);
 }
 
 class MemberData {
@@ -49,8 +47,9 @@ class AccidentMembersTab extends StatefulWidget {
   final String   filterMode;
   final int      selectedMonthIndex;
   final DateTime? selectedDate;
-  final String?  selectedUnitId;
-  final List<Map<String, dynamic>> unitList;
+  final String    selectedLocationLevel;
+  final String?   selectedLocationId;
+  final String?   selectedLocationName;
 
   final Widget Function({
     required String     label,
@@ -60,7 +59,8 @@ class AccidentMembersTab extends StatefulWidget {
   }) buildFilterBtn;
 
   final void Function(VoidCallback onChanged) showMonthPicker;
-  final VoidCallback                          showGroupPicker;
+  final VoidCallback                          showLocationPicker;
+  final VoidCallback                          onResetLocation;
   final String lastUpdatedText;
 
   const AccidentMembersTab({
@@ -69,11 +69,13 @@ class AccidentMembersTab extends StatefulWidget {
     required this.filterMode,
     required this.selectedMonthIndex,
     this.selectedDate,
-    this.selectedUnitId,
-    required this.unitList,
+    required this.selectedLocationLevel,
+    this.selectedLocationId,
+    this.selectedLocationName,
     required this.buildFilterBtn,
     required this.showMonthPicker,
-    required this.showGroupPicker,
+    required this.showLocationPicker,
+    required this.onResetLocation,
     required this.lastUpdatedText,
   });
 
@@ -86,25 +88,34 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
 
   Future<List<MemberData>>? membersFuture;
 
+  static const Map<String, String> _locationIdColumnMap = {
+    'Lokasi': 'id_lokasi',
+    'Unit': 'id_unit',
+    'Subunit': 'id_subunit',
+    'Area': 'id_area',
+  };
+
   void fetchData({
     String?   filterMode,
     int?      selectedMonthIndex,
     DateTime? selectedDate,
-    String?   selectedUnitId,
+    String?   selectedLocationLevel,
+    String?   selectedLocationId,
   }) {
-    final mode     = filterMode        ?? widget.filterMode;
-    final monthIdx = selectedMonthIndex ?? widget.selectedMonthIndex;
-    final date     = selectedDate       ?? widget.selectedDate;
-    final unitId   = selectedUnitId     ?? widget.selectedUnitId;
+    final mode     = filterMode            ?? widget.filterMode;
+    final monthIdx = selectedMonthIndex    ?? widget.selectedMonthIndex;
+    final date     = selectedDate          ?? widget.selectedDate;
+    final level    = selectedLocationLevel ?? widget.selectedLocationLevel;
+    final locId    = selectedLocationId    ?? widget.selectedLocationId;
 
     final month = monthIdx + 1;
     final year  = DateTime.now().year;
 
     setState(() {
       if (mode == 'daily' && date != null) {
-        membersFuture = _fetchMembersDaily(date, unitId);
+        membersFuture = _fetchMembersDaily(date, level, locId);
       } else {
-        membersFuture = _fetchMembers(month, year, unitId);
+        membersFuture = _fetchMembers(month, year, level, locId);
       }
     });
   }
@@ -119,15 +130,18 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
   }
 
   // MONTHLY FETCH
-  Future<List<MemberData>> _fetchMembers(int month, int year, String? unitId) async {
+  Future<List<MemberData>> _fetchMembers(int month, int year, String level, String? locationId) async {
     try {
       var q = _supabase
           .from('accident_report')
-          .select('id_pelapor, status, id_unit')
+          .select('id_pelapor, status, id_lokasi, id_unit, id_subunit, id_area') // sesuaikan kolom bila beda
           .gte('created_at', DateTime(year, month, 1).toIso8601String())
           .lte('created_at',
               DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String());
-      if (unitId != null) q = q.eq('id_unit', unitId);
+      if (locationId != null) {
+        final idCol = _locationIdColumnMap[level] ?? 'id_lokasi';
+        q = q.eq(idCol, locationId);
+      }
       final List<dynamic> res = await q;
       return _groupMembersFromReports(res);
     } catch (e) {
@@ -135,17 +149,19 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
     }
   }
 
-  // DAILY FETCH
-  Future<List<MemberData>> _fetchMembersDaily(DateTime date, String? unitId) async {
+  Future<List<MemberData>> _fetchMembersDaily(DateTime date, String level, String? locationId) async {
     try {
       final start = DateTime(date.year, date.month, date.day);
       final end   = DateTime(date.year, date.month, date.day, 23, 59, 59);
       var q = _supabase
           .from('accident_report')
-          .select('id_pelapor, status')
+          .select('id_pelapor, status, id_lokasi, id_unit, id_subunit, id_area') // sesuaikan kolom bila beda
           .gte('created_at', start.toIso8601String())
           .lte('created_at', end.toIso8601String());
-      if (unitId != null) q = q.eq('id_unit', unitId);
+      if (locationId != null) {
+        final idCol = _locationIdColumnMap[level] ?? 'id_lokasi';
+        q = q.eq(idCol, locationId);
+      }
       final List<dynamic> res = await q;
       return _groupMembersFromReports(res);
     } catch (e) {
@@ -208,7 +224,7 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
         child: Row(children: [
           Expanded(child: _buildMemberTimeFilterButton()),
           const SizedBox(width: 10),
-          Expanded(child: _buildMemberGroupFilterButton()),
+          Expanded(child: _buildMemberLocationFilterButton()),
         ]),
       ),
       // LAST UPDATED
@@ -248,22 +264,13 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
                 if (list.isEmpty) {
                   return _buildEmptyState();
                 }
-                final self = list.firstWhere(
-                  (m) => m.isSelf,
-                  orElse: () => MemberData(
-                    name: _t('Saya', 'Me', '我'),
-                    findings: 0, completed: 0, isSelf: true),
+                return ListView.separated(
+                  padding: EdgeInsets.zero,
+                  itemCount: list.length,
+                  separatorBuilder: (_, __) =>
+                      const Divider(height: 1, color: _C.divider, indent: 16),
+                  itemBuilder: (_, i) => _buildMemberRow(list[i]),
                 );
-                return Column(children: [
-                  Expanded(child: ListView.separated(
-                    padding: EdgeInsets.zero,
-                    itemCount: list.length,
-                    separatorBuilder: (_, __) =>
-                        const Divider(height: 1, color: _C.divider, indent: 16),
-                    itemBuilder: (_, i) => _buildMemberRow(list[i]),
-                  )),
-                  _buildSelfPinnedRow(self),
-                ]);
               },
             )),
     ]);
@@ -360,7 +367,7 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
               textAlign: TextAlign.center,
               style: const TextStyle(
                   fontSize: 12.5, fontWeight: FontWeight.w600,
-                  color: _C.textSecondary, letterSpacing: 0.2)),
+                  color: Colors.black, letterSpacing: 0.2)),
         );
       })),
     );
@@ -416,62 +423,7 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
     );
   }
 
-  // SELF PINNED ROW
-  Widget _buildSelfPinnedRow(MemberData self) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _C.selfHighlight,
-        border: const Border(
-            top: BorderSide(color: _C.selfHighlightBorder, width: 1.5)),
-        boxShadow: [BoxShadow(
-            color: Colors.black.withValues(alpha:0.05),
-            blurRadius: 6, offset: const Offset(0, -2))],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        Expanded(flex: 3, child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            _Avatar(name: self.name, avatarUrl: self.avatarUrl,
-                color: self.avatarColor, size: 36),
-            const SizedBox(width: 10),
-            Expanded(child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(self.name,
-                    textAlign: TextAlign.left,
-                    maxLines: 1,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
-                        color: _C.textPrimary),
-                    overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    _buildJabatanBadge(
-                        idJabatan: self.idJabatan,
-                        jabatanNama: self.jabatanNama,
-                        isVerificator: self.isVerificator),
-                    _buildUnitBadge(self.unitName),
-                  ],
-                ),
-              ],
-            )),
-          ],
-        )),
-        Expanded(flex: 1, child: Text('${self.findings}',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13.5,
-                fontWeight: FontWeight.w600, color: _C.textSecondary))),
-        Expanded(flex: 1, child: Text('${self.completed}',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13.5,
-                fontWeight: FontWeight.w600, color: _C.textSecondary))),
-      ]),
-    );
-  }
+  static const Color _timeAccent = Color(0xFF1D72F3); // BIRU - FILTER WAKTU (samain dgn 5R)
 
   Widget _buildMemberTimeFilterButton() {
     final isActive = widget.filterMode == 'daily';
@@ -491,14 +443,14 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: isActive ? _C.red : Colors.white,
+          color: isActive ? _timeAccent : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isActive ? _C.red : _C.redBorderLight,
+            color: isActive ? _timeAccent : const Color(0xFF93C5FD),
             width: 1.5,
           ),
           boxShadow: [BoxShadow(
-              color: _C.red.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _timeAccent.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
           Expanded(
@@ -506,59 +458,86 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.calendar_month_rounded, size: 15,
-                    color: isActive ? Colors.white : _C.red),
+                    color: isActive ? Colors.white : _timeAccent),
                 const SizedBox(width: 5),
                 Flexible(
                   child: Text('$modeLabel · $valueLabel',
                       textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
-                          color: isActive ? Colors.white : _C.red)),
+                      style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600,
+                          color: isActive ? Colors.white : _timeAccent)),
                 ),
               ],
             ),
           ),
           Icon(Icons.keyboard_arrow_down_rounded,
-              color: isActive ? Colors.white : _C.red, size: 18),
+              color: isActive ? Colors.white : _timeAccent, size: 18),
         ]),
       ),
     );
   }
 
-  Widget _buildMemberGroupFilterButton() {
-    final isActive = widget.selectedUnitId != null;
-    final label = widget.selectedUnitId == null
-        ? _t('Semua Grup', 'All Groups', '所有组')
-        : (widget.unitList.firstWhere(
-                (u) => u['id_unit'].toString() == widget.selectedUnitId,
-                orElse: () => {'nama_unit': _t('Semua Grup', 'All Groups', '所有组')})['nama_unit']
-            as String);
+  static const List<Color> _locationLevelColors = [
+    Color(0xFF10B981), // Lokasi
+    Color(0xFF6366F1), // Unit
+    Color(0xFFFBBF24), // Subunit
+    Color(0xFFF472B6), // Area
+  ];
+  static const List<IconData> _locationLevelIcons = [
+    Icons.location_city_rounded,
+    Icons.business_rounded,
+    Icons.layers_rounded,
+    Icons.place_rounded,
+  ];
+  static const List<String> _locationLevelOrder = ['Lokasi', 'Unit', 'Subunit', 'Area'];
+
+  String get _allLocationLabel => _t('Semua Lokasi', 'All Location', '所有位置');
+
+  Widget _buildMemberLocationFilterButton() {
+    final hasSelection = widget.selectedLocationId != null;
+    final levelIdx = _locationLevelOrder.indexOf(widget.selectedLocationLevel).clamp(0, 3);
+    final color = _locationLevelColors[levelIdx];
+    final icon  = hasSelection ? _locationLevelIcons[levelIdx] : Icons.map;
+    final label = hasSelection
+        ? (widget.selectedLocationName ?? widget.selectedLocationLevel)
+        : _allLocationLabel;
 
     return GestureDetector(
-      onTap: widget.showGroupPicker,
+      onTap: widget.showLocationPicker,
       child: Container(
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: isActive ? _C.red : Colors.white,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive ? _C.red : _C.redBorderLight,
-            width: 1.5,
-          ),
+          border: Border.all(color: color, width: 1.5),
           boxShadow: [BoxShadow(
-              color: _C.red.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: color.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 5),
           Expanded(
             child: Text(label,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                    color: isActive ? Colors.white : _C.red)),
+                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
           ),
-          Icon(Icons.keyboard_arrow_down_rounded,
-              color: isActive ? Colors.white : _C.red, size: 18),
+          if (hasSelection)
+            GestureDetector(
+              onTap: widget.onResetLocation,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.45)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            )
+          else
+            Icon(Icons.keyboard_arrow_down_rounded, color: color, size: 18),
         ]),
       ),
     );

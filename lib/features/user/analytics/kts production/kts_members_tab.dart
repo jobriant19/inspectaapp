@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../../../core/utils/jabatan_helper.dart';
+import '../5r findings/picker/5r_members_location_picker.dart';
 
 class KTSAppColors {
   static const primary = Color(0xFFF59E0B);
@@ -102,12 +104,13 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
   int _selectedMonthIndex = DateTime.now().month - 1;
   String _filterMode = 'monthly';
   DateTime? _selectedDate;
-  String? _selectedUnitId;
+  String  _selectedMemberLocationLevel = 'Lokasi';
+  String? _selectedMemberLocationId;
+  String? _selectedMemberLocationName;
   DateTime? _lastUpdated;
   bool _isChartExpanded = false;
 
   Future<List<KTSMemberData>>? _anggotaFuture;
-  List<Map<String, dynamic>> _unitList = [];
   int _targetAnggota = 2;
 
   late List<String> _translatedMonths;
@@ -116,7 +119,7 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
   void initState() {
     super.initState();
     _initLocaleDependentLists();
-    _fetchUnits().then((_) => _fetchAllData());
+    _fetchAllData();
     _fetchTarget();
   }
 
@@ -130,15 +133,6 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
     final locale = widget.lang == 'ID' ? 'id_ID' : (widget.lang == 'EN' ? 'en_US' : 'zh_CN');
     _translatedMonths = List.generate(
         12, (i) => DateFormat.MMM(locale).format(DateTime(2000, i + 1)));
-  }
-
-  Future<void> _fetchUnits() async {
-    try {
-      final response = await _supabase.from('unit').select('id_unit, nama_unit');
-      if (mounted) setState(() => _unitList = List<Map<String, dynamic>>.from(response));
-    } catch (e) {
-      debugPrint('Error fetching units: $e');
-    }
   }
 
   Future<void> _fetchTarget() async {
@@ -161,28 +155,40 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
 
   int get _selectedMonth => _selectedMonthIndex + 1;
 
+  static const Map<String, String> _locationIdColumnMap = {
+    'Lokasi': 'id_lokasi',
+    'Unit': 'id_unit',
+    'Subunit': 'id_subunit',
+    'Area': 'id_area',
+  };
+
   void _fetchAllData() {
     setState(() {
       _lastUpdated = DateTime.now();
       final month = _selectedMonth;
       final year = DateTime.now().year;
       if (_filterMode == 'daily' && _selectedDate != null) {
-        _anggotaFuture = _fetchKtsAnggotaDataDaily(_selectedDate!, _selectedUnitId);
+        _anggotaFuture = _fetchKtsAnggotaDataDaily(
+            _selectedDate!, _selectedMemberLocationLevel, _selectedMemberLocationId);
       } else {
-        _anggotaFuture = _fetchKtsAnggotaData(month, year, _selectedUnitId);
+        _anggotaFuture = _fetchKtsAnggotaData(
+            month, year, _selectedMemberLocationLevel, _selectedMemberLocationId);
       }
     });
   }
 
   Future<List<KTSMemberData>> _fetchKtsAnggotaData(
-      int month, int year, String? unitId) async {
+      int month, int year, String level, String? locationId) async {
     try {
       var userQuery = _supabase
           .from('User')
           .select(
               'id_user, nama, gambar_user, id_unit, id_jabatan, is_verificator, unit!user_id_unit_fkey(nama_unit), jabatan!User_id_jabatan_fkey(nama_jabatan)')
           .or('id_jabatan.is.null,id_jabatan.neq.6');
-      if (unitId != null) userQuery = userQuery.eq('id_unit', unitId);
+      if (locationId != null) {
+        final idCol = _locationIdColumnMap[level] ?? 'id_lokasi';
+        userQuery = userQuery.eq(idCol, locationId);
+      }
       final List<dynamic> users = await userQuery;
       if (users.isEmpty) return [];
 
@@ -235,7 +241,7 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
   }
 
   Future<List<KTSMemberData>> _fetchKtsAnggotaDataDaily(
-      DateTime date, String? unitId) async {
+      DateTime date, String level, String? locationId) async {
     try {
       final start = DateTime(date.year, date.month, date.day);
       final end = DateTime(date.year, date.month, date.day, 23, 59, 59);
@@ -245,7 +251,10 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
           .select(
               'id_user, nama, gambar_user, id_unit, id_jabatan, is_verificator, unit!user_id_unit_fkey(nama_unit), jabatan!User_id_jabatan_fkey(nama_jabatan)')
           .or('id_jabatan.is.null,id_jabatan.neq.6');
-      if (unitId != null) userQuery = userQuery.eq('id_unit', unitId);
+      if (locationId != null) {
+        final idCol = _locationIdColumnMap[level] ?? 'id_lokasi';
+        userQuery = userQuery.eq(idCol, locationId);
+      }
       final List<dynamic> users = await userQuery;
       if (users.isEmpty) return [];
 
@@ -299,8 +308,11 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
   // FILTER PICKERS
   void _showMonthPicker() async {
     String tempMode = _filterMode;
+    int tempMonthIndex = _selectedMonthIndex;
     DateTime tempDate = _selectedDate ?? DateTime.now();
-    DateTime tempViewedMonth = tempDate;
+    DateTime tempDisplayMonth = DateTime(tempDate.year, tempDate.month, 1);
+
+    const accent = Color(0xFF1D72F3); // BIRU - FILTER WAKTU (samain dgn 5R)
 
     await showDialog(
       context: context,
@@ -309,528 +321,275 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Container(
             constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.65,
-                maxWidth: 340),
+                maxHeight: MediaQuery.of(context).size.height * 0.68, maxWidth: 340),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: KTSAppColors.primaryLight, width: 1.5),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // HEADER
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-                  decoration: const BoxDecoration(
-                    color: KTSAppColors.primaryLight,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  ),
-                  child: Row(children: [
-                    const Icon(Icons.calendar_month_rounded,
-                        color: KTSAppColors.primary, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(getTxt('pilih_bulan'),
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: KTSAppColors.textPrimary))),
-                    IconButton(
-                      icon: const Icon(Icons.close,
-                          size: 18, color: KTSAppColors.textSecondary),
-                      onPressed: () => Navigator.pop(ctx),
-                      padding: EdgeInsets.zero,
-                    ),
-                  ]),
-                ),
-                // TOGGLE MODE
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-                  child: Container(
+              color: Colors.white, borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: accent.withValues(alpha: 0.25), width: 1.5)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
+                child: Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: KTSAppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: KTSAppColors.primaryLight),
+                      color: accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    padding: const EdgeInsets.all(4),
-                    child: Row(
-                      children: ['monthly', 'daily'].map((mode) {
-                        final isSelected = tempMode == mode;
-                        final label = mode == 'monthly'
-                            ? (widget.lang == 'ID'
-                                ? 'Bulanan'
-                                : widget.lang == 'ZH' ? '按月' : 'Monthly')
-                            : (widget.lang == 'ID'
-                                ? 'Harian'
-                                : widget.lang == 'ZH' ? '按日' : 'Daily');
-                        return Expanded(
-                          child: GestureDetector(
-                            onTap: () => setSt(() => tempMode = mode),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? KTSAppColors.primary
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(9),
-                              ),
-                              child: Center(
-                                child: Text(label,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: isSelected
-                                          ? Colors.white
-                                          : KTSAppColors.textSecondary,
-                                    )),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                    child: const Icon(Icons.calendar_month_rounded, color: accent, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(getTxt('pilih_bulan'),
+                        style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700, fontSize: 15, color: accent)),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
                     ),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 12),
+              Container(height: 1, color: const Color(0xFFF1F5F9)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                child: Container(
+                  decoration: BoxDecoration(color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: accent.withValues(alpha: 0.2))),
+                  padding: const EdgeInsets.all(4),
+                  child: Row(children: ['monthly', 'daily'].map((mode) {
+                    final isSel = tempMode == mode;
+                    final label = mode == 'monthly'
+                        ? (widget.lang == 'ID' ? 'Bulanan' : widget.lang == 'ZH' ? '按月' : 'Monthly')
+                        : (widget.lang == 'ID' ? 'Harian' : widget.lang == 'ZH' ? '按日' : 'Daily');
+                    final icon = mode == 'monthly'
+                        ? Icons.calendar_view_month_rounded
+                        : Icons.event_rounded;
+                    return Expanded(child: GestureDetector(
+                      onTap: () => setSt(() => tempMode = mode),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: isSel ? accent : Colors.transparent,
+                          borderRadius: BorderRadius.circular(9)),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(icon, size: 15,
+                                color: isSel ? Colors.white : const Color(0xFF64748B)),
+                            const SizedBox(width: 6),
+                            Text(label, style: GoogleFonts.poppins(
+                              fontSize: 13, fontWeight: FontWeight.w600,
+                              color: isSel ? Colors.white : const Color(0xFF64748B))),
+                          ],
+                        ),
+                      ),
+                    ));
+                  }).toList()),
+                ),
+              ),
+              if (tempMode == 'monthly')
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 2.2),
+                    itemCount: 12,
+                    itemBuilder: (_, i) {
+                      final isSel = i == tempMonthIndex;
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          setState(() {
+                            _filterMode = 'monthly';
+                            _selectedMonthIndex = i;
+                            _selectedDate = null;
+                          });
+                          _fetchTarget().then((_) => _fetchAllData());
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          decoration: BoxDecoration(
+                            color: isSel ? accent : const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isSel ? accent : const Color(0xFFDBEAFE),
+                              width: isSel ? 1.5 : 1),
+                            boxShadow: isSel ? [BoxShadow(
+                              color: accent.withValues(alpha:0.3),
+                              blurRadius: 6, offset: const Offset(0, 2))] : []),
+                          child: Center(child: Text(_translatedMonths[i], style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: isSel ? FontWeight.w700 : FontWeight.w600,
+                            color: isSel ? Colors.white : const Color(0xFF0C4A6E)))),
+                        ),
+                      );
+                    },
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: _buildDailyCalendar(
+                    tempDate,
+                    tempDisplayMonth,
+                    (picked) => setSt(() => tempDate = picked),
+                    (newMonth) => setSt(() => tempDisplayMonth = newMonth),
+                    accent: accent,
+                    onConfirm: () {
+                      Navigator.pop(ctx);
+                      setState(() {
+                        _filterMode = 'daily';
+                        _selectedDate = tempDate;
+                        _selectedMonthIndex = tempDate.month - 1;
+                      });
+                      _fetchAllData();
+                    },
                   ),
                 ),
-                if (tempMode == 'monthly') ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                        childAspectRatio: 2.2,
-                      ),
-                      itemCount: 12,
-                      itemBuilder: (_, i) {
-                        final isSelected = i == _selectedMonthIndex;
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            setState(() {
-                              _filterMode = 'monthly';
-                              _selectedMonthIndex = i;
-                              _selectedDate = null;
-                            });
-                            _fetchTarget().then((_) => _fetchAllData());
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? KTSAppColors.primary
-                                  : KTSAppColors.surface,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: isSelected
-                                    ? KTSAppColors.primary
-                                    : KTSAppColors.divider,
-                                width: isSelected ? 1.5 : 1,
-                              ),
-                              boxShadow: isSelected
-                                  ? [
-                                      BoxShadow(
-                                        color: KTSAppColors.primary
-                                            .withValues(alpha:0.3),
-                                        blurRadius: 6,
-                                        offset: const Offset(0, 2),
-                                      )
-                                    ]
-                                  : [],
-                            ),
-                            child: Center(
-                              child: Text(
-                                _translatedMonths[i],
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.w500,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : KTSAppColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ] else ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    child: _buildDailyCalendar(
-                      tempDate,
-                      tempViewedMonth,
-                      (picked) => setSt(() => tempDate = picked),
-                      onViewedMonthChanged: (m) => setSt(() => tempViewedMonth = m),
-                      onConfirm: () {
-                        Navigator.pop(ctx);
-                        setState(() {
-                          _filterMode = 'daily';
-                          _selectedDate = tempDate;
-                          _selectedMonthIndex = tempDate.month - 1;
-                        });
-                        _fetchAllData();
-                      },
-                    ),
-                  ),
-                ],
-              ],
-            ),
+            ]),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildDailyCalendar(
-    DateTime selectedDate,
-    DateTime viewedMonth,
-    ValueChanged<DateTime> onDateChanged, {
-    required ValueChanged<DateTime> onViewedMonthChanged,
-    required VoidCallback onConfirm,
-  }) {
+  Widget _buildDailyCalendar(DateTime selectedDate, DateTime displayMonth,
+      ValueChanged<DateTime> onDateChanged,
+      ValueChanged<DateTime> onMonthChanged,
+      {required Color accent, required VoidCallback onConfirm}) {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final year = viewedMonth.year;
-    final month = viewedMonth.month;
+    final year = displayMonth.year;
+    final month = displayMonth.month;
     final daysInMonth = DateUtils.getDaysInMonth(year, month);
     final firstWeekday = DateTime(year, month, 1).weekday % 7;
-    final locale = widget.lang == 'ID'
-        ? 'id_ID'
-        : (widget.lang == 'EN' ? 'en_US' : 'zh_CN');
-    final monthLabel =
-        DateFormat('MMMM yyyy', locale).format(DateTime(year, month));
+    final locale = widget.lang == 'ID' ? 'id_ID' : (widget.lang == 'EN' ? 'en_US' : 'zh_CN');
+    final monthLabel = DateFormat('MMMM yyyy', locale).format(DateTime(year, month));
     final dayLabels = widget.lang == 'ZH'
         ? ['日', '一', '二', '三', '四', '五', '六']
         : widget.lang == 'ID'
             ? ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
             : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-    final canGoNext = year < now.year || (year == now.year && month < now.month);
-
-    void changeMonth(int delta) {
-      int m = month + delta;
-      int y = year;
-      if (m < 1) { m = 12; y -= 1; }
-      if (m > 12) { m = 1; y += 1; }
-      onViewedMonthChanged(DateTime(y, m, 1));
-    }
+    final bool isCurrentMonth = year == now.year && month == now.month;
 
     return StatefulBuilder(
-      builder: (_, setInner) => Column(
-        children: [
-          Row( // MODIFIED: navigasi bulan sebelumnya/berikutnya
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chevron_left_rounded,
-                    size: 20, color: KTSAppColors.primary),
-                onPressed: () => changeMonth(-1),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                splashRadius: 18,
-              ),
-              Text(monthLabel,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: KTSAppColors.textPrimary)),
-              IconButton(
-                icon: Icon(Icons.chevron_right_rounded,
-                    size: 20,
-                    color: canGoNext
-                        ? KTSAppColors.primary
-                        : KTSAppColors.divider),
-                onPressed: canGoNext ? () => changeMonth(1) : null,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                splashRadius: 18,
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: dayLabels
-                .map((d) => Expanded(
-                      child: Center(
-                        child: Text(d,
-                            style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: KTSAppColors.textSecondary)),
-                      ),
-                    ))
-                .toList(),
-          ),
-          const SizedBox(height: 6),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              crossAxisSpacing: 4,
-              mainAxisSpacing: 4,
-              childAspectRatio: 1,
-            ),
-            itemCount: firstWeekday + daysInMonth,
-            itemBuilder: (_, i) {
-              if (i < firstWeekday) return const SizedBox();
-              final day = i - firstWeekday + 1;
-              final date = DateTime(year, month, day);
-              final isSelected = selectedDate.year == date.year &&
-                  selectedDate.month == date.month &&
-                  selectedDate.day == date.day;
-              final isToday = today.year == date.year &&
-                  today.month == date.month &&
-                  today.day == date.day;
-              final isFuture = date.isAfter(today);
-              return GestureDetector(
-                onTap: isFuture
-                    ? null
-                    : () => setInner(() => onDateChanged(date)),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? KTSAppColors.primary
-                        : isToday
-                            ? KTSAppColors.primaryLight
-                            : Colors.transparent,
-                    shape: BoxShape.circle,
-                    border: isToday && !isSelected
-                        ? Border.all(
-                            color: KTSAppColors.primary, width: 1.2)
-                        : null,
-                  ),
-                  child: Center(
-                    child: Text('$day',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: isSelected || isToday
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          color: isSelected
-                              ? Colors.white
-                              : isFuture
-                                  ? KTSAppColors.textMuted
-                                  : KTSAppColors.textPrimary,
-                        )),
-                  ),
+      builder: (_, setInner) => Column(children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            GestureDetector(
+              onTap: () => onMonthChanged(DateTime(year, month - 1, 1)),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: onConfirm,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: KTSAppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Icon(Icons.chevron_left_rounded, size: 18, color: accent),
               ),
-              child: Text(getTxt('terapkan'),
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 13)),
             ),
+            Text(monthLabel, style: GoogleFonts.poppins(
+                fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF0C4A6E))),
+            GestureDetector(
+              onTap: isCurrentMonth
+                  ? null
+                  : () => onMonthChanged(DateTime(year, month + 1, 1)),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isCurrentMonth
+                      ? Colors.grey.shade100
+                      : accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.chevron_right_rounded,
+                    size: 18,
+                    color: isCurrentMonth ? Colors.grey.shade400 : accent),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(children: dayLabels.map((d) => Expanded(child: Center(
+          child: Text(d, style: GoogleFonts.poppins(
+              fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF64748B)))))).toList()),
+        const SizedBox(height: 6),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7, crossAxisSpacing: 4, mainAxisSpacing: 4, childAspectRatio: 1),
+          itemCount: firstWeekday + daysInMonth,
+          itemBuilder: (_, i) {
+            if (i < firstWeekday) return const SizedBox();
+            final day = i - firstWeekday + 1;
+            final date = DateTime(year, month, day);
+            final isSelected = selectedDate.year == date.year &&
+                selectedDate.month == date.month &&
+                selectedDate.day == date.day;
+            final isToday = now.year == date.year && now.month == date.month && now.day == date.day;
+            final isFuture = date.isAfter(now);
+            return GestureDetector(
+              onTap: isFuture ? null : () => setInner(() => onDateChanged(date)),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                decoration: BoxDecoration(
+                  color: isSelected ? accent
+                      : isToday ? accent.withValues(alpha: 0.12) : Colors.transparent,
+                  shape: BoxShape.circle,
+                  border: isToday && !isSelected
+                      ? Border.all(color: accent, width: 1.2) : null),
+                child: Center(child: Text('$day', style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: isSelected || isToday ? FontWeight.w700 : FontWeight.w600,
+                  color: isSelected ? Colors.white
+                      : isFuture ? const Color(0xFFBDBDBD) : const Color(0xFF0C4A6E)))),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: onConfirm,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: accent, foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(vertical: 10)),
+            child: Text(getTxt('terapkan'),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13)),
           ),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 
-  void _showGroupPicker() async {
-    final allItem = {
-      'id_unit': null,
-      'nama_unit': getTxt('semua_grup_anggota')
-    };
-    final items = [allItem, ..._unitList];
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) {
-          final ctrl = TextEditingController();
-          List<Map<String, dynamic>> filtered = List.from(items);
-
-          return Dialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            child: Container(
-              constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.6),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border:
-                    Border.all(color: KTSAppColors.primaryLight, width: 1.5),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-                    decoration: const BoxDecoration(
-                      color: KTSAppColors.primaryLight,
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(20)),
-                    ),
-                    child: Row(children: [
-                      const Icon(Icons.group_rounded,
-                          color: KTSAppColors.primary, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                          child: Text(getTxt('pilih_grup'),
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: KTSAppColors.textPrimary))),
-                      IconButton(
-                        icon: const Icon(Icons.close,
-                            size: 18, color: KTSAppColors.textSecondary),
-                        onPressed: () => Navigator.pop(ctx),
-                        padding: EdgeInsets.zero,
-                      ),
-                    ]),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-                    child: StatefulBuilder(
-                      builder: (_, setInner) => TextField(
-                        controller: ctrl,
-                        onChanged: (q) {
-                          setInner(() {
-                            filtered = items
-                                .where((e) => (e['nama_unit'] as String)
-                                    .toLowerCase()
-                                    .contains(q.toLowerCase()))
-                                .toList();
-                          });
-                          setSt(() {});
-                        },
-                        decoration: InputDecoration(
-                          hintText: getTxt('cari'),
-                          hintStyle: const TextStyle(
-                              fontSize: 13, color: KTSAppColors.textMuted),
-                          prefixIcon: const Icon(Icons.search,
-                              color: KTSAppColors.primary, size: 18),
-                          filled: true,
-                          fillColor: KTSAppColors.surface,
-                          contentPadding: const EdgeInsets.symmetric(
-                              vertical: 8, horizontal: 12),
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(30),
-                              borderSide: const BorderSide(
-                                  color: KTSAppColors.divider)),
-                          enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(30),
-                              borderSide: const BorderSide(
-                                  color: KTSAppColors.divider)),
-                          focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(30),
-                              borderSide: const BorderSide(
-                                  color: KTSAppColors.primary, width: 1.5)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Flexible(
-                    child: StatefulBuilder(
-                      builder: (_, __) => ListView.builder(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        itemCount: filtered.length,
-                        itemBuilder: (_, i) {
-                          final item = filtered[i];
-                          final lbl = item['nama_unit'] as String;
-                          final id = item['id_unit']?.toString();
-                          final isSelected = id == _selectedUnitId ||
-                              (id == null && _selectedUnitId == null);
-                          return InkWell(
-                            onTap: () {
-                              Navigator.pop(ctx);
-                              setState(() => _selectedUnitId = id);
-                              _fetchAllData();
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 3),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? KTSAppColors.primaryLight
-                                    : Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? KTSAppColors.primary
-                                      : KTSAppColors.divider,
-                                  width: isSelected ? 1.5 : 1,
-                                ),
-                              ),
-                              child: Row(children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? KTSAppColors.primary
-                                        : KTSAppColors.surface,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Center(
-                                      child: Text(
-                                    lbl.isNotEmpty
-                                        ? lbl[0].toUpperCase()
-                                        : '?',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                      color: isSelected
-                                          ? Colors.white
-                                          : KTSAppColors.primary,
-                                    ),
-                                  )),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                    child: Text(lbl,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: isSelected
-                                              ? FontWeight.bold
-                                              : FontWeight.normal,
-                                          color: isSelected
-                                              ? KTSAppColors.primary
-                                              : KTSAppColors.textPrimary,
-                                        ))),
-                                if (isSelected)
-                                  const Icon(Icons.check_circle_rounded,
-                                      color: KTSAppColors.primary, size: 18),
-                              ]),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
+  void _showMemberLocationPicker() async {
+    final result = await showMemberLocationFilterDialog(
+      context,
+      lang: widget.lang,
+      initialLevel: _selectedMemberLocationLevel,
+      initialId: _selectedMemberLocationId,
     );
+    if (result == null || !mounted) return;
+    setState(() {
+      _selectedMemberLocationLevel = result['level'] ?? _selectedMemberLocationLevel;
+      _selectedMemberLocationId    = result['id'];
+      _selectedMemberLocationName  = result['name'];
+    });
+    _fetchAllData();
   }
 
   // UI HELPERS
@@ -900,6 +659,8 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
     );
   }
 
+  static const Color _timeAccent = Color(0xFF1D72F3); // BIRU - FILTER WAKTU
+
   Widget _buildMemberTimeFilterButton() {
     final isActive = _filterMode == 'daily';
     final modeLabel = _filterMode == 'daily'
@@ -917,87 +678,114 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: isActive ? KTSAppColors.primary : Colors.white,
+          color: isActive ? _timeAccent : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isActive ? KTSAppColors.primary : KTSAppColors.primaryLight,
+            color: isActive ? _timeAccent : const Color(0xFF93C5FD),
             width: 1.5,
           ),
-          boxShadow: [
-            BoxShadow(
-                color: KTSAppColors.primary.withValues(alpha: 0.10),
-                blurRadius: 6,
-                offset: const Offset(0, 2)),
-          ],
+          boxShadow: [BoxShadow(
+              color: _timeAccent.withValues(alpha: 0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
           Expanded(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.calendar_month_rounded,
-                    size: 15,
-                    color: isActive ? Colors.white : KTSAppColors.primary),
+                Icon(Icons.calendar_month_rounded, size: 15,
+                    color: isActive ? Colors.white : _timeAccent),
                 const SizedBox(width: 5),
                 Flexible(
                   child: Text('$modeLabel · $valueLabel',
                       textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: isActive ? Colors.white : KTSAppColors.primary)),
+                      style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600,
+                          color: isActive ? Colors.white : _timeAccent)),
                 ),
               ],
             ),
           ),
           Icon(Icons.keyboard_arrow_down_rounded,
-              color: isActive ? Colors.white : KTSAppColors.primary, size: 18),
+              color: isActive ? Colors.white : _timeAccent, size: 18),
         ]),
       ),
     );
   }
 
-  Widget _buildMemberGroupFilterButton() {
-    final isActive = _selectedUnitId != null;
-    final label = _selectedUnitId == null
-        ? getTxt('semua_grup_anggota')
-        : (_unitList.firstWhere(
-                (u) => u['id_unit'].toString() == _selectedUnitId,
-                orElse: () => {'nama_unit': getTxt('semua_grup')})['nama_unit']
-            as String);
+  static const List<Color> _locationLevelColors = [
+    Color(0xFF10B981), // Lokasi
+    Color(0xFF6366F1), // Unit
+    Color(0xFFFBBF24), // Subunit
+    Color(0xFFF472B6), // Area
+  ];
+  static const List<IconData> _locationLevelIcons = [
+    Icons.location_city_rounded,
+    Icons.business_rounded,
+    Icons.layers_rounded,
+    Icons.place_rounded,
+  ];
+  static const List<String> _locationLevelOrder = ['Lokasi', 'Unit', 'Subunit', 'Area'];
+
+  String get _allLocationLabel {
+    switch (widget.lang) {
+      case 'EN': return 'All Location';
+      case 'ZH': return '所有位置';
+      default: return 'Semua Lokasi';
+    }
+  }
+
+  Widget _buildMemberLocationFilterButton() {
+    final hasSelection = _selectedMemberLocationId != null;
+    final levelIdx = _locationLevelOrder.indexOf(_selectedMemberLocationLevel).clamp(0, 3);
+    final color = _locationLevelColors[levelIdx];
+    final icon  = hasSelection ? _locationLevelIcons[levelIdx] : Icons.map;
+    final label = hasSelection
+        ? (_selectedMemberLocationName ?? _selectedMemberLocationLevel)
+        : _allLocationLabel;
 
     return GestureDetector(
-      onTap: _showGroupPicker,
+      onTap: _showMemberLocationPicker,
       child: Container(
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: isActive ? KTSAppColors.primary : Colors.white,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive ? KTSAppColors.primary : KTSAppColors.primaryLight,
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-                color: KTSAppColors.primary.withValues(alpha: 0.10),
-                blurRadius: 6,
-                offset: const Offset(0, 2)),
-          ],
+          border: Border.all(color: color, width: 1.5),
+          boxShadow: [BoxShadow(
+              color: color.withValues(alpha: 0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 5),
           Expanded(
             child: Text(label,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: isActive ? Colors.white : KTSAppColors.primary)),
+                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
           ),
-          Icon(Icons.keyboard_arrow_down_rounded,
-              color: isActive ? Colors.white : KTSAppColors.primary, size: 18),
+          if (hasSelection)
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedMemberLocationLevel = 'Lokasi';
+                  _selectedMemberLocationId = null;
+                  _selectedMemberLocationName = null;
+                });
+                _fetchAllData();
+              },
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.45)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            )
+          else
+            Icon(Icons.keyboard_arrow_down_rounded, color: color, size: 18),
         ]),
       ),
     );
@@ -1017,7 +805,7 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
               style: const TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: KTSAppColors.textSecondary,
+                  color: Colors.black,
                   letterSpacing: 0.2),
             ),
           );
@@ -1149,91 +937,6 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
         Text(unitName,
             style: TextStyle(
                 fontSize: 9.5, fontWeight: FontWeight.w700, color: color)),
-      ]),
-    );
-  }
-
-  Widget _buildSelfPinnedRow(KTSMemberData self) {
-    final target = _targetAnggota;
-    final findingsColor = self.findings >= target
-        ? const Color(0xFF16A34A)
-        : KTSAppColors.textSecondary;
-    final completedColor = self.completed >= target
-        ? const Color(0xFF16A34A)
-        : KTSAppColors.textSecondary;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: KTSAppColors.selfHighlight,
-        border: const Border(
-            top: BorderSide(
-                color: KTSAppColors.selfHighlightBorder, width: 1.5)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha:0.05),
-              blurRadius: 6,
-              offset: const Offset(0, -2))
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(children: [
-        Expanded(
-        flex: 3,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            _KTSAvatar(
-                name: self.name,
-                avatarUrl: self.avatarUrl,
-                color: self.avatarColor,
-                size: 36),
-            const SizedBox(width: 10),
-            Expanded(
-                child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Text(self.name,
-                      maxLines: 1,
-                      style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: KTSAppColors.textPrimary),
-                      overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: [
-                      _buildJabatanBadge(
-                          idJabatan: self.idJabatan,
-                          jabatanNama: self.jabatanNama,
-                          isVerificator: self.isVerificator),
-                      _buildUnitBadge(self.unitName),
-                    ],
-                  ),
-                ])),
-          ],
-        ),
-      ),
-        Expanded(
-          flex: 1,
-          child: Text('${self.findings}',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                  color: findingsColor)),
-        ),
-        Expanded(
-          flex: 1,
-          child: Text('${self.completed}',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                  color: completedColor)),
-        ),
       ]),
     );
   }
@@ -1604,7 +1307,7 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
         child: Row(children: [
           Expanded(child: _buildMemberTimeFilterButton()),
           const SizedBox(width: 10),
-          Expanded(child: _buildMemberGroupFilterButton()),
+          Expanded(child: _buildMemberLocationFilterButton()),
         ]),
       ),
       // LAST UPDATED
@@ -1648,28 +1351,15 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
                   child: Text(getTxt('tidak_ada_data_anggota')));
             }
             final memberList = snapshot.data!;
-            final self = memberList.firstWhere(
-              (m) => m.isSelf,
-              orElse: () => KTSMemberData(
-                  name: getTxt('saya'),
-                  findings: 0,
-                  completed: 0,
-                  isSelf: true),
+            return ListView.separated(
+              padding: EdgeInsets.zero,
+              itemCount: memberList.length,
+              separatorBuilder: (_, __) => const Divider(
+                  height: 1,
+                  color: KTSAppColors.divider,
+                  indent: 16),
+              itemBuilder: (_, i) => _buildMemberRow(memberList[i]),
             );
-            return Column(children: [
-              Expanded(
-                  child: ListView.separated(
-                padding: EdgeInsets.zero,
-                itemCount: memberList.length,
-                separatorBuilder: (_, __) => const Divider(
-                    height: 1,
-                    color: KTSAppColors.divider,
-                    indent: 16),
-                itemBuilder: (_, i) =>
-                    _buildMemberRow(memberList[i]),
-              )),
-              _buildSelfPinnedRow(self),
-            ]);
           },
         );
       })),

@@ -1,8 +1,10 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
+import '../5r findings/picker/5r_members_location_picker.dart';
 import '../analytics_selector_bar.dart';
 import 'accident_location_tab.dart';
 import 'accident_members_tab.dart';
@@ -43,7 +45,9 @@ class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
   int    _selectedMonthIndex = DateTime.now().month - 1;
   String _filterMode         = 'monthly';
   DateTime? _selectedDate;
-  String? _selectedUnitId;
+  String  _selectedMemberLocationLevel = 'Lokasi';
+  String? _selectedMemberLocationId;
+  String? _selectedMemberLocationName;
   String  _selectedLocationLevel = 'Lokasi';
   DateTime? _lastUpdated;
 
@@ -57,7 +61,6 @@ class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
 
   // POPUP GUARD
   bool _isMonthPickerOpen = false;
-  bool _isGroupPickerOpen = false;
   bool _isLevelPickerOpen = false;
 
   // DATA FUTURES
@@ -65,7 +68,6 @@ class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
   final _locationTabKey = GlobalKey<AccidentLocationTabState>();
   final _recurringTabKey = GlobalKey<AccidentRecurringTabState>();
 
-  List<Map<String, dynamic>> _unitList = [];
   late List<String> _translatedMonths;
   late List<String> _translatedLocationLevels;
   final _levelBackends = ['Lokasi', 'Unit', 'Subunit', 'Area'];
@@ -76,7 +78,7 @@ class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_onTabChanged);
     _initLists();
-    _fetchUnits().then((_) => _fetchAll());
+    _fetchAll();
   }
 
   @override
@@ -100,24 +102,17 @@ class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
     _selectedLocationLevel = _translatedLocationLevels[0];
   }
 
-  // FETCH HELPERS
-  Future<void> _fetchUnits() async {
-    try {
-      final res = await _supabase.from('unit').select('id_unit, nama_unit');
-      if (mounted) setState(() => _unitList = List<Map<String, dynamic>>.from(res));
-    } catch (e) { debugPrint('fetchUnits: $e'); }
-  }
-
   void _fetchAll({bool fromTabFilter = false}) {
     if (!fromTabFilter) _isChartLoadingForTab = false;
 
     setState(() => _lastUpdated = DateTime.now());
 
     _membersTabKey.currentState?.fetchData(
-      filterMode:         _filterMode,
-      selectedMonthIndex: _selectedMonthIndex,
-      selectedDate:       _selectedDate,
-      selectedUnitId:     _selectedUnitId,
+      filterMode:            _filterMode,
+      selectedMonthIndex:    _selectedMonthIndex,
+      selectedDate:          _selectedDate,
+      selectedLocationLevel: _selectedMemberLocationLevel,
+      selectedLocationId:    _selectedMemberLocationId,
     );
 
     _locationTabKey.currentState?.fetchData(
@@ -431,14 +426,15 @@ class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
   // MEMBERS TAB
   Widget _buildMembersTab() {
     return AccidentMembersTab(
-      key:                _membersTabKey,
-      lang:               widget.lang,
-      filterMode:         _filterMode,
-      selectedMonthIndex: _selectedMonthIndex,
-      selectedDate:       _selectedDate,
-      selectedUnitId:     _selectedUnitId,
-      unitList:           _unitList,
-      lastUpdatedText:    _lastUpdatedText,
+      key:                    _membersTabKey,
+      lang:                   widget.lang,
+      filterMode:             _filterMode,
+      selectedMonthIndex:     _selectedMonthIndex,
+      selectedDate:           _selectedDate,
+      selectedLocationLevel:  _selectedMemberLocationLevel,
+      selectedLocationId:     _selectedMemberLocationId,
+      selectedLocationName:   _selectedMemberLocationName,
+      lastUpdatedText:        _lastUpdatedText,
       buildFilterBtn: ({
         required String    label,
         required VoidCallback onTap,
@@ -450,7 +446,15 @@ class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
       showMonthPicker: (_) => _showMonthPicker(
         () => _fetchAll(fromTabFilter: true),
       ),
-      showGroupPicker: _showGroupPicker,
+      showLocationPicker: _showMemberLocationPicker,
+      onResetLocation: () {
+        setState(() {
+          _selectedMemberLocationLevel = 'Lokasi';
+          _selectedMemberLocationId = null;
+          _selectedMemberLocationName = null;
+        });
+        _fetchAll(fromTabFilter: true);
+      },
     );
   }
 
@@ -541,57 +545,87 @@ class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
     int tempMonthIdx = _selectedMonthIndex;
     DateTime tempDate = _selectedDate ?? DateTime.now();
 
+    const accent = Color(0xFF1D72F3); // BIRU - samain persis dgn 5R & KTS
+
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setSt) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
           constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.65, maxWidth: 340),
+              maxHeight: MediaQuery.of(context).size.height * 0.68, maxWidth: 340),
           decoration: BoxDecoration(
             color: Colors.white, borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE0F2FE), width: 1.5)),
+            border: Border.all(color: accent.withValues(alpha: 0.25), width: 1.5)),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             // HEADER
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-              decoration: const BoxDecoration(
-                color: Color(0xFFE0F2FE),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
               child: Row(children: [
-                const Icon(Icons.calendar_month_rounded, color: _C.red, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(
-                  _t('Pilih Bulan', 'Select Month', '选择月份'),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _C.textPrimary))),
-                IconButton(icon: const Icon(Icons.close, size: 18, color: _C.textSecondary),
-                    onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.calendar_month_rounded, color: accent, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(_t('Pilih Bulan', 'Select Month', '选择月份'),
+                      style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700, fontSize: 15, color: accent)),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
+                  ),
+                ),
               ]),
             ),
+            const SizedBox(height: 12),
+            Container(height: 1, color: const Color(0xFFF1F5F9)),
             // TOGGLE
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
               child: Container(
-                decoration: BoxDecoration(color: const Color(0xFFF0F9FF),
+                decoration: BoxDecoration(color: const Color(0xFFEFF6FF),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE0F2FE))),
+                    border: Border.all(color: accent.withValues(alpha: 0.2))),
                 padding: const EdgeInsets.all(4),
-                child: Row(children: ['monthly','daily'].map((mode) {
+                child: Row(children: ['monthly', 'daily'].map((mode) {
                   final isSel = tempMode == mode;
                   final label = mode == 'monthly'
                       ? _t('Bulanan', 'Monthly', '按月')
                       : _t('Harian', 'Daily', '按日');
+                  final icon = mode == 'monthly'
+                      ? Icons.calendar_view_month_rounded
+                      : Icons.event_rounded;
                   return Expanded(child: GestureDetector(
                     onTap: () => setSt(() => tempMode = mode),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      height: 36,
+                      height: 38,
                       decoration: BoxDecoration(
-                        color: isSel ? _C.red : Colors.transparent,
+                        color: isSel ? accent : Colors.transparent,
                         borderRadius: BorderRadius.circular(9)),
-                      child: Center(child: Text(label, style: TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w700,
-                          color: isSel ? Colors.white : _C.textSecondary))),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(icon, size: 15,
+                              color: isSel ? Colors.white : const Color(0xFF64748B)),
+                          const SizedBox(width: 6),
+                          Text(label, style: GoogleFonts.poppins(
+                              fontSize: 13, fontWeight: FontWeight.w600,
+                              color: isSel ? Colors.white : const Color(0xFF64748B))),
+                        ],
+                      ),
                     ),
                   ));
                 }).toList()),
@@ -623,14 +657,18 @@ class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
                         decoration: BoxDecoration(
-                          color: isSel ? _C.red : const Color(0xFFF0F9FF),
+                          color: isSel ? accent : const Color(0xFFEFF6FF),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                              color: isSel ? _C.red : const Color(0xFFE0F2FE),
-                              width: isSel ? 1.5 : 1)),
-                        child: Center(child: Text(_translatedMonths[i], style: TextStyle(
-                            fontSize: 13, fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
-                            color: isSel ? Colors.white : _C.textPrimary))),
+                              color: isSel ? accent : const Color(0xFFDBEAFE),
+                              width: isSel ? 1.5 : 1),
+                          boxShadow: isSel ? [BoxShadow(
+                              color: accent.withValues(alpha: 0.3),
+                              blurRadius: 6, offset: const Offset(0, 2))] : []),
+                        child: Center(child: Text(_translatedMonths[i], style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: isSel ? FontWeight.w700 : FontWeight.w600,
+                            color: isSel ? Colors.white : const Color(0xFF0C4A6E)))),
                       ),
                     );
                   },
@@ -641,6 +679,7 @@ class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                 child: _buildDailyCalendar(tempDate,
                   (d) => setSt(() => tempDate = d),
+                  accent: accent,
                   onConfirm: () {
                     Navigator.pop(ctx);
                     setState(() {
@@ -660,14 +699,14 @@ class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
   }
 
   Widget _buildDailyCalendar(DateTime selectedDate, ValueChanged<DateTime> onChange,
-      {required VoidCallback onConfirm}) {
+      {required Color accent, required VoidCallback onConfirm}) {
     final now = DateTime.now();
     final locale = widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
     final dayLabels = widget.lang == 'ZH'
-        ? ['日','一','二','三','四','五','六']
+        ? ['日', '一', '二', '三', '四', '五', '六']
         : widget.lang == 'ID'
-            ? ['Min','Sen','Sel','Rab','Kam','Jum','Sab']
-            : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            ? ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
+            : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     DateTime displayedMonth = DateTime(selectedDate.year, selectedDate.month);
 
@@ -681,30 +720,41 @@ class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
 
       return Column(children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          IconButton(
-            onPressed: () => setIn(() => displayedMonth = DateTime(year, month - 1)),
-            icon: const Icon(Icons.chevron_left_rounded, color: _C.red, size: 22),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            visualDensity: VisualDensity.compact,
+          GestureDetector(
+            onTap: () => setIn(() => displayedMonth = DateTime(year, month - 1)),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.chevron_left_rounded, size: 18, color: accent),
+            ),
           ),
-          Text(monthLabel, style: const TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w700, color: _C.textPrimary)),
-          IconButton(
-            onPressed: isCurrentMonth
+          Text(monthLabel, style: GoogleFonts.poppins(
+              fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF0C4A6E))),
+          GestureDetector(
+            onTap: isCurrentMonth
                 ? null
                 : () => setIn(() => displayedMonth = DateTime(year, month + 1)),
-            icon: Icon(Icons.chevron_right_rounded,
-                color: isCurrentMonth ? _C.textMuted : _C.red, size: 22),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            visualDensity: VisualDensity.compact,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: isCurrentMonth
+                    ? Colors.grey.shade100
+                    : accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.chevron_right_rounded,
+                  size: 18,
+                  color: isCurrentMonth ? Colors.grey.shade400 : accent),
+            ),
           ),
         ]),
         const SizedBox(height: 10),
         Row(children: dayLabels.map((d) => Expanded(child: Center(
-            child: Text(d, style: const TextStyle(
-                fontSize: 10, fontWeight: FontWeight.w600, color: _C.textSecondary))))).toList()),
+            child: Text(d, style: GoogleFonts.poppins(
+                fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF64748B)))))).toList()),
         const SizedBox(height: 6),
         GridView.builder(
           shrinkWrap: true,
@@ -725,13 +775,13 @@ class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 decoration: BoxDecoration(
-                  color: isSel ? _C.red : isToday ? const Color(0xFFE0F2FE) : Colors.transparent,
+                  color: isSel ? accent : isToday ? accent.withValues(alpha: 0.12) : Colors.transparent,
                   shape: BoxShape.circle,
-                  border: isToday && !isSel ? Border.all(color: _C.red, width: 1.2) : null),
-                child: Center(child: Text('$day', style: TextStyle(
+                  border: isToday && !isSel ? Border.all(color: accent, width: 1.2) : null),
+                child: Center(child: Text('$day', style: GoogleFonts.poppins(
                     fontSize: 12,
-                    fontWeight: isSel || isToday ? FontWeight.bold : FontWeight.normal,
-                    color: isSel ? Colors.white : isFut ? _C.textMuted : _C.textPrimary))),
+                    fontWeight: isSel || isToday ? FontWeight.w700 : FontWeight.w600,
+                    color: isSel ? Colors.white : isFut ? const Color(0xFFBDBDBD) : const Color(0xFF0C4A6E)))),
               ),
             );
           },
@@ -742,128 +792,32 @@ class AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
           child: ElevatedButton(
             onPressed: onConfirm,
             style: ElevatedButton.styleFrom(
-              backgroundColor: _C.red, foregroundColor: Colors.white,
+              backgroundColor: accent, foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               padding: const EdgeInsets.symmetric(vertical: 10),
             ),
             child: Text(_t('Terapkan', 'Apply', '应用'),
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13)),
           ),
         ),
       ]);
     });
   }
 
-  // GROUP PICKER
-  void _showGroupPicker() async {
-    if (_isGroupPickerOpen) return;
-    _isGroupPickerOpen = true;
-
-    final allItem = {'id_unit': null, 'nama_unit': _t('Semua Grup', 'All Groups', '所有组')};
-    final items   = [allItem, ..._unitList];
-    final ctrl    = TextEditingController();
-    List<Map<String, dynamic>> filtered = List.from(items);
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSt) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
-          decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE0F2FE), width: 1.5)),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            // HEADER
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-              decoration: const BoxDecoration(
-                color: Color(0xFFE0F2FE),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-              child: Row(children: [
-                const Icon(Icons.group_rounded, color: _C.red, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(_t('Pilih Grup', 'Select Group', '选择组'),
-                    style: const TextStyle(fontWeight: FontWeight.bold,
-                        fontSize: 15, color: _C.textPrimary))),
-                IconButton(icon: const Icon(Icons.close, size: 18, color: _C.textSecondary),
-                    onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
-              ]),
-            ),
-            // SEARCH
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-              child: TextField(
-                controller: ctrl,
-                onChanged: (q) => setSt(() {
-                  filtered = items.where((e) =>
-                      (e['nama_unit'] as String).toLowerCase().contains(q.toLowerCase())).toList();
-                }),
-                decoration: InputDecoration(
-                  hintText: _t('Cari...', 'Search...', '搜索...'),
-                  hintStyle: const TextStyle(fontSize: 13, color: _C.textMuted),
-                  prefixIcon: const Icon(Icons.search, color: _C.red, size: 18),
-                  filled: true, fillColor: const Color(0xFFF0F9FF),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(30),
-                      borderSide: const BorderSide(color: Color(0xFFE0F2FE))),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30),
-                      borderSide: const BorderSide(color: Color(0xFFE0F2FE))),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30),
-                      borderSide: const BorderSide(color: _C.red, width: 1.5)),
-                ),
-              ),
-            ),
-            Flexible(child: ListView.builder(
-              padding: const EdgeInsets.only(bottom: 12),
-              itemCount: filtered.length,
-              itemBuilder: (_, i) {
-                final item  = filtered[i];
-                final lbl   = item['nama_unit'] as String;
-                final id    = item['id_unit']?.toString();
-                final isSel = id == _selectedUnitId || (id == null && _selectedUnitId == null);
-                return InkWell(
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    setState(() => _selectedUnitId = id);
-                    _fetchAll(fromTabFilter: true);
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: isSel ? const Color(0xFFE0F2FE) : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                          color: isSel ? _C.red : const Color(0xFFE0F2FE),
-                          width: isSel ? 1.5 : 1)),
-                    child: Row(children: [
-                      Container(
-                        width: 36, height: 36,
-                        decoration: BoxDecoration(
-                          color: isSel ? _C.red : const Color(0xFFF0F9FF),
-                          borderRadius: BorderRadius.circular(10)),
-                        child: Center(child: Text(
-                          lbl.isNotEmpty ? lbl[0].toUpperCase() : '?',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15,
-                              color: isSel ? Colors.white : _C.red))),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(lbl, style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                          color: isSel ? _C.red : _C.textPrimary))),
-                      if (isSel) const Icon(Icons.check_circle_rounded, color: _C.red, size: 18),
-                    ]),
-                  ),
-                );
-              },
-            )),
-          ]),
-        ),
-      )),
+  void _showMemberLocationPicker() async {
+    final result = await showMemberLocationFilterDialog(
+      context,
+      lang: widget.lang,
+      initialLevel: _selectedMemberLocationLevel,
+      initialId: _selectedMemberLocationId,
     );
-    _isGroupPickerOpen = false;
+    if (result == null || !mounted) return;
+    setState(() {
+      _selectedMemberLocationLevel = result['level'] ?? _selectedMemberLocationLevel;
+      _selectedMemberLocationId    = result['id'];
+      _selectedMemberLocationName  = result['name'];
+    });
+    _fetchAll(fromTabFilter: true);
   }
 
   // LEVEL & SPECIFIC LOCATION PICKER
