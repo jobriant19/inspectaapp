@@ -39,6 +39,7 @@ class AnalyticsSelectorBar extends StatelessWidget {
   final String defaultMainKey;
   final int defaultSubTabIndex;
   final VoidCallback onResetToDefault;
+  final VoidCallback onSubTabResetToDefault;
 
   const AnalyticsSelectorBar({
     super.key,
@@ -52,6 +53,7 @@ class AnalyticsSelectorBar extends StatelessWidget {
     required this.defaultMainKey,
     required this.defaultSubTabIndex,
     required this.onResetToDefault,
+    required this.onSubTabResetToDefault,
   });
 
   AnalyticsMainTypeMeta get _selectedMeta => mainTypes.firstWhere(
@@ -95,8 +97,8 @@ class AnalyticsSelectorBar extends StatelessWidget {
               borderColor: meta.borderColor,
               enabled: hasSubTabs,
               onTap: hasSubTabs ? () => _openSubTabPicker(context, meta) : null,
-              showReset: hasSubTabs && _isMainDefault && !_isSubDefault,
-              onReset: onResetToDefault,
+              showReset: hasSubTabs && !_isSubDefault,
+              onReset: onSubTabResetToDefault,
             ),
           ),
         ],
@@ -211,7 +213,7 @@ class _SelectorButton extends StatelessWidget {
                 ),
               ),
             ),
-            // TOMBOL RESET (X)
+            // RESET BUTTON (X)
             if (showReset)
               Positioned(
                 right: 0,

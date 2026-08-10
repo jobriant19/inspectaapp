@@ -60,6 +60,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     _handleMainTypeChanged(_defaultFindingType);
   }
 
+  void _handleSubTabResetToDefault() {
+    setState(() => _selectedSubTabIndex = _defaultSubTabIndex);
+    _currentController()?.setActiveSubTab(_defaultSubTabIndex);
+  }
+
   String _preventifLabel() {
     if (widget.lang == 'ZH') return '预防性维护';
     return 'Preventive Maintenance';
@@ -176,6 +181,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       defaultMainKey: _defaultFindingType,
       defaultSubTabIndex: _defaultSubTabIndex,
       onResetToDefault: _handleResetToDefault,
+      onSubTabResetToDefault: _handleSubTabResetToDefault,
     );
   }
 
