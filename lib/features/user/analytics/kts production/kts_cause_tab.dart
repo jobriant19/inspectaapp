@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
@@ -8,7 +9,6 @@ class _C {
   static const primary      = Color(0xFFF59E0B);
   static const primaryDark  = Color(0xFFD97706);
   static const primaryLight = Color(0xFFFEF3C7);
-  static const surface      = Color(0xFFFFFBEB);
   static const textPrimary  = Color(0xFF78350F);
   static const textSec      = Color(0xFF92400E);
   static const textMuted    = Color(0xFFD97706);
@@ -19,6 +19,7 @@ class _C {
   static const green        = Color(0xFF059669);
   static const greenLight   = Color(0xFFD1FAE5);
   static const kasieColor   = Color(0xFFAB47BC);
+  static const timeAccent   = Color(0xFF1D72F3); // BIRU - FILTER WAKTU (style 5R Inspection)
 }
 
 // SECTION LIST
@@ -798,44 +799,64 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     DateTime tmpDate = _selDate ?? DateTime.now();
     DateTime tmpViewedMonth = tmpDate;
 
+    const accent = Color(0xFF1D72F3); // BIRU - FILTER WAKTU (style 5R Inspection)
+
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, ss) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.65, maxWidth: 340),
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.68, maxWidth: 340),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _C.primaryLight, width: 1.5),
+            border: Border.all(color: accent.withValues(alpha:0.25), width: 1.5),
           ),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-              decoration: BoxDecoration(color: _C.primaryLight, borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
               child: Row(children: [
-                Icon(Icons.calendar_month_rounded, color: _C.primary, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(_t('pilih_bulan'), style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 15, color: _C.textPrimary))),
-                IconButton(icon: const Icon(Icons.close, size: 18, color: _C.textSec), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: accent.withValues(alpha:0.12), borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.calendar_month_rounded, color: accent, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(_t('pilih_bulan'),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: accent))),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha:0.1), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
+                  ),
+                ),
               ]),
             ),
+            const SizedBox(height: 12),
+            Container(height: 1, color: const Color(0xFFF1F5F9)),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
               child: Container(
-                decoration: BoxDecoration(color: _C.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: _C.primaryLight)),
+                decoration: BoxDecoration(color: accent.withValues(alpha:0.06), borderRadius: BorderRadius.circular(12), border: Border.all(color: accent.withValues(alpha:0.2))),
                 padding: const EdgeInsets.all(4),
                 child: Row(
                   children: ['monthly', 'daily'].map((m) {
                     final sel = tmpMode == m;
                     final lbl = m == 'monthly' ? _t('bulanan') : _t('harian');
+                    final ic  = m == 'monthly' ? Icons.calendar_view_month_rounded : Icons.event_rounded;
                     return Expanded(child: GestureDetector(
                       onTap: () => ss(() => tmpMode = m),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        height: 36,
-                        decoration: BoxDecoration(color: sel ? _C.primary : Colors.transparent, borderRadius: BorderRadius.circular(9)),
-                        child: Center(child: Text(lbl, style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w700, color: sel ? Colors.white : _C.textSec))),
+                        height: 38,
+                        decoration: BoxDecoration(color: sel ? accent : Colors.transparent, borderRadius: BorderRadius.circular(9)),
+                        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Icon(ic, size: 15, color: sel ? Colors.white : const Color(0xFF64748B)),
+                          const SizedBox(width: 6),
+                          Text(lbl, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: sel ? Colors.white : const Color(0xFF64748B))),
+                        ]),
                       ),
                     ));
                   }).toList(),
@@ -861,11 +882,11 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
                         decoration: BoxDecoration(
-                          color: sel ? _C.primary : _C.surface,
+                          color: sel ? accent : accent.withValues(alpha:0.06),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: sel ? _C.primary : _C.divider, width: sel ? 1.5 : 1),
+                          border: Border.all(color: sel ? accent : accent.withValues(alpha:0.2), width: sel ? 1.5 : 1),
                         ),
-                        child: Center(child: Text(_months[i], style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: sel ? FontWeight.bold : FontWeight.w500, color: sel ? Colors.white : _C.textPrimary))),
+                        child: Center(child: Text(_months[i], style: GoogleFonts.poppins(fontSize: 13, fontWeight: sel ? FontWeight.w700 : FontWeight.w600, color: sel ? Colors.white : const Color(0xFF0C4A6E)))),
                       ),
                     );
                   },
@@ -879,6 +900,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                   tmpViewedMonth,
                   (d) => ss(() => tmpDate = d),
                   onViewedMonthChanged: (m) => ss(() => tmpViewedMonth = m),
+                  accent: accent,
                   onConfirm: () {
                     Navigator.pop(ctx);
                     setState(() { _mode = 'daily'; _selDate = tmpDate; _monthIdx = tmpDate.month - 1; });
@@ -898,6 +920,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     ValueChanged<DateTime> onChange, {
     required ValueChanged<DateTime> onViewedMonthChanged,
     required VoidCallback onConfirm,
+    Color accent = _C.primary,
   }) {
     final now   = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -923,15 +946,15 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
-            icon: const Icon(Icons.chevron_left_rounded, size: 20, color: _C.primary),
+            icon: Icon(Icons.chevron_left_rounded, size: 20, color: accent),
             onPressed: () => changeMonth(-1),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
             splashRadius: 18,
           ),
-          Text(hdr, style: const TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w700, color: _C.textPrimary)),
+          Text(hdr, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: _C.textPrimary)),
           IconButton(
-            icon: Icon(Icons.chevron_right_rounded, size: 20, color: canGoNext ? _C.primary : _C.divider),
+            icon: Icon(Icons.chevron_right_rounded, size: 20, color: canGoNext ? accent : _C.divider),
             onPressed: canGoNext ? () => changeMonth(1) : null,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -940,7 +963,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         ],
       ),
       const SizedBox(height: 10),
-      Row(children: lbls.map((d) => Expanded(child: Center(child: Text(d, style: const TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: FontWeight.w600, color: _C.textSec))))).toList()),
+      Row(children: lbls.map((d) => Expanded(child: Center(child: Text(d, style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w600, color: _C.textSec))))).toList()),
       const SizedBox(height: 6),
       GridView.builder(
         shrinkWrap: true,
@@ -959,11 +982,11 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               decoration: BoxDecoration(
-                color: isSel ? _C.primary : isToday ? _C.primaryLight : Colors.transparent,
+                color: isSel ? accent : isToday ? accent.withValues(alpha:0.12) : Colors.transparent,
                 shape: BoxShape.circle,
-                border: isToday && !isSel ? Border.all(color: _C.primary, width: 1.2) : null,
+                border: isToday && !isSel ? Border.all(color: accent, width: 1.2) : null,
               ),
-              child: Center(child: Text('$day', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: isSel || isToday ? FontWeight.bold : FontWeight.normal, color: isSel ? Colors.white : isFuture ? _C.textMuted : _C.textPrimary))),
+              child: Center(child: Text('$day', style: GoogleFonts.poppins(fontSize: 12, fontWeight: isSel || isToday ? FontWeight.w700 : FontWeight.w600, color: isSel ? Colors.white : isFuture ? _C.textMuted : _C.textPrimary))),
             ),
           );
         },
@@ -971,8 +994,8 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       const SizedBox(height: 12),
       SizedBox(width: double.infinity, child: ElevatedButton(
         onPressed: onConfirm,
-        style: ElevatedButton.styleFrom(backgroundColor: _C.primary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), padding: const EdgeInsets.symmetric(vertical: 10)),
-        child: Text(_t('terapkan'), style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700, fontSize: 13)),
+        style: ElevatedButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), padding: const EdgeInsets.symmetric(vertical: 10)),
+        child: Text(_t('terapkan'), style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13)),
       )),
     ]));
   }
@@ -983,23 +1006,36 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: _C.primaryLight, width: 1.5)),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: _C.primary.withValues(alpha:0.25), width: 1.5)),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-              decoration: BoxDecoration(color: _C.primaryLight, borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
               child: Row(children: [
-                Icon(Icons.filter_list_rounded, color: _C.primary, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(_t('pilih_filter'), style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 15, color: _C.textPrimary))),
-                IconButton(icon: const Icon(Icons.close, size: 18, color: _C.textSec), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: _C.primary.withValues(alpha:0.12), borderRadius: BorderRadius.circular(10)),
+                  child: Icon(Icons.filter_list_rounded, color: _C.primary, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(_t('pilih_filter'),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 15, color: _C.primary))),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha:0.1), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
+                  ),
+                ),
               ]),
             ),
+            const SizedBox(height: 12),
+            Container(height: 1, color: const Color(0xFFF1F5F9)),
             const SizedBox(height: 8),
-            _buildTypeOption(ctx, _FilterType.bagian, Icons.grid_view_rounded,       _t('bagian_penyebab'), _C.blue),
-            _buildTypeOption(ctx, _FilterType.faktor, Icons.tag_rounded,             _t('faktor_penyebab'), _C.green),
-            _buildTypeOption(ctx, _FilterType.kasie,  Icons.person_outline_rounded,  _t('kasie_section'),   _C.kasieColor),
-            _buildTypeOption(ctx, _FilterType.biaya,  Icons.monetization_on_rounded, _t('biaya_kts'),       _C.orange),
+            _buildTypeOption(ctx, _FilterType.bagian, Icons.grid_view_rounded,            _t('bagian_penyebab'), _C.blue),
+            _buildTypeOption(ctx, _FilterType.faktor, Icons.report_problem_rounded,    _t('faktor_penyebab'), _C.green),
+            _buildTypeOption(ctx, _FilterType.kasie,  Icons.supervisor_account_rounded,_t('kasie_section'),   _C.kasieColor),
+            _buildTypeOption(ctx, _FilterType.biaya,  Icons.payments_rounded,          _t('biaya_kts'),       _C.orange),
             const SizedBox(height: 12),
           ]),
         ),
@@ -1044,7 +1080,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
             child: Icon(icon, size: 18, color: isSel ? Colors.white : color),
           ),
           const SizedBox(width: 14),
-          Expanded(child: Text(label, style: TextStyle(fontFamily: 'Poppins', fontSize: 14, fontWeight: FontWeight.w700, color: isSel ? color : const Color(0xFF1E293B)))),
+          Expanded(child: Text(label, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: isSel ? color : const Color(0xFF1E293B)))),
           if (isSel) Icon(Icons.check_circle_rounded, color: color, size: 20),
         ]),
       ),
@@ -1225,17 +1261,15 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            // PERIOD BUTTON
-            _filterBtn(
+            // PERIOD BUTTON (style mengikuti 5R Inspection)
+            _buildTimeFilterButton(
               label: periodLabel,
-              active: _mode == 'daily' || _monthIdx != DateTime.now().month - 1,
-              color: _C.primary,
-              icon: Icons.calendar_month_rounded, 
+              isActive: _mode == 'daily' || _monthIdx != DateTime.now().month - 1,
               onTap: _showMonthPicker,
             ),
             const SizedBox(width: 6),
 
-            // SELECT VIEW BUTTON
+            // SELECT VIEW BUTTON - BACKGROUND PUTIH, WARNA KHAS PER PILIHAN
             Expanded(
               flex: showBiayaSub ? 2 : 3,
               child: GestureDetector(
@@ -1244,38 +1278,57 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                   height: 38,
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
-                    color: _activeFilter != null ? filterColor : Colors.white,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: _activeFilter != null ? filterColor : _C.primaryLight,
-                      width: 1.5,
-                    ),
-                    boxShadow: [BoxShadow(color: _C.primary.withValues(alpha:0.08), blurRadius: 6, offset: const Offset(0, 2))],
+                    border: Border.all(color: filterColor, width: 1.5),
+                    boxShadow: [BoxShadow(color: filterColor.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
                   ),
                   child: Row(children: [
                     if (_activeFilter != null) ...[
                       Icon(
                         _activeFilter == _FilterType.bagian ? Icons.grid_view_rounded
-                            : _activeFilter == _FilterType.faktor ? Icons.tag_rounded
-                            : Icons.monetization_on_rounded,
-                        size: 13, color: Colors.white,
+                            : _activeFilter == _FilterType.faktor ? Icons.report_problem_rounded
+                            : Icons.payments_rounded,
+                        size: 13, color: filterColor,
                       ),
                       const SizedBox(width: 4),
                     ],
                     Expanded(
                       child: Text(
                         filterLabel,
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
+                        style: GoogleFonts.poppins(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: _activeFilter != null ? Colors.white : _C.primaryDark,
+                          color: filterColor,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 2),
-                    Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: _activeFilter != null ? Colors.white : _C.primary),
+                    // DEFAULT "Cause Section" -> ARROW. SELAIN ITU (Faktor/KTS Cost) -> TOMBOL RESET X MERAH
+                    if (_activeFilter == _FilterType.faktor || _activeFilter == _FilterType.biaya)
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          setState(() {
+                            _activeFilter = null;
+                            _subBagian    = null;
+                            _subFaktorId  = null;
+                          });
+                          _loadData();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withValues(alpha:0.1),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: const Color(0xFFEF4444).withValues(alpha:0.6)),
+                          ),
+                          child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+                        ),
+                      )
+                    else
+                      Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: filterColor),
                   ]),
                 ),
               ),
@@ -1392,22 +1445,42 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
               height: 38,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
-                color: _C.kasieColor,
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: _C.kasieColor, width: 1.5),
-                boxShadow: [BoxShadow(color: _C.kasieColor.withValues(alpha:0.15), blurRadius: 6, offset: const Offset(0, 2))],
+                boxShadow: [BoxShadow(color: _C.kasieColor.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
               ),
               child: Row(children: [
-                const Icon(Icons.person_outline_rounded, size: 13, color: Colors.white),
+                Icon(Icons.supervisor_account_rounded, size: 13, color: _C.kasieColor),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     _t('kasie_section'),
-                    style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.kasieColor),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Colors.white),
+                // KASIE SECTION BUKAN DEFAULT -> SELALU TOMBOL RESET X MERAH
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    setState(() {
+                      _activeFilter = null;
+                      _subBagian    = null;
+                      _subFaktorId  = null;
+                    });
+                    _loadData();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha:0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFFEF4444).withValues(alpha:0.6)),
+                    ),
+                    child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+                  ),
+                ),
               ]),
             ),
           ),
@@ -1464,6 +1537,40 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
           ),
           const SizedBox(width: 2),
           const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Colors.white),
+        ]),
+      ),
+    );
+  }
+
+  // TOMBOL FILTER WAKTU - STYLE MENGIKUTI 5R INSPECTION (biru 0xFF1D72F3)
+  Widget _buildTimeFilterButton({
+    required String label,
+    required VoidCallback onTap,
+    bool isActive = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: isActive ? _C.timeAccent : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? _C.timeAccent : const Color(0xFF93C5FD),
+            width: 1.5,
+          ),
+          boxShadow: [BoxShadow(color: _C.timeAccent.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.calendar_month_rounded, size: 15, color: isActive ? Colors.white : _C.timeAccent),
+          const SizedBox(width: 5),
+          Flexible(child: Text(label,
+            style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600,
+                color: isActive ? Colors.white : _C.timeAccent),
+            overflow: TextOverflow.ellipsis)),
+          const SizedBox(width: 4),
+          Icon(Icons.keyboard_arrow_down_rounded, color: isActive ? Colors.white : _C.timeAccent, size: 18),
         ]),
       ),
     );
@@ -2649,20 +2756,20 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
               if (_loading || (_activeFilter == _FilterType.kasie && _kasieLoading))
                 _buildShimmerList()
               else if (_activeFilter == _FilterType.kasie) ...[
-                _sectionTitle(_t('kasie_section'), _C.kasieColor, Icons.person_outline_rounded),
+                _sectionTitle(_t('kasie_section'), _C.kasieColor, Icons.supervisor_account_rounded),
                 _buildKasieTable(),
               ] else if (_activeFilter == _FilterType.faktor) ...[
-                _sectionTitle(_t('faktor_penyebab'), _C.green, Icons.tag_rounded),
+                _sectionTitle(_t('faktor_penyebab'), _C.green, Icons.report_problem_rounded),
                 _buildTableFaktor(),
               ] else if (_activeFilter == _FilterType.biaya) ...[
                 if (_biayaSubFilter == 'bagian') ...[
                   _sectionTitle(_t('bagian_penyebab'), _C.blue, Icons.grid_view_rounded),
                   _buildTableBagian(),
                 ] else if (_biayaSubFilter == 'kasie') ...[
-                  _sectionTitle(_t('kasie_section'), _C.kasieColor, Icons.person_outline_rounded),
+                  _sectionTitle(_t('kasie_section'), _C.kasieColor, Icons.supervisor_account_rounded),
                   _buildTableKasieCost(),
                 ] else ...[
-                  _sectionTitle(_t('faktor_penyebab'), _C.green, Icons.tag_rounded),
+                  _sectionTitle(_t('faktor_penyebab'), _C.green, Icons.report_problem_rounded),
                   _buildTableFaktor(),
                 ],
               ] else ...[
