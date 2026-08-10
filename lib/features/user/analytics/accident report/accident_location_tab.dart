@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
@@ -10,7 +11,6 @@ class _C {
   static const divider        = Color(0xFFE0F2FE);
   static const red            = Color(0xFFEF4444);
   static const redLight       = Color(0xFFFEE2E2);
-  static const redBorderLight = Color(0xFFFCA5A5);
 }
 
 class LocationData {
@@ -44,6 +44,7 @@ class AccidentLocationTab extends StatefulWidget {
 
   final void Function(VoidCallback onChanged) showMonthPicker;
   final VoidCallback showLevelPicker;
+  final VoidCallback onResetLevel;
   final String lastUpdatedText;
 
   const AccidentLocationTab({
@@ -60,6 +61,7 @@ class AccidentLocationTab extends StatefulWidget {
     required this.buildFilterBtn,
     required this.showMonthPicker,
     required this.showLevelPicker,
+    required this.onResetLevel,
     required this.lastUpdatedText,
   });
 
@@ -306,6 +308,20 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
     ]);
   }
 
+  static const Color _timeAccent = Color(0xFF1D72F3); // BIRU
+  static const List<Color> _levelColors = [
+    Color(0xFF10B981), // Lokasi
+    Color(0xFF6366F1), // Unit
+    Color(0xFFFBBF24), // Subunit
+    Color(0xFFF472B6), // Area
+  ];
+  static const List<IconData> _levelIcons = [
+    Icons.location_city_rounded, // Lokasi
+    Icons.business_rounded,      // Unit
+    Icons.layers_rounded,        // Subunit
+    Icons.place_rounded,         // Area
+  ];
+
   // TIME FILTER BUTTON
   Widget _buildLocationTimeFilterButton() {
     final isActive = widget.filterMode == 'daily';
@@ -325,14 +341,14 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: isActive ? _C.red : Colors.white,
+          color: isActive ? _timeAccent : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isActive ? _C.red : _C.redBorderLight,
+            color: isActive ? _timeAccent : const Color(0xFF93C5FD),
             width: 1.5,
           ),
           boxShadow: [BoxShadow(
-              color: _C.red.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _timeAccent.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
           Expanded(
@@ -340,20 +356,20 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.calendar_month_rounded, size: 15,
-                    color: isActive ? Colors.white : _C.red),
+                    color: isActive ? Colors.white : _timeAccent),
                 const SizedBox(width: 5),
                 Flexible(
                   child: Text('$modeLabel · $valueLabel',
                       textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
-                          color: isActive ? Colors.white : _C.red)),
+                      style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600,
+                          color: isActive ? Colors.white : _timeAccent)),
                 ),
               ],
             ),
           ),
           Icon(Icons.keyboard_arrow_down_rounded,
-              color: isActive ? Colors.white : _C.red, size: 18),
+              color: isActive ? Colors.white : _timeAccent, size: 18),
         ]),
       ),
     );
@@ -365,6 +381,11 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
         widget.selectedLocationName != null && widget.selectedLocationName!.isNotEmpty;
     final isActive = hasSpecificLocation ||
         widget.selectedLocationLevel != widget.translatedLocationLevels[0];
+    final levelIdx = widget.translatedLocationLevels
+        .indexOf(widget.selectedLocationLevel)
+        .clamp(0, 3);
+    final color = _levelColors[levelIdx];
+    final icon = hasSpecificLocation ? _levelIcons[levelIdx] : Icons.map;
     final label = hasSpecificLocation
         ? widget.selectedLocationName!
         : widget.selectedLocationLevel;
@@ -375,25 +396,36 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: isActive ? _C.red : Colors.white,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive ? _C.red : _C.redBorderLight,
-            width: 1.5,
-          ),
+          border: Border.all(color: color, width: 1.5),
           boxShadow: [BoxShadow(
-              color: _C.red.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: color.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 5),
           Expanded(
             child: Text(label,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                    color: isActive ? Colors.white : _C.red)),
+                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
           ),
-          Icon(Icons.keyboard_arrow_down_rounded,
-              color: isActive ? Colors.white : _C.red, size: 18),
+          if (isActive)
+            GestureDetector(
+              onTap: widget.onResetLevel,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.45)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            )
+          else
+            Icon(Icons.keyboard_arrow_down_rounded, color: color, size: 18),
         ]),
       ),
     );
