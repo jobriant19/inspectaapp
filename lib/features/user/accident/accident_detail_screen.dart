@@ -14,9 +14,10 @@ import 'picker/accident_pick_severity.dart';
 class AccidentReportDetailScreen extends StatefulWidget {
   final String reportId;
   final String lang;
+  final Map<String, dynamic>? initialData;
 
   const AccidentReportDetailScreen(
-      {super.key, required this.reportId, required this.lang});
+      {super.key, required this.reportId, required this.lang, this.initialData});
 
   @override
   State<AccidentReportDetailScreen> createState() =>
@@ -117,7 +118,27 @@ class _AccidentReportDetailScreenState
   void initState() {
     super.initState();
     _currentUserId = Supabase.instance.client.auth.currentUser?.id;
-    _loadData();
+    if (widget.initialData != null) {
+      _data = widget.initialData;
+      _isLoading = false;
+      _checkSolutionSilently();
+    } else {
+      _loadData();
+    }
+  }
+
+  Future<void> _checkSolutionSilently() async {
+    if ((_data?['status'] ?? '') != 'Selesai') return;
+    try {
+      final resolutionCheck = await Supabase.instance.client
+          .from('resolution_accident')
+          .select('id_resolution')
+          .eq('id_laporan', widget.reportId)
+          .maybeSingle();
+      if (mounted && resolutionCheck != null) {
+        setState(() => _hasSolution = true);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadData() async {

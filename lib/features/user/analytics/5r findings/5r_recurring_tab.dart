@@ -11,11 +11,9 @@ import '../../home/card/finding_card.dart';
 import '../../home/card/kts_finding_card.dart';
 
 class _AppColors {
-  static const primary = Color(0xFF0EA5E9);
   static const primaryLight = Color(0xFFE0F2FE);
   static const surface = Color(0xFFF0F9FF);
   static const textPrimary = Color(0xFF0C4A6E);
-  static const textSecondary = Color(0xFF64748B);
   static const textMuted = Color(0xFFBDBDBD);
   static const divider = Color(0xFFE0F2FE);
 }
@@ -431,29 +429,62 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
           if (topics.isEmpty) {
             final name = _recurringUserName.isEmpty ? '' : _recurringUserName;
             return Center(
-                child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                    width: 72,
-                    height: 72,
+                child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                        color: _AppColors.primaryLight,
-                        shape: BoxShape.circle),
-                    child: Icon(Icons.search_off_rounded,
-                        size: 36,
-                        color: _AppColors.primary.withValues(alpha:0.5))),
-                const SizedBox(height: 16),
-                Text(
-                    name.isEmpty
-                        ? widget.getTxt('tidak_ada_data_anggota')
-                        : '$name ${widget.getTxt('belum_memiliki_temuan')}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 14,
-                        color: _AppColors.textSecondary,
-                        height: 1.5)),
-              ],
+                      color: _periodAccent.withValues(alpha: 0.06),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: _periodAccent.withValues(alpha: 0.25), width: 1.5),
+                    ),
+                    child: Image.asset(
+                      'assets/images/team_illustration.png',
+                      width: 150,
+                      height: 150,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                              color: _AppColors.primaryLight,
+                              shape: BoxShape.circle),
+                          child: Icon(Icons.search_off_rounded,
+                              size: 36,
+                              color: _periodAccent.withValues(alpha: 0.6))),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _periodAccent.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _periodAccent.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.autorenew_rounded, size: 13, color: _periodAccent),
+                      const SizedBox(width: 5),
+                      Text(widget.getTxt('topik'),
+                          style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w700, color: _periodAccent)),
+                    ]),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                      name.isEmpty
+                          ? widget.getTxt('tidak_ada_data_anggota')
+                          : '$name ${widget.getTxt('belum_memiliki_temuan')}',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: _AppColors.textPrimary,
+                          height: 1.5)),
+                ],
+              ),
             ));
           }
 

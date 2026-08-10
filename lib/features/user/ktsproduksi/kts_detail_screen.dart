@@ -152,7 +152,6 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
     if (widget.initialData != null) {
       _data = _normalizeInitialData(widget.initialData!);
       _isLoading = false;
-      _loadDataSilently();
     } else {
       _loadData();
     }
@@ -173,76 +172,6 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
     }
 
     return normalized;
-  }
-
-  Future<void> _loadDataSilently() async {
-    try {
-      final data = await Supabase.instance.client
-          .from('temuan')
-          .select('''
-            id_temuan, no_order, judul_temuan, deskripsi_temuan,
-            gambar_temuan, status_temuan, poin_temuan,
-            jumlah_item, nama_item_manual, jenis_temuan,
-            created_at, id_user, id_penyelesaian,
-            id_penanggung_jawab,
-            subkategoritemuan:id_subkategoritemuan_uuid(
-              id_subkategoritemuan, nama_subkategoritemuan
-            ),
-            item_produksi:id_item(id_item, nama_item, gambar_item, kode_item),
-            lokasi:id_lokasi(nama_lokasi),
-            penanggung_jawab:id_penanggung_jawab(id_user, nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan))
-          ''')
-          .eq('id_temuan', widget.ktsId)
-          .single();
-
-      Map<String, dynamic>? pelaporData;
-      if (data['id_user'] != null) {
-        try {
-          pelaporData = await Supabase.instance.client
-              .from('User')
-              .select('nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)')
-              .eq('id_user', data['id_user'])
-              .maybeSingle();
-        } catch (_) {}
-      }
-
-      Map<String, dynamic>? penyelesaianData;
-      final idPenyelesaian = data['id_penyelesaian'];
-      if (idPenyelesaian != null) {
-        try {
-          penyelesaianData = await Supabase.instance.client
-              .from('penyelesaian')
-              .select(
-                'id_penyelesaian, gambar_penyelesaian, catatan_penyelesaian, '
-                'tanggal_selesai, poin_penyelesaian, additional_cost, id_user, '
-                'penyebab, bagian, id_subkategoritemuan_penyebab, '
-                'faktor_penyebab_kts:id_subkategoritemuan_penyebab(id_subkategoritemuan, nama_subkategoritemuan)',
-              )
-              .eq('id_penyelesaian', idPenyelesaian)
-              .maybeSingle();
-          if (penyelesaianData != null && penyelesaianData['id_user'] != null) {
-            final solverRes = await Supabase.instance.client
-                .from('User')
-                .select('nama, gambar_user')
-                .eq('id_user', penyelesaianData['id_user'])
-                .maybeSingle();
-            penyelesaianData['solver'] = solverRes;
-          }
-        } catch (_) {}
-      }
-
-      if (mounted) {
-        setState(() {
-          _data = {
-            ...data,
-            'pelapor': pelaporData,
-            'penyelesaian': penyelesaianData,
-          };
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading KTS detail silently: $e');
-    }
   }
 
   @override

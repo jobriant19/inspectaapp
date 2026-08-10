@@ -68,8 +68,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
   void initState() {
     super.initState();
     _setupTranslations();
-    // Data dari layar sebelumnya (topic.findings) sudah lengkap hasil join,
-    // jadi langsung dipakai tanpa fetch ulang agar tampil instan tanpa loading.
     _findingDetailFuture = Future.value(widget.initialData);
     _currentFindingData = widget.initialData;
     _commentsFuture = _fetchComments(widget.initialData['id_temuan'].toString());

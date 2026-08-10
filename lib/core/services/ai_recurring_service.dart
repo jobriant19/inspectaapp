@@ -42,6 +42,7 @@ class GeminiRecurringService {
     DateTime? fromDate,
     DateTime? toDate,
     String? filterUserId,
+    String lang = 'ID',
   }) async {
     final cacheType = isKts ? 'KTS' : '5R';
 
@@ -72,6 +73,7 @@ class GeminiRecurringService {
       toDate: toDate,
       filterUserId: filterUserId,
       cacheType: cacheType,
+      lang: lang,
     );
     _findingInFlight[flightKey] = future;
     try {
@@ -89,6 +91,7 @@ class GeminiRecurringService {
     DateTime? fromDate,
     DateTime? toDate,
     String? filterUserId,
+    String lang = 'ID',
   }) async {
     final clusters = _buildClusters(findings, isKts: isKts);
     debugPrint('📦 Pre-clusters: ${clusters.length}');
@@ -98,7 +101,7 @@ class GeminiRecurringService {
       final cluster = clusters[i];
       debugPrint(
           '🔄 Validating cluster ${i + 1}/${clusters.length} (${cluster.length} items)');
-      final group = await _validateFindingCluster(cluster, isKts: isKts);
+      final group = await _validateFindingCluster(cluster, isKts: isKts, lang: lang);
       if (group != null) result.add(group);
     }
 
@@ -334,6 +337,7 @@ class GeminiRecurringService {
   Future<RecurringGroup?> _validateFindingCluster(
     List<Map<String, dynamic>> cluster, {
     bool isKts = false,
+    String lang = 'ID',
   }) async {
     // ── 1. Semantic score (avg pairwise combined similarity) ──────────────
     final titles =
@@ -380,14 +384,14 @@ class GeminiRecurringService {
     // ── 6. Label representatif ────────────────────────────────────────────
     final label = _pickRepresentativeLabel(titles);
     final locationArea = _getFullLocation(cluster.first);
+    final sectionLabel = isKts ? _getSectionLabel(cluster.first, lang) : '-';
 
     debugPrint(
         '✅ Accepted finding: "$label" (${cluster.length} items, final=${finalScore.toStringAsFixed(3)})');
 
     return RecurringGroup(
       topic: label,
-      locationArea:
-          isKts ? (cluster.first['no_order']?.toString() ?? '-') : locationArea,
+      locationArea: isKts ? sectionLabel : locationArea,
       total: cluster.length,
       imageUrl: cluster.first['gambar_temuan'] as String?,
       findings: cluster,
@@ -889,6 +893,25 @@ class GeminiRecurringService {
     if (r['id_unit']    != null) return r['id_unit'].toString();
     if (r['id_lokasi']  != null) return r['id_lokasi'].toString();
     return '';
+  }
+
+  String _getSectionLabel(Map<String, dynamic> f, String lang) {
+    final penyelesaian = f['penyelesaian'];
+    if (penyelesaian is Map) {
+      final section = penyelesaian['section'];
+      if (section is Map) {
+        if (lang == 'EN') {
+          return section['nama_section_en']?.toString() ??
+              section['nama_section_id']?.toString() ?? '-';
+        }
+        if (lang == 'ZH') {
+          return section['nama_section_zh']?.toString() ??
+              section['nama_section_id']?.toString() ?? '-';
+        }
+        return section['nama_section_id']?.toString() ?? '-';
+      }
+    }
+    return '-';
   }
 
   String _getFullLocation(Map<String, dynamic> f) {
