@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../core/utils/jabatan_helper.dart';
+import '../../../core/utils/konfigurasi_poin_helper.dart';
+import '../../../core/widgets/activity_log_detail_popup.dart';
 import '../finding/detail/finding_detail_screen.dart';
 import '../home/card/finding_card.dart';
 import '../home/card/kts_finding_card.dart';
@@ -37,7 +39,7 @@ class _UserProfileModalState extends State<UserProfileModal>
   late TabController _tabController;
   late String _currentLang;
 
-  // ── HEADER STATE ──
+  // HEADER STATE
   bool _isHeaderLoading = true;
   String _userNameResolved = '';
   String? _userAvatarUrlResolved;
@@ -48,27 +50,24 @@ class _UserProfileModalState extends State<UserProfileModal>
   String _userLokasiSpesifik = '-';
   String? _userLokasiLevel;
 
-  // ── ACTIVITY TAB STATE ──
+  // ACTIVITY TAB STATE
   bool _isActivityLoading = true;
   List<Map<String, dynamic>> _activityLogs = [];
   int _activityPage = 1;
+  Map<String, Map<String, dynamic>> _konfigMap = {};
 
-  // ── TEMUAN (RAW DATA) STATE ──
+  // FINDING STATE ──
   bool _isTemuanLoading = true;
   List<Map<String, dynamic>> _temuanList = [];
 
-  // ── PENYELESAIAN (RAW DATA) STATE ──
+  // SOLUTON STATE 
   bool _isPenyelesaianLoading = true;
   List<Map<String, dynamic>> _penyelesaianList = [];
 
-  // ── TAB 5R FINDING STATE ──
   int _fiveRPage = 1;
-
-  // ── TAB KTS PRODUCTION STATE ──
   int _ktsPage = 1;
 
-  static const int _perPage = 7; // 7 kartu per halaman (semua tab)
-
+  static const int _perPage = 7;
   static const Map<String, Color> _levelColors = {
     'lokasi': Color(0xFF10B981),
     'unit': Color(0xFF6366F1),
@@ -140,6 +139,12 @@ class _UserProfileModalState extends State<UserProfileModal>
     _fetchActivityLogs();
     _fetchTemuan();
     _fetchPenyelesaian();
+    _loadKonfigMap();
+  }
+
+  Future<void> _loadKonfigMap() async {
+    final map = await KonfigurasiPoinHelper.getMap();
+    if (mounted) setState(() => _konfigMap = map);
   }
 
   @override
@@ -252,7 +257,7 @@ class _UserProfileModalState extends State<UserProfileModal>
     try {
       final logs = await Supabase.instance.client
           .from('log_poin')
-          .select('poin, deskripsi, tipe_aktivitas, created_at')
+          .select('poin, deskripsi, deskripsi_en, deskripsi_zh, tipe_aktivitas, created_at')
           .eq('id_user', widget.userId)
           .order('created_at', ascending: false);
       if (mounted) {
@@ -493,7 +498,7 @@ class _UserProfileModalState extends State<UserProfileModal>
           ),
           const SizedBox(width: 16),
 
-          // NAME + ROLE BADGE + LOCATION BADGE (tanpa poin & rank)
+          // NAME + ROLE BADGE + LOCATION BADGE 
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -793,7 +798,7 @@ class _UserProfileModalState extends State<UserProfileModal>
 
     return Column(
       children: [
-        // SUMMARY CARD — sama persis seperti activity_log_tab.dart
+        // SUMMARY CARD 
         Container(
           margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -884,7 +889,6 @@ class _UserProfileModalState extends State<UserProfileModal>
           ]),
         ),
 
-        // LIST + INDIKATOR HALAMAN
         Expanded(
           child: _activityLogs.isEmpty
               ? _buildEmptyState(_t('empty_activity'), Icons.history_rounded)
@@ -914,7 +918,15 @@ class _UserProfileModalState extends State<UserProfileModal>
     final int poin = (log['poin'] as num).toInt();
     final bool isPositive = poin >= 0;
     final String tipe = (log['tipe_aktivitas'] ?? '').toString();
-    final String desc = (log['deskripsi'] ?? '').toString();
+    final String deskripsiTampil =
+        KonfigurasiPoinHelper.resolveDeskripsi(log: log, lang: _currentLang);
+    final String namaTampil = KonfigurasiPoinHelper.resolveNama(
+      map: _konfigMap,
+      tipeAktivitas: tipe,
+      lang: _currentLang,
+      fallbackDeskripsi: deskripsiTampil,
+      log: log,
+    );
     final String tanggal = _formatDate(log['created_at']);
     final Color color = _getTipeColor(tipe, isPositive);
     final IconData icon = _getTipeIcon(tipe, isPositive);
@@ -940,77 +952,93 @@ class _UserProfileModalState extends State<UserProfileModal>
         timeIcon = Icons.event_rounded;
     }
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.15)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 3))
-        ],
+    return GestureDetector(
+      onTap: () => ActivityLogDetailPopup.show(
+        context: context,
+        lang: _currentLang,
+        nama: namaTampil,
+        deskripsi: KonfigurasiPoinHelper.resolvePopupDeskripsi(
+          map: _konfigMap,
+          tipeAktivitas: tipe,
+          lang: _currentLang,
+          log: log,
+        ),
+        poin: poin,
+        tipeAktivitas: tipe,
+        createdAt: log['created_at'],
       ),
-      child: Row(children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration:
-              BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.1)),
-          child: Icon(icon, color: color, size: 22),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.15)),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 3))
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                desc,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF0F172A),
-                    height: 1.4),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: timeColor.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: timeColor.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(timeIcon, size: 11, color: timeColor),
-                    const SizedBox(width: 4),
-                    Text(
-                      tanggal,
-                      style: GoogleFonts.poppins(
-                          fontSize: 10.5, fontWeight: FontWeight.w700, color: timeColor),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+        child: Row(children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration:
+                BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.1)),
+            child: Icon(icon, color: color, size: 22),
           ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-          child: Text(
-            isPositive ? '+$poin' : '$poin',
-            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  namaTampil,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF0F172A),
+                      height: 1.4),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: timeColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: timeColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(timeIcon, size: 11, color: timeColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        tanggal,
+                        style: GoogleFonts.poppins(
+                            fontSize: 10.5, fontWeight: FontWeight.w700, color: timeColor),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ]),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+            child: Text(
+              isPositive ? '+$poin' : '$poin',
+              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: color),
+            ),
+          ),
+        ]),
+      ),
     );
   }
 

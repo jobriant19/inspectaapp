@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../core/utils/jabatan_helper.dart';
+import '../../../core/utils/konfigurasi_poin_helper.dart';
+import '../../../core/widgets/activity_log_detail_popup.dart';
 
 class ActivityLogDialog extends StatefulWidget {
   final String lang;
@@ -36,6 +38,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
   List<Map<String, dynamic>> _logs = [];
   bool _isLoading = true;
   int _monthlyPoin = 0;
+  Map<String, Map<String, dynamic>> _konfigMap = {};
 
   @override
   void initState() {
@@ -51,6 +54,12 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
     }
     _fetchLogs();
     _fetchMonthlyPoin();
+    _loadKonfigMap();
+  }
+
+  Future<void> _loadKonfigMap() async {
+    final map = await KonfigurasiPoinHelper.getMap();
+    if (mounted) setState(() => _konfigMap = map);
   }
 
   int _sumPoin(List<Map<String, dynamic>> logs) {
@@ -75,7 +84,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
 
       final data = await Supabase.instance.client
           .from('log_poin')
-          .select('id, poin, deskripsi, tipe_aktivitas, created_at')
+          .select('id, poin, deskripsi, deskripsi_en, deskripsi_zh, tipe_aktivitas, created_at')
           .eq('id_user', userId)
           .gte('created_at', startOfMonth)
           .lt('created_at', startOfNextMonth)
@@ -230,6 +239,17 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
         '${dt.year}';
   }
 
+  int _recencyLevel(dynamic value) {
+    if (value == null) return 3;
+    final dt = value is DateTime ? value : DateTime.tryParse(value.toString());
+    if (dt == null) return 3;
+    final diff = DateTime.now().difference(dt);
+    if (diff.inHours < 1) return 0;
+    if (diff.inDays < 1) return 1;
+    if (diff.inDays < 7) return 2;
+    return 3;
+  }
+
   Widget _buildLogList() {
     if (_isLoading && _logs.isEmpty) {
       return Shimmer.fromColors(
@@ -318,79 +338,132 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
         final int poin = (log['poin'] as num).toInt();
         final bool isPositive = poin >= 0;
         final String tipe = (log['tipe_aktivitas'] ?? '').toString();
-        final String desc = (log['deskripsi'] ?? '').toString();
+        final String deskripsiTampil =
+            KonfigurasiPoinHelper.resolveDeskripsi(log: log, lang: widget.lang);
+        final String namaTampil = KonfigurasiPoinHelper.resolveNama(
+          map: _konfigMap,
+          tipeAktivitas: tipe,
+          lang: widget.lang,
+          fallbackDeskripsi: deskripsiTampil,
+          log: log,
+        );
         final String dateStr = _formatDate(log['created_at']);
 
         final IconData icon = _getTipeIcon(tipe, isPositive);
         final Color iconColor = _getTipeColor(tipe, isPositive);
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 9),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: iconColor.withValues(alpha:0.1),
+        final int recency = _recencyLevel(log['created_at']);
+        late final Color timeColor;
+        late final IconData timeIcon;
+        switch (recency) {
+          case 0:
+            timeColor = const Color(0xFF0EA5E9);
+            timeIcon = Icons.bolt_rounded;
+            break;
+          case 1:
+            timeColor = const Color(0xFF0D9488);
+            timeIcon = Icons.access_time_filled_rounded;
+            break;
+          case 2:
+            timeColor = const Color(0xFF64748B);
+            timeIcon = Icons.schedule_rounded;
+            break;
+          default:
+            timeColor = const Color(0xFF475569);
+            timeIcon = Icons.event_rounded;
+        }
+
+        return GestureDetector(
+          onTap: () => ActivityLogDetailPopup.show(
+            context: context,
+            lang: widget.lang,
+            nama: namaTampil,
+            deskripsi: KonfigurasiPoinHelper.resolvePopupDeskripsi(
+              map: _konfigMap,
+              tipeAktivitas: tipe,
+              lang: widget.lang,
+              log: log,
+            ),
+            poin: poin,
+            tipeAktivitas: tipe,
+            createdAt: log['created_at'],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: iconColor.withValues(alpha:0.1),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 18),
                 ),
-                child: Icon(icon, color: iconColor, size: 18),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      desc,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1E293B),
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Icon(Icons.calendar_today_rounded,
-                            size: 10, color: Colors.grey.shade400),
-                        const SizedBox(width: 4),
-                        Text(
-                          dateStr,
-                          style: GoogleFonts.poppins(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade500,
-                          ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        namaTampil,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF1E293B),
+                          height: 1.4,
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha:0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  isPositive ? '+$poin' : '$poin',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: iconColor,
+                      ),
+                      const SizedBox(height: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: timeColor.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: timeColor.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(timeIcon, size: 11, color: timeColor),
+                            const SizedBox(width: 4),
+                            Text(
+                              dateStr,
+                              style: GoogleFonts.poppins(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: timeColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha:0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    isPositive ? '+$poin' : '$poin',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: iconColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },

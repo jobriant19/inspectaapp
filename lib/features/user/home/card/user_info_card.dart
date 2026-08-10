@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/utils/jabatan_helper.dart';
+import '../../../../core/utils/konfigurasi_poin_helper.dart';
 
 class UserInfoCard extends StatefulWidget {
   final String userName;
@@ -43,6 +44,7 @@ class UserInfoCard extends StatefulWidget {
 class _UserInfoCardState extends State<UserInfoCard> {
   int _monthlyPoin = 0;
   bool _isLoadingMonthly = true;
+  Map<String, Map<String, dynamic>> _konfigMap = {};
 
   @override
   void initState() {
@@ -50,6 +52,12 @@ class _UserInfoCardState extends State<UserInfoCard> {
     _monthlyPoin = widget.initialMonthlyPoin ?? 0;
     _isLoadingMonthly = widget.initialMonthlyPoin == null;
     _fetchMonthlyPoin();
+    _loadKonfigMap();
+  }
+
+  Future<void> _loadKonfigMap() async {
+    final map = await KonfigurasiPoinHelper.getMap();
+    if (mounted) setState(() => _konfigMap = map);
   }
 
   @override
@@ -146,8 +154,18 @@ class _UserInfoCardState extends State<UserInfoCard> {
     if (widget.latestLogPoin == null) return const SizedBox();
 
     final int poin = (widget.latestLogPoin!['poin'] as num).toInt();
-    final String deskripsi = (widget.latestLogPoin!['deskripsi'] ?? '').toString();
     final bool isPositive = poin >= 0;
+    final String deskripsiTampil = KonfigurasiPoinHelper.resolveDeskripsi(
+      log: widget.latestLogPoin!,
+      lang: widget.lang,
+    );
+    final String namaTampil = KonfigurasiPoinHelper.resolveNama(
+      map: _konfigMap,
+      tipeAktivitas: widget.latestLogPoin!['tipe_aktivitas']?.toString(),
+      lang: widget.lang,
+      fallbackDeskripsi: deskripsiTampil,
+      log: widget.latestLogPoin,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,24 +187,28 @@ class _UserInfoCardState extends State<UserInfoCard> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              width: 20,
-              height: 20,
+              constraints: const BoxConstraints(minWidth: 30, minHeight: 22),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: isPositive
                     ? const Color.fromARGB(255, 30, 228, 102)
                     : const Color.fromARGB(255, 240, 43, 43),
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(20),
               ),
-              child: Icon(
-                isPositive ? Icons.add_rounded : Icons.remove_rounded,
-                size: 16,
-                color: Colors.white,
+              child: Text(
+                isPositive ? '+$poin' : '$poin',
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
               ),
             ),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
-                deskripsi,
+                namaTampil,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.poppins(

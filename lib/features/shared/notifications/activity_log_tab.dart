@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/utils/konfigurasi_poin_helper.dart';
+import '../../../core/widgets/activity_log_detail_popup.dart';
 import '../../admin/target/target/admin_target_pick_date.dart';
 
 class ActivityLogTab extends StatefulWidget {
@@ -35,8 +37,8 @@ class _ActivityLogTabState extends State<ActivityLogTab>
   List<Map<String, dynamic>> _filteredLogs = [];
   int _totalPoin = 0;
   bool _isLoading = false;
+  Map<String, Map<String, dynamic>> _konfigMap = {};
 
-  // ── NEW: pagination state ──
   int _currentPage = 1;
   static const int _perPage = 7;
 
@@ -55,6 +57,12 @@ class _ActivityLogTabState extends State<ActivityLogTab>
     } else {
       _fetchLogs();
     }
+    _loadKonfigMap();
+  }
+
+  Future<void> _loadKonfigMap() async {
+    final map = await KonfigurasiPoinHelper.getMap();
+    if (mounted) setState(() => _konfigMap = map);
   }
 
   void _computeTotal(List<Map<String, dynamic>> logs) {
@@ -78,7 +86,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
     try {
       final List<dynamic> logs = await Supabase.instance.client
           .from('log_poin')
-          .select('poin, deskripsi, tipe_aktivitas, created_at')
+          .select('poin, deskripsi, deskripsi_en, deskripsi_zh, tipe_aktivitas, created_at')
           .eq('id_user', userId)
           .gte('created_at', _filterFrom.toIso8601String())
           .lte('created_at', _filterTo.toIso8601String())
@@ -102,7 +110,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
   void _applySearch(String query) {
     setState(() {
       _searchQuery = query;
-      _currentPage = 1; // NEW: reset ke halaman 1 setiap kali search berubah
+      _currentPage = 1;
       if (query.trim().isEmpty) {
         _filteredLogs = List.from(_allLogs);
       } else {
@@ -116,7 +124,6 @@ class _ActivityLogTabState extends State<ActivityLogTab>
     });
   }
 
-  // ── NEW: reset pencarian saja (tanpa mengubah periode) ──
   void _resetSearch() {
     _searchCtrl.clear();
     _applySearch('');
@@ -194,19 +201,17 @@ class _ActivityLogTabState extends State<ActivityLogTab>
     return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
   }
 
-  // ── NEW: kategori kebaruan waktu, dipakai untuk pewarnaan badge waktu ──
   int _recencyLevel(dynamic value) {
     if (value == null) return 3;
     final dt = value is DateTime ? value : DateTime.tryParse(value.toString());
     if (dt == null) return 3;
     final diff = DateTime.now().difference(dt);
-    if (diff.inHours < 1) return 0; // baru saja / menit
-    if (diff.inDays < 1) return 1; // jam
-    if (diff.inDays < 7) return 2; // hari
-    return 3; // lebih lama, tanggal penuh
+    if (diff.inHours < 1) return 0;
+    if (diff.inDays < 1) return 1;
+    if (diff.inDays < 7) return 2;
+    return 3;
   }
 
-  // ── REPLACED: popup periode kini pakai kalender penuh ala admin_target_pick_date.dart ──
   Future<void> _showPeriodPicker() async {
     DateTime tempFrom = _filterFrom;
     DateTime tempTo = _filterTo;
@@ -308,7 +313,6 @@ class _ActivityLogTabState extends State<ActivityLogTab>
                 ]),
                 const SizedBox(height: 18),
 
-                // ── Kolom "Dari" — satu field, klik = buka kalender penuh ──
                 dateField(
                   label: widget.lang == 'EN'
                       ? 'From'
@@ -333,7 +337,6 @@ class _ActivityLogTabState extends State<ActivityLogTab>
                 ),
                 const SizedBox(height: 16),
 
-                // ── Kolom "Sampai" — satu field, klik = buka kalender penuh ──
                 dateField(
                   label: widget.lang == 'EN'
                       ? 'To'
@@ -409,8 +412,6 @@ class _ActivityLogTabState extends State<ActivityLogTab>
     final fireColor = _getFireColor(_totalPoin);
     final periodLabel =
         '${DateFormat('d MMM').format(_filterFrom)} – ${DateFormat('d MMM yyyy').format(_filterTo)}';
-
-    // ── NEW: pagination ──
     final totalPages =
         _filteredLogs.isEmpty ? 1 : (_filteredLogs.length / _perPage).ceil();
     final safePage = _currentPage.clamp(1, totalPages);
@@ -426,8 +427,6 @@ class _ActivityLogTabState extends State<ActivityLogTab>
         _searchQuery.trim().isNotEmpty && _filteredLogs.isEmpty;
 
     return Column(children: [
-      // ── UPDATED: Summary Card — lebih menarik & jelas ──
-      // ── UPDATED: Summary Card — kontras Total Points & jumlah log diperjelas ──
       Container(
         margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -497,7 +496,6 @@ class _ActivityLogTabState extends State<ActivityLogTab>
               ],
             ),
           ),
-          // ── Garis pemisah agar dua angka tidak menyatu ──
           Container(
             width: 1,
             height: 46,
@@ -561,7 +559,6 @@ class _ActivityLogTabState extends State<ActivityLogTab>
                     ),
                   ),
                 ),
-                // ── NEW: tombol reset pencarian ──
                 if (_searchQuery.isNotEmpty)
                   GestureDetector(
                     onTap: _resetSearch,
@@ -641,7 +638,6 @@ class _ActivityLogTabState extends State<ActivityLogTab>
                               _buildActivityLogCard(pagedLogs[index]),
                         ),
                       ),
-                      // ── NEW: bottom indicator, selalu full terlihat di semua HP Android ──
                       if (totalPages > 1)
                         Padding(
                           padding: EdgeInsets.fromLTRB(
@@ -662,7 +658,6 @@ class _ActivityLogTabState extends State<ActivityLogTab>
     ]);
   }
 
-  // ── UNCHANGED semantik: empty state ketika memang tidak ada log sama sekali di periode ini ──
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -689,7 +684,6 @@ class _ActivityLogTabState extends State<ActivityLogTab>
     );
   }
 
-  // ── NEW: empty state khusus saat pencarian tidak ada hasil ──
   Widget _buildSearchEmptyState() {
     return Center(
       child: SingleChildScrollView(
@@ -771,17 +765,23 @@ class _ActivityLogTabState extends State<ActivityLogTab>
     );
   }
 
-  // ── UPDATED: ACTIVITY LOG CARD — badge waktu dibuat lebih jelas ──
   Widget _buildActivityLogCard(Map<String, dynamic> log) {
     final int poin = (log['poin'] as num).toInt();
     final bool isPositive = poin >= 0;
     final String tipe = (log['tipe_aktivitas'] ?? '').toString();
-    final String desc = (log['deskripsi'] ?? '').toString();
+    final String deskripsiTampil =
+        KonfigurasiPoinHelper.resolveDeskripsi(log: log, lang: widget.lang);
+    final String namaTampil = KonfigurasiPoinHelper.resolveNama(
+      map: _konfigMap,
+      tipeAktivitas: tipe,
+      lang: widget.lang,
+      fallbackDeskripsi: deskripsiTampil,
+      log: log,
+    );
     final String tanggal = _formatDate(log['created_at']);
     final Color color = _getTipeColor(tipe, isPositive);
     final IconData icon = _getTipeIcon(tipe, isPositive);
 
-    // ── NEW: warna & ikon badge waktu berdasarkan tingkat kebaruan ──
     final int recency = _recencyLevel(log['created_at']);
     late final Color timeColor;
     late final IconData timeIcon;
@@ -803,84 +803,96 @@ class _ActivityLogTabState extends State<ActivityLogTab>
         timeIcon = Icons.event_rounded;
     }
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.15)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 3))
-        ],
+    return GestureDetector(
+      onTap: () => ActivityLogDetailPopup.show(
+        context: context,
+        lang: widget.lang,
+        nama: namaTampil,
+        deskripsi: KonfigurasiPoinHelper.resolvePopupDeskripsi(
+          map: _konfigMap,
+          tipeAktivitas: tipe,
+          lang: widget.lang,
+          log: log,
+        ),
+        poin: poin,
+        tipeAktivitas: tipe,
+        createdAt: log['created_at'],
       ),
-      child: Row(children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.1)),
-          child: Icon(icon, color: color, size: 22),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.15)),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 3))
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                desc,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF0F172A),
-                    height: 1.4),
-              ),
-              const SizedBox(height: 6),
-              // ── NEW: badge waktu, jauh lebih jelas dibanding teks abu-abu polos ──
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: timeColor.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: timeColor.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(timeIcon, size: 11, color: timeColor),
-                    const SizedBox(width: 4),
-                    Text(
-                      tanggal,
-                      style: GoogleFonts.poppins(
-                          fontSize: 10.5, fontWeight: FontWeight.w700, color: timeColor),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+        child: Row(children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.1)),
+            child: Icon(icon, color: color, size: 22),
           ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-          child: Text(
-            isPositive ? '+$poin' : '$poin',
-            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  namaTampil,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF0F172A),
+                      height: 1.4),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: timeColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: timeColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(timeIcon, size: 11, color: timeColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        tanggal,
+                        style: GoogleFonts.poppins(
+                            fontSize: 10.5, fontWeight: FontWeight.w700, color: timeColor),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ]),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+            child: Text(
+              isPositive ? '+$poin' : '$poin',
+              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: color),
+            ),
+          ),
+        ]),
+      ),
     );
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// NEW: indikator halaman bawah (adaptasi dari admin_section_indicator.dart)
-// ══════════════════════════════════════════════════════════════
 class _ActivityPageIndicator extends StatelessWidget {
   final int currentPage;
   final int totalPages;
