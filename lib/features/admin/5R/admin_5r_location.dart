@@ -603,6 +603,14 @@ class _Admin5RLocationTabState extends State<Admin5RLocationTab> {
         () => _fetchAllData(fromTabFilter: true),
       ),
       showLevelPicker: _showLevelPicker,
+      onResetLevel: () {
+        setState(() {
+          _selectedLocationLevel = _translatedLocationLevels[0];
+          _selectedSpecificLocationId = null;
+          _selectedSpecificLocationName = null;
+        });
+        _fetchAllData(fromTabFilter: true);
+      },
       onRefresh: () => _fetchAllData(fromTabFilter: true),
       onAuditLocationTap: (loc) => _showAuditLocationDetail(loc),
     );

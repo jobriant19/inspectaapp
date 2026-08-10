@@ -69,6 +69,7 @@ class FiveRLocationTab extends StatelessWidget {
 
   final VoidCallback showMonthPicker;
   final VoidCallback showLevelPicker;
+  final VoidCallback onResetLevel;
   final VoidCallback onRefresh;
   final void Function(AuditLocationData5R loc) onAuditLocationTap;
 
@@ -89,6 +90,7 @@ class FiveRLocationTab extends StatelessWidget {
     required this.buildFilterBtn,
     required this.showMonthPicker,
     required this.showLevelPicker,
+    required this.onResetLevel,
     required this.onRefresh,
     required this.onAuditLocationTap,
   });
@@ -148,7 +150,19 @@ class FiveRLocationTab extends StatelessWidget {
   }
 
   static const Color _timeAccent = Color(0xFF1D72F3);   // BIRU
-  static const Color _levelAccent = Color(0xFF0D9488);  // TEAL (tetap, bukan filter waktu)
+
+  static const List<Color> _levelColors = [
+    Color(0xFF10B981), // Lokasi
+    Color(0xFF6366F1), // Unit
+    Color(0xFFFBBF24), // Subunit
+    Color(0xFFF472B6), // Area
+  ];
+  static const List<IconData> _levelIcons = [
+    Icons.location_city_rounded, // Lokasi
+    Icons.business_rounded,      // Unit
+    Icons.layers_rounded,        // Subunit
+    Icons.place_rounded,         // Area
+  ];
 
   Widget _buildLocationTimeFilterButton() {
     final isActive = filterMode == 'daily';
@@ -201,38 +215,53 @@ class FiveRLocationTab extends StatelessWidget {
     );
   }
 
-  // ─── Level filter button (fill, tulisan center, arrow kanan) ──────────────
+  // ─── Level filter button (putih, warna khas level, X merah saat aktif) ────
   Widget _buildLocationLevelFilterButton() {
     final hasSpecificLocation =
         selectedLocationName != null && selectedLocationName!.isNotEmpty;
     final isActive =
         hasSpecificLocation || selectedLocationLevel != translatedLocationLevels[0];
+    final levelIdx = translatedLocationLevels.indexOf(selectedLocationLevel).clamp(0, 3);
+    final color = _levelColors[levelIdx];
+    final icon = hasSpecificLocation ? _levelIcons[levelIdx] : Icons.map;
     final label = hasSpecificLocation ? selectedLocationName! : selectedLocationLevel;
+
     return GestureDetector(
       onTap: showLevelPicker,
       child: Container(
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: isActive ? _levelAccent : Colors.white,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive ? _levelAccent : const Color(0xFF5EEAD4),
-            width: 1.5,
-          ),
+          border: Border.all(color: color, width: 1.5),
           boxShadow: [BoxShadow(
-              color: _levelAccent.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: color.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 5),
           Expanded(
             child: Text(label,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600,
-                    color: isActive ? Colors.white : _levelAccent)),
+                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
           ),
-          Icon(Icons.keyboard_arrow_down_rounded,
-              color: isActive ? Colors.white : _levelAccent, size: 18),
+          if (isActive)
+            GestureDetector(
+              onTap: onResetLevel,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.45)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            )
+          else
+            Icon(Icons.keyboard_arrow_down_rounded, color: color, size: 18),
         ]),
       ),
     );

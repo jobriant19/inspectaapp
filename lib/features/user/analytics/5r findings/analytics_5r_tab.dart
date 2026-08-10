@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../analytics_selector_bar.dart';
@@ -13,8 +14,6 @@ import 'picker/5r_members_location_picker.dart';
 class _AppColors {
   static const primary = Color(0xFF0EA5E9);
   static const primaryLight = Color(0xFFE0F2FE);
-  static const surface = Color(0xFFF0F9FF);
-  static const textPrimary = Color(0xFF0C4A6E);
   static const textSecondary = Color(0xFF64748B);
   static const divider = Color(0xFFE0F2FE);
 }
@@ -342,6 +341,40 @@ class Analytics5RTabState extends State<Analytics5RTab>
       _chartTargetLokasi = 0; _chartTargetUnit = 0;
       _chartTargetSubunit = 0; _chartTargetArea = 0;
     });
+  }
+
+  Widget _buildLevelPickerShimmer() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[200]!,
+      highlightColor: Colors.grey[50]!,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+        itemCount: 6,
+        itemBuilder: (_, __) => Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(children: [
+            Container(width: 44, height: 44, decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: Colors.white)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(height: 14, width: 150, color: Colors.white),
+                  const SizedBox(height: 6),
+                  Container(height: 10, width: 90, color: Colors.white),
+                ],
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
   }
 
   int get _selectedMonth => _selectedMonthIndex + 1;
@@ -1346,6 +1379,14 @@ class Analytics5RTabState extends State<Analytics5RTab>
         () => _fetchAllData(fromTabFilter: true),
       ),
       showLevelPicker: _showLevelPicker,
+      onResetLevel: () {
+        setState(() {
+          _selectedLocationLevel = _translatedLocationLevels[0];
+          _selectedSpecificLocationId = null;
+          _selectedSpecificLocationName = null;
+        });
+        _fetchAllData(fromTabFilter: true);
+      },
       onRefresh: () => _fetchAllData(fromTabFilter: true),
       onAuditLocationTap: (loc) => _showAuditLocationDetail(loc),
     );
@@ -1705,85 +1746,122 @@ class Analytics5RTabState extends State<Analytics5RTab>
     String tempLevelLabel = _selectedLocationLevel;
     String? tempSelectedId = _selectedSpecificLocationId;
     final searchCtrl = TextEditingController();
-    List<Map<String, dynamic>> items = [];
-    bool loadingItems = true;
-    bool levelDropdownOpen = false;
+    final Map<String, List<Map<String, String>>> dataByLevel = {
+      for (final l in _translatedLocationLevels) l: <Map<String, String>>[],
+    };
+    bool loading = true;
     int currentPage = 1;
     const int itemsPerPage = 7;
-
-    const outerAccent = Color(0xFF0D9488); // TEAL - AKSEN UTAMA POPUP LOKASI
-
-    final GlobalKey levelBtnKey = GlobalKey();
-    final GlobalKey stackKey = GlobalKey();
-    double dropdownTop = 102;
-    double dropdownRight = 14;
+    const headerAccent = Color(0xFF1D72F3); // BIRU - HEADER POPUP
 
     IconData levelIcon(String label) {
       final idx = _translatedLocationLevels.indexOf(label).clamp(0, 3);
       return [
-        Icons.location_city_rounded, // LOCATION
-        Icons.business_rounded,      // UNIT
-        Icons.layers_rounded,        // SUBUNIT
-        Icons.place_rounded,         // AREA
+        Icons.location_city_rounded,
+        Icons.business_rounded,
+        Icons.layers_rounded,
+        Icons.place_rounded,
+      ][idx];
+    }
+
+    IconData parentIcon(String label) {
+      final idx = _translatedLocationLevels.indexOf(label).clamp(0, 3);
+      return [
+        Icons.location_city_rounded,
+        Icons.location_city_rounded, // Unit -> parent Lokasi
+        Icons.business_rounded,      // Subunit -> parent Unit
+        Icons.layers_rounded,        // Area -> parent Subunit
       ][idx];
     }
 
     Color levelColor(String label) {
       final idx = _translatedLocationLevels.indexOf(label).clamp(0, 3);
       return [
-        const Color(0xFF10B981), // LOCATION
-        const Color(0xFF6366F1), // UNIT
-        const Color(0xFFFBBF24), // SUBUNIT
-        const Color(0xFFF472B6), // AREA
+        const Color(0xFF10B981),
+        const Color(0xFF6366F1),
+        const Color(0xFFFBBF24),
+        const Color(0xFFF472B6),
       ][idx];
     }
 
-    Future<List<Map<String, dynamic>>> fetchItemsForLevel(String levelLabel) async {
-      final levelBackend = ['Lokasi', 'Unit', 'Subunit', 'Area'][
+    Color parentColorFor(String label) {
+      final idx = _translatedLocationLevels.indexOf(label).clamp(0, 3);
+      return [
+        const Color(0xFF10B981),
+        const Color(0xFF10B981), // parent Unit = warna Lokasi
+        const Color(0xFF6366F1), // parent Subunit = warna Unit
+        const Color(0xFFFBBF24), // parent Area = warna Subunit
+      ][idx];
+    }
+
+    Future<void> fetchLevel(String levelLabel, void Function(void Function()) setSt) async {
+      final backendLevel = ['Lokasi', 'Unit', 'Subunit', 'Area'][
           _translatedLocationLevels.indexOf(levelLabel).clamp(0, 3)];
-      final levelLower = levelBackend.toLowerCase();
-      final idMap = {'lokasi': 'id_lokasi', 'unit': 'id_unit', 'subunit': 'id_subunit', 'area': 'id_area'};
-      final nameMap = {'lokasi': 'nama_lokasi', 'unit': 'nama_unit', 'subunit': 'nama_subunit', 'area': 'nama_area'};
-      final idCol = idMap[levelLower] ?? 'id_lokasi';
-      final nameCol = nameMap[levelLower] ?? 'nama_lokasi';
+      final levelLower = backendLevel.toLowerCase();
       try {
-        final res = await _supabase.from(levelLower).select('$idCol, $nameCol').order(nameCol);
-        return List<Map<String, dynamic>>.from(res)
-            .map((e) => {'id': e[idCol]?.toString() ?? '', 'name': e[nameCol]?.toString() ?? '-'})
-            .toList();
+        List<Map<String, String>> result = [];
+        if (levelLower == 'lokasi') {
+          final res = await _supabase.from('lokasi').select('id_lokasi, nama_lokasi').order('nama_lokasi');
+          result = List<Map<String, dynamic>>.from(res)
+              .map((e) => {'id': e['id_lokasi']?.toString() ?? '', 'name': e['nama_lokasi']?.toString() ?? '-', 'parent': ''})
+              .toList();
+        } else if (levelLower == 'unit') {
+          final res = await _supabase.from('unit').select('id_unit, nama_unit, lokasi(nama_lokasi)').order('nama_unit');
+          result = List<Map<String, dynamic>>.from(res)
+              .map((e) => {
+                    'id': e['id_unit']?.toString() ?? '',
+                    'name': e['nama_unit']?.toString() ?? '-',
+                    'parent': (e['lokasi'] as Map<String, dynamic>?)?['nama_lokasi']?.toString() ?? '',
+                  })
+              .toList();
+        } else if (levelLower == 'subunit') {
+          final res = await _supabase.from('subunit').select('id_subunit, nama_subunit, unit(nama_unit)').order('nama_subunit');
+          result = List<Map<String, dynamic>>.from(res)
+              .map((e) => {
+                    'id': e['id_subunit']?.toString() ?? '',
+                    'name': e['nama_subunit']?.toString() ?? '-',
+                    'parent': (e['unit'] as Map<String, dynamic>?)?['nama_unit']?.toString() ?? '',
+                  })
+              .toList();
+        } else {
+          final res = await _supabase.from('area').select('id_area, nama_area, subunit(nama_subunit)').order('nama_area');
+          result = List<Map<String, dynamic>>.from(res)
+              .map((e) => {
+                    'id': e['id_area']?.toString() ?? '',
+                    'name': e['nama_area']?.toString() ?? '-',
+                    'parent': (e['subunit'] as Map<String, dynamic>?)?['nama_subunit']?.toString() ?? '',
+                  })
+              .toList();
+        }
+        dataByLevel[levelLabel] = result;
       } catch (e) {
         debugPrint('Error fetching level items: $e');
-        return [];
+        dataByLevel[levelLabel] = [];
       }
+      loading = false;
+      setSt(() {});
     }
 
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) {
-          if (loadingItems) {
-            fetchItemsForLevel(tempLevelLabel).then((res) {
-              items = res;
-              loadingItems = false;
-              setSt(() {});
-            });
+          if (loading && (dataByLevel[tempLevelLabel]?.isEmpty ?? true)) {
+            fetchLevel(tempLevelLabel, setSt);
           }
 
-          final query = searchCtrl.text.trim().toLowerCase();
-          final filteredItems = query.isEmpty
+          final q = searchCtrl.text.trim().toLowerCase();
+          final items = dataByLevel[tempLevelLabel] ?? [];
+          final filteredItems = q.isEmpty
               ? items
-              : items.where((e) => (e['name'] as String).toLowerCase().contains(query)).toList();
+              : items.where((e) => (e['name'] ?? '').toLowerCase().contains(q)).toList();
           final currentLevelColor = levelColor(tempLevelLabel);
 
           final totalPages = filteredItems.isEmpty ? 1 : (filteredItems.length / itemsPerPage).ceil();
           final safePage = currentPage.clamp(1, totalPages);
           final startIdx = (safePage - 1) * itemsPerPage;
-          final endIdx = (startIdx + itemsPerPage) > filteredItems.length
-              ? filteredItems.length
-              : startIdx + itemsPerPage;
-          final pageItems = filteredItems.isEmpty
-              ? <Map<String, dynamic>>[]
-              : filteredItems.sublist(startIdx, endIdx);
+          final endIdx = (startIdx + itemsPerPage) > filteredItems.length ? filteredItems.length : startIdx + itemsPerPage;
+          final pageItems = filteredItems.isEmpty ? <Map<String, String>>[] : filteredItems.sublist(startIdx, endIdx);
 
           return Dialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -1791,147 +1869,144 @@ class Analytics5RTabState extends State<Analytics5RTab>
               width: 340,
               height: MediaQuery.of(context).size.height * 0.78,
               decoration: BoxDecoration(
-                color: Colors.white, borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: outerAccent.withValues(alpha: 0.25), width: 1.5)),
-              child: ClipRRect(
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                child: Stack(key: stackKey, clipBehavior: Clip.none, children: [
-                  Column(children: [
-                    // HEADER GAYA SELECT-VIEW
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
-                      child: Row(children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: outerAccent.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.tune_rounded, color: outerAccent, size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(getTxt('pilih_lokasi'),
-                              style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w700, fontSize: 15, color: outerAccent)),
-                        ),
-                        GestureDetector(
-                          onTap: () => Navigator.pop(ctx),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEF4444).withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
-                          ),
-                        ),
-                      ]),
+                border: Border.all(color: currentLevelColor.withValues(alpha: 0.25), width: 1.5),
+              ),
+              child: Column(children: [
+                // HEADER
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
+                  child: Row(children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: headerAccent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.tune_rounded, color: headerAccent, size: 20),
                     ),
-                    const SizedBox(height: 10),
-                    Container(height: 1, color: const Color(0xFFF1F5F9)),
-                    // SEARCH + LEVEL DROPDOWN TRIGGER
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-                      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                        Expanded(
-                          child: Container(
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: outerAccent.withValues(alpha: 0.35), width: 1.3),
-                              boxShadow: [BoxShadow(
-                                  color: outerAccent.withValues(alpha: 0.08),
-                                  blurRadius: 6, offset: const Offset(0, 2))],
-                            ),
-                            child: TextField(
-                              controller: searchCtrl,
-                              textAlignVertical: TextAlignVertical.center,
-                              onChanged: (_) => setSt(() { currentPage = 1; }),
-                              style: GoogleFonts.poppins(fontSize: 13, color: Colors.black, fontWeight: FontWeight.w600),
-                              decoration: InputDecoration(
-                                hintText: getTxt('cari'),
-                                hintStyle: GoogleFonts.poppins(fontSize: 12.5, color: const Color(0xFFBDBDBD), fontWeight: FontWeight.w500),
-                                prefixIcon: const Icon(Icons.search_rounded, color: outerAccent, size: 19),
-                                suffixIcon: searchCtrl.text.isNotEmpty
-                                    ? GestureDetector(
-                                        onTap: () {
-                                          searchCtrl.clear();
-                                          setSt(() { currentPage = 1; });
-                                        },
-                                        child: Container(
-                                          margin: const EdgeInsets.all(10),
-                                          padding: const EdgeInsets.all(4),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFEF4444).withValues(alpha: 0.1),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(Icons.close_rounded, size: 14, color: Color(0xFFEF4444)),
-                                        ),
-                                      )
-                                    : null,
-                                border: InputBorder.none,
-                                isDense: true,
-                                contentPadding: EdgeInsets.zero,
-                              ),
-                            ),
-                          ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(getTxt('pilih_lokasi'),
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 15, color: headerAccent)),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
                         ),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          key: levelBtnKey,
+                        child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
+                      ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 12),
+                Container(height: 1, color: const Color(0xFFF1F5F9)),
+                // TAB LEVEL
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                  child: Row(
+                    children: List.generate(_translatedLocationLevels.length, (index) {
+                      final lvl = _translatedLocationLevels[index];
+                      final isActiveTab = lvl == tempLevelLabel;
+                      final lvlColor = levelColor(lvl);
+                      return Expanded(
+                        child: GestureDetector(
                           onTap: () {
-                            final btnBox = levelBtnKey.currentContext!
-                                .findRenderObject() as RenderBox;
-                            final stackBox = stackKey.currentContext!
-                                .findRenderObject() as RenderBox;
-                            final btnPos = btnBox.localToGlobal(Offset.zero,
-                                ancestor: stackBox);
-                            setSt(() {
-                              dropdownTop = btnPos.dy + btnBox.size.height + 6;
-                              dropdownRight = stackBox.size.width -
-                                  (btnPos.dx + btnBox.size.width);
-                              levelDropdownOpen = !levelDropdownOpen;
-                            });
+                            tempLevelLabel = lvl;
+                            tempSelectedId = null;
+                            searchCtrl.clear();
+                            currentPage = 1;
+                            loading = true;
+                            setSt(() {});
                           },
                           child: Container(
-                            width: 132,
-                            height: 44,
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            margin: const EdgeInsets.symmetric(horizontal: 3),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
-                              color: currentLevelColor,
+                              color: isActiveTab ? lvlColor : Colors.white,
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow: [BoxShadow(
-                                  color: currentLevelColor.withValues(alpha: 0.30),
-                                  blurRadius: 8, offset: const Offset(0, 3))],
+                              border: Border.all(color: isActiveTab ? lvlColor : const Color(0xFFE2E8F0)),
+                              boxShadow: isActiveTab
+                                  ? [BoxShadow(color: lvlColor.withValues(alpha: 0.30), blurRadius: 8, offset: const Offset(0, 3))]
+                                  : null,
                             ),
-                            child: Row(children: [
-                              Icon(levelIcon(tempLevelLabel), color: Colors.white, size: 16),
-                              const SizedBox(width: 6),
-                              Expanded(child: Text(tempLevelLabel,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white))),
-                              AnimatedRotation(
-                                turns: levelDropdownOpen ? 0.5 : 0,
-                                duration: const Duration(milliseconds: 200),
-                                child: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 18),
-                              ),
-                            ]),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(levelIcon(lvl), size: 15, color: isActiveTab ? Colors.white : lvlColor),
+                                const SizedBox(height: 3),
+                                Text(lvl,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.inter(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: isActiveTab ? Colors.white : const Color(0xFF475569))),
+                              ],
+                            ),
                           ),
                         ),
-                      ]),
+                      );
+                    }),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // SEARCH
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: currentLevelColor.withValues(alpha: 0.35), width: 1.3),
                     ),
-                    const Divider(height: 1, color: _AppColors.divider),
-                    // HASIL (SCROLLABLE, DIPAGINASI 7 PER HALAMAN)
-                    Expanded(
-                      child: loadingItems
-                          ? const Center(child: CircularProgressIndicator(color: outerAccent, strokeWidth: 2))
-                          : ListView(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: TextField(
+                      controller: searchCtrl,
+                      textAlignVertical: TextAlignVertical.center,
+                      onChanged: (_) => setSt(() { currentPage = 1; }),
+                      style: GoogleFonts.poppins(fontSize: 13, color: Colors.black, fontWeight: FontWeight.w600),
+                      decoration: InputDecoration(
+                        hintText: getTxt('cari'),
+                        hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFFBDBDBD)),
+                        prefixIcon: Icon(Icons.search_rounded, color: currentLevelColor, size: 18),
+                        suffixIcon: searchCtrl.text.isNotEmpty
+                            ? GestureDetector(
+                                onTap: () => setSt(() { searchCtrl.clear(); currentPage = 1; }),
+                                child: Container(
+                                  margin: const EdgeInsets.all(10),
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close_rounded, size: 14, color: Color(0xFFEF4444)),
+                                ),
+                              )
+                            : null,
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1, color: Color(0xFFE0F2FE)),
+                // LIST
+                Expanded(
+                  child: loading
+                      ? _buildLevelPickerShimmer()
+                      : Column(children: [
+                          Expanded(
+                            child: ListView(
+                              padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
                               children: [
-                                // OPSI "SEMUA" (SELALU DI ATAS, DI LUAR PAGINASI)
-                                InkWell(
+                                // ALL CARD
+                                GestureDetector(
                                   onTap: () {
                                     Navigator.pop(ctx);
                                     setState(() {
@@ -1942,29 +2017,32 @@ class Analytics5RTabState extends State<Analytics5RTab>
                                     _fetchAllData(fromTabFilter: true);
                                   },
                                   child: Container(
-                                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
-                                      color: tempSelectedId == null
-                                          ? currentLevelColor.withValues(alpha: 0.10)
-                                          : Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
+                                      color: tempSelectedId == null ? const Color(0xFFE0F2FE) : Colors.white,
+                                      borderRadius: BorderRadius.circular(14),
                                       border: Border.all(
-                                        color: tempSelectedId == null ? currentLevelColor : _AppColors.divider,
-                                        width: tempSelectedId == null ? 1.5 : 1),
+                                          color: tempSelectedId == null ? currentLevelColor : const Color(0xFFE2E8F0),
+                                          width: tempSelectedId == null ? 1.5 : 1),
+                                      boxShadow: [BoxShadow(color: currentLevelColor.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
                                     ),
                                     child: Row(children: [
-                                      Icon(Icons.apps_rounded,
-                                          size: 18,
-                                          color: tempSelectedId == null ? currentLevelColor : _AppColors.textSecondary),
-                                      const SizedBox(width: 10),
-                                      Expanded(child: Text('${getTxt('semua_grup_anggota')} ($tempLevelLabel)',
-                                          style: GoogleFonts.poppins(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: tempSelectedId == null ? currentLevelColor : Colors.black))),
+                                      Container(
+                                        width: 44, height: 44,
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(color: currentLevelColor.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
+                                        child: Icon(Icons.map_rounded, size: 20, color: currentLevelColor),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text('${getTxt('semua_grup_anggota')} ($tempLevelLabel)',
+                                            style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: const Color(0xFF0F172A))),
+                                      ),
                                       if (tempSelectedId == null)
-                                        Icon(Icons.check_circle_rounded, color: currentLevelColor, size: 18),
+                                        Icon(Icons.check_circle_rounded, color: currentLevelColor, size: 20)
+                                      else
+                                        Icon(Icons.chevron_right_rounded, color: currentLevelColor, size: 20),
                                     ]),
                                   ),
                                 ),
@@ -1978,209 +2056,128 @@ class Analytics5RTabState extends State<Analytics5RTab>
                                         fit: BoxFit.contain,
                                         errorBuilder: (_, __, ___) => Container(
                                           width: 84, height: 84,
-                                          decoration: BoxDecoration(
-                                            color: outerAccent.withValues(alpha: 0.08), shape: BoxShape.circle),
-                                          child: const Icon(Icons.search_off_rounded, size: 36, color: outerAccent),
+                                          decoration: BoxDecoration(color: currentLevelColor.withValues(alpha: 0.08), shape: BoxShape.circle),
+                                          child: Icon(Icons.search_off_rounded, size: 36, color: currentLevelColor.withValues(alpha: 0.4)),
                                         ),
                                       ),
                                       const SizedBox(height: 12),
                                       Text(getTxt('tidak_ada_data_level'),
-                                          style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: outerAccent),
+                                          style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: currentLevelColor),
                                           textAlign: TextAlign.center),
-                                      const SizedBox(height: 12),
-                                      GestureDetector(
-                                        onTap: () {
-                                          searchCtrl.clear();
-                                          setSt(() { currentPage = 1; });
-                                        },
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                                          decoration: BoxDecoration(
-                                            color: outerAccent.withValues(alpha: 0.1),
-                                            borderRadius: BorderRadius.circular(30),
-                                            border: Border.all(color: outerAccent.withValues(alpha: 0.35)),
-                                          ),
-                                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                            const Icon(Icons.refresh_rounded, size: 14, color: outerAccent),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              widget.lang == 'EN' ? 'Clear search' : widget.lang == 'ZH' ? '清除搜索' : 'Hapus pencarian',
-                                              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: outerAccent),
+                                      if (q.isNotEmpty) ...[
+                                        const SizedBox(height: 12),
+                                        GestureDetector(
+                                          onTap: () => setSt(() { searchCtrl.clear(); currentPage = 1; }),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                                            decoration: BoxDecoration(
+                                              color: currentLevelColor.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(30),
+                                              border: Border.all(color: currentLevelColor.withValues(alpha: 0.35)),
                                             ),
-                                          ]),
+                                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                              Icon(Icons.refresh_rounded, size: 14, color: currentLevelColor),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                widget.lang == 'EN' ? 'Clear search' : widget.lang == 'ZH' ? '清除搜索' : 'Hapus pencarian',
+                                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: currentLevelColor),
+                                              ),
+                                            ]),
+                                          ),
                                         ),
-                                      ),
+                                      ],
                                     ]),
                                   )
-                                else ...[
+                                else
                                   ...pageItems.map((item) {
                                     final isSel = item['id'] == tempSelectedId;
-                                    return InkWell(
+                                    final parent = item['parent'] ?? '';
+                                    final pColor = parentColorFor(tempLevelLabel);
+                                    return GestureDetector(
                                       onTap: () {
                                         Navigator.pop(ctx);
                                         setState(() {
                                           _selectedLocationLevel = tempLevelLabel;
-                                          _selectedSpecificLocationId = item['id'] as String;
-                                          _selectedSpecificLocationName = item['name'] as String;
+                                          _selectedSpecificLocationId = item['id'];
+                                          _selectedSpecificLocationName = item['name'];
                                         });
                                         _fetchAllData(fromTabFilter: true);
                                       },
                                       child: Container(
-                                        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                        margin: const EdgeInsets.only(bottom: 10),
+                                        padding: const EdgeInsets.all(10),
                                         decoration: BoxDecoration(
-                                          color: isSel ? currentLevelColor.withValues(alpha: 0.10) : Colors.white,
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(
-                                            color: isSel ? currentLevelColor : _AppColors.divider,
-                                            width: isSel ? 1.5 : 1),
+                                          color: isSel ? const Color(0xFFE0F2FE) : Colors.white,
+                                          borderRadius: BorderRadius.circular(14),
+                                          border: Border.all(color: isSel ? currentLevelColor : const Color(0xFFE2E8F0), width: isSel ? 1.5 : 1),
+                                          boxShadow: [BoxShadow(color: currentLevelColor.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))],
                                         ),
                                         child: Row(children: [
                                           Container(
-                                            width: 34, height: 34,
-                                            decoration: BoxDecoration(
-                                              color: isSel ? currentLevelColor : _AppColors.surface,
-                                              borderRadius: BorderRadius.circular(9),
-                                            ),
-                                            child: Icon(levelIcon(tempLevelLabel),
-                                                size: 17, color: isSel ? Colors.white : currentLevelColor),
+                                            width: 44, height: 44,
+                                            alignment: Alignment.center,
+                                            decoration: BoxDecoration(color: currentLevelColor.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
+                                            child: Icon(levelIcon(tempLevelLabel), size: 20, color: currentLevelColor),
                                           ),
-                                          const SizedBox(width: 10),
+                                          const SizedBox(width: 12),
                                           Expanded(
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
-                                              mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                Text(item['name'] as String,
-                                                    style: GoogleFonts.poppins(
-                                                        fontSize: 13,
-                                                        fontWeight: FontWeight.w600,
-                                                        color: isSel ? currentLevelColor : Colors.black),
-                                                    overflow: TextOverflow.ellipsis),
+                                                Text(item['name'] ?? '-',
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: const Color(0xFF0F172A))),
                                                 const SizedBox(height: 4),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                                                  decoration: BoxDecoration(
-                                                    color: currentLevelColor.withValues(alpha: 0.12),
-                                                    borderRadius: BorderRadius.circular(20),
-                                                    border: Border.all(color: currentLevelColor.withValues(alpha: 0.4)),
-                                                  ),
-                                                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                                    Icon(levelIcon(tempLevelLabel), size: 9, color: currentLevelColor),
-                                                    const SizedBox(width: 3),
-                                                    Text(tempLevelLabel,
-                                                        style: TextStyle(
-                                                            fontSize: 9, fontWeight: FontWeight.w700, color: currentLevelColor)),
+                                                if (tempLevelLabel == _translatedLocationLevels[0])
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: currentLevelColor.withValues(alpha: 0.12),
+                                                      borderRadius: BorderRadius.circular(20),
+                                                      border: Border.all(color: currentLevelColor.withValues(alpha: 0.4)),
+                                                    ),
+                                                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                                      Icon(levelIcon(tempLevelLabel), size: 10, color: currentLevelColor),
+                                                      const SizedBox(width: 3),
+                                                      Text(tempLevelLabel, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: currentLevelColor)),
+                                                    ]),
+                                                  )
+                                                else if (parent.isNotEmpty)
+                                                  Row(children: [
+                                                    Icon(parentIcon(tempLevelLabel), size: 11, color: pColor),
+                                                    const SizedBox(width: 4),
+                                                    Expanded(
+                                                      child: Text(parent,
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                          style: TextStyle(fontSize: 10.5, color: pColor, fontWeight: FontWeight.w600)),
+                                                    ),
                                                   ]),
-                                                ),
                                               ],
                                             ),
                                           ),
-                                          const SizedBox(width: 6),
                                           if (isSel)
-                                            Icon(Icons.check_circle_rounded, color: currentLevelColor, size: 18),
+                                            Icon(Icons.check_circle_rounded, color: currentLevelColor, size: 20)
+                                          else
+                                            Icon(Icons.chevron_right_rounded, color: currentLevelColor, size: 20),
                                         ]),
                                       ),
                                     );
                                   }),
-                                  if (totalPages > 1)
-                                    Padding(
-                                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          GestureDetector(
-                                            onTap: safePage > 1 ? () => setSt(() => currentPage = safePage - 1) : null,
-                                            child: Icon(Icons.chevron_left_rounded,
-                                                size: 20, color: safePage > 1 ? outerAccent : Colors.grey.shade300),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Text('$safePage / $totalPages',
-                                              style: GoogleFonts.poppins(
-                                                  fontSize: 12, fontWeight: FontWeight.w700, color: outerAccent)),
-                                          const SizedBox(width: 10),
-                                          GestureDetector(
-                                            onTap: safePage < totalPages ? () => setSt(() => currentPage = safePage + 1) : null,
-                                            child: Icon(Icons.chevron_right_rounded,
-                                                size: 20, color: safePage < totalPages ? outerAccent : Colors.grey.shade300),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                ],
                               ],
                             ),
-                    ),
-                  ]),
-
-                  // BARRIER: TUTUP DROPDOWN JIKA TAP DI LUAR PANEL
-                  if (levelDropdownOpen)
-                    Positioned.fill(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () => setSt(() => levelDropdownOpen = false),
-                        child: Container(color: Colors.transparent),
-                      ),
-                    ),
-
-                  // DROPDOWN PANEL
-                  if (levelDropdownOpen)
-                    Positioned(
-                      top: dropdownTop,
-                      right: dropdownRight,
-                      width: 132,
-                      child: Material(
-                        elevation: 10,
-                        borderRadius: BorderRadius.circular(12),
-                        shadowColor: Colors.black.withValues(alpha: 0.25),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: _AppColors.divider),
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: _translatedLocationLevels.map((lvl) {
-                              final isSel = lvl == tempLevelLabel;
-                              final color = levelColor(lvl);
-                              return InkWell(
-                                onTap: () {
-                                  tempLevelLabel = lvl;
-                                  tempSelectedId = null;
-                                  loadingItems = true;
-                                  currentPage = 1;
-                                  searchCtrl.clear();
-                                  levelDropdownOpen = false;
-                                  setSt(() {});
-                                },
-                                child: Container(
-                                  margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                                  decoration: BoxDecoration(
-                                    color: isSel ? color.withValues(alpha: 0.12) : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(children: [
-                                    Icon(levelIcon(lvl), size: 16, color: isSel ? color : _AppColors.textSecondary),
-                                    const SizedBox(width: 8),
-                                    Expanded(child: Text(lvl,
-                                        style: TextStyle(
-                                            fontSize: 12.5,
-                                            fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
-                                            color: isSel ? color : _AppColors.textPrimary))),
-                                    if (isSel) Icon(Icons.check_rounded, size: 15, color: color),
-                                  ]),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ),
-                    ),
-                ]),
-              ),
+                          if (totalPages > 1 && filteredItems.isNotEmpty)
+                            _LevelPagePickerIndicator(
+                              currentPage: safePage,
+                              totalPages: totalPages,
+                              color: currentLevelColor,
+                              onPageChanged: (p) => setSt(() => currentPage = p),
+                            ),
+                        ]),
+                ),
+              ]),
             ),
           );
         },
@@ -2208,4 +2205,99 @@ class _DashedLinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+class _LevelPagePickerIndicator extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final Color color;
+  final ValueChanged<int> onPageChanged;
+
+  const _LevelPagePickerIndicator({
+    required this.currentPage,
+    required this.totalPages,
+    required this.color,
+    required this.onPageChanged,
+  });
+
+  static const int _maxVisibleButtons = 5;
+
+  List<int> _visiblePageNumbers() {
+    if (totalPages <= _maxVisibleButtons) {
+      return List.generate(totalPages, (i) => i + 1);
+    }
+    int start = currentPage - 2;
+    int end = currentPage + 2;
+    if (start < 1) { start = 1; end = _maxVisibleButtons; }
+    else if (end > totalPages) { end = totalPages; start = totalPages - (_maxVisibleButtons - 1); }
+    return List.generate(end - start + 1, (i) => start + i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canPrev = currentPage > 1;
+    final bool canNext = currentPage < totalPages;
+    final pageNumbers = _visiblePageNumbers();
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.12), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Row(children: [
+        GestureDetector(
+          onTap: canPrev ? () => onPageChanged(currentPage - 1) : null,
+          child: Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: canPrev ? color.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.arrow_back_ios_new_rounded, size: 15, color: canPrev ? color : Colors.grey.shade400),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Row(children: [
+            for (final p in pageNumbers) ...[
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => p == currentPage ? null : onPageChanged(p),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: p == currentPage ? color : color.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: p == currentPage ? null : Border.all(color: color.withValues(alpha: 0.25)),
+                    ),
+                    child: Text('$p',
+                        style: GoogleFonts.poppins(color: p == currentPage ? Colors.white : color, fontWeight: FontWeight.w800, fontSize: 13)),
+                  ),
+                ),
+              ),
+              if (p != pageNumbers.last) const SizedBox(width: 8),
+            ],
+          ]),
+        ),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: canNext ? () => onPageChanged(currentPage + 1) : null,
+          child: Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: canNext ? color.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.arrow_forward_ios_rounded, size: 15, color: canNext ? color : Colors.grey.shade400),
+          ),
+        ),
+      ]),
+    );
+  }
 }

@@ -339,8 +339,9 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                     child: Container(
                       padding: const EdgeInsets.all(5),
                       decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(20)),
-                      child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF64748B)),
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20)),
+                      child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFEF4444)),
                     ),
                   ),
                 ]),

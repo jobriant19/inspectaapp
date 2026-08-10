@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../../core/services/ai_recurring_service.dart';
 import '../../../../core/utils/jabatan_helper.dart';
+import '../../../admin/target/target/admin_target_pick_date.dart';
 import '../../finding/detail/finding_detail_screen.dart';
+import '../../home/card/finding_card.dart';
 import '../../home/card/kts_finding_card.dart';
 
 class _AppColors {
@@ -31,6 +34,45 @@ class RecurringTopic5R {
     this.imageUrl,
     required this.findings,
   });
+}
+
+Map<String, dynamic> _recurringLocationBadgeInfo(RecurringTopic5R topic) {
+  if (topic.findings.isNotEmpty) {
+    final item = topic.findings.first;
+    if (item['area'] != null && item['area']['nama_area'] != null) {
+      return {
+        'label': item['area']['nama_area'].toString(),
+        'icon': Icons.place_rounded,
+        'color': const Color(0xFFF472B6),
+      };
+    }
+    if (item['subunit'] != null && item['subunit']['nama_subunit'] != null) {
+      return {
+        'label': item['subunit']['nama_subunit'].toString(),
+        'icon': Icons.layers_rounded,
+        'color': const Color(0xFFFBBF24),
+      };
+    }
+    if (item['unit'] != null && item['unit']['nama_unit'] != null) {
+      return {
+        'label': item['unit']['nama_unit'].toString(),
+        'icon': Icons.business_rounded,
+        'color': const Color(0xFF6366F1),
+      };
+    }
+    if (item['lokasi'] != null && item['lokasi']['nama_lokasi'] != null) {
+      return {
+        'label': item['lokasi']['nama_lokasi'].toString(),
+        'icon': Icons.location_city_rounded,
+        'color': const Color(0xFF10B981),
+      };
+    }
+  }
+  return {
+    'label': topic.locationArea,
+    'icon': Icons.location_off_rounded,
+    'color': const Color(0xFF94A3B8),
+  };
 }
 
 class FiveRRecurringTab extends StatefulWidget {
@@ -64,6 +106,8 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
   String _recurringUserName = '';
 
   Future<List<RecurringTopic5R>>? _recurringFuture;
+  int _topicsCurrentPage = 1;
+  static const int _topicsPerPage = 7;
 
   @override
   void initState() {
@@ -73,6 +117,25 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
 
   void refresh() {
     setState(() {
+      _topicsCurrentPage = 1;
+      _recurringFuture = _fetchRecurringData();
+    });
+  }
+
+  void _resetPeriod() {
+    setState(() {
+      _recurringFrom = DateTime(DateTime.now().year - 1, DateTime.now().month);
+      _recurringTo = DateTime.now();
+      _topicsCurrentPage = 1;
+      _recurringFuture = _fetchRecurringData();
+    });
+  }
+
+  void _resetFinder() {
+    setState(() {
+      _recurringUserId = null;
+      _recurringUserName = '';
+      _topicsCurrentPage = 1;
       _recurringFuture = _fetchRecurringData();
     });
   }
@@ -131,7 +194,9 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
     );
   }
 
-  // ─── Period filter button (icon + teks center, tanpa arrow) ───────────────
+  // ─── Period filter button (putih, biru khas, X merah saat aktif) ──────────
+  static const Color _periodAccent = Color(0xFF1D72F3); // BIRU
+
   Widget _buildPeriodFilterButton(String periodLabel) {
     final isActive = !_isPeriodDefault;
     return GestureDetector(
@@ -140,35 +205,48 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: isActive ? _AppColors.primary : Colors.white,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive ? _AppColors.primary : const Color(0xFF7DD3FC),
-            width: 1.5,
-          ),
+          border: Border.all(color: _periodAccent, width: 1.5),
           boxShadow: [BoxShadow(
-              color: _AppColors.primary.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _periodAccent.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.calendar_month_rounded, size: 15,
-                color: isActive ? Colors.white : _AppColors.primary),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(periodLabel,
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
-                      color: isActive ? Colors.white : _AppColors.primary)),
+        child: Row(children: [
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.calendar_month_rounded, size: 15, color: _periodAccent),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(periodLabel,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _periodAccent)),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          if (isActive)
+            GestureDetector(
+              onTap: _resetPeriod,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                margin: const EdgeInsets.only(left: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.45)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            ),
+        ]),
       ),
     );
   }
 
-  // ─── Finder filter button (fill, tulisan center, arrow kanan) ─────────────
+  // ─── Finder filter button (putih, biru khas, X merah saat aktif) ──────────
   Widget _buildFinderFilterButton() {
     final isActive = _recurringUserId != null;
     final label = _recurringUserName.isEmpty ? widget.getTxt('semua_grup') : _recurringUserName;
@@ -178,25 +256,36 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: isActive ? _AppColors.primary : Colors.white,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive ? _AppColors.primary : const Color(0xFF7DD3FC),
-            width: 1.5,
-          ),
+          border: Border.all(color: _periodAccent, width: 1.5),
           boxShadow: [BoxShadow(
-              color: _AppColors.primary.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _periodAccent.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
+          const Icon(Icons.person_search_rounded, size: 15, color: _periodAccent),
+          const SizedBox(width: 5),
           Expanded(
             child: Text(label,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                    color: isActive ? Colors.white : _AppColors.primary)),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _periodAccent)),
           ),
-          Icon(Icons.keyboard_arrow_down_rounded,
-              color: isActive ? Colors.white : _AppColors.primary, size: 18),
+          if (isActive)
+            GestureDetector(
+              onTap: _resetFinder,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.45)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            )
+          else
+            const Icon(Icons.keyboard_arrow_down_rounded, color: _periodAccent, size: 18),
         ]),
       ),
     );
@@ -287,16 +376,16 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: _AppColors.surface,
+            color: _periodAccent.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _AppColors.primaryLight),
+            border: Border.all(color: _periodAccent.withValues(alpha: 0.25)),
           ),
           child: Row(children: [
             Container(
               width: 36,
               height: 36,
               decoration: const BoxDecoration(
-                  color: _AppColors.primary, shape: BoxShape.circle),
+                  color: _periodAccent, shape: BoxShape.circle),
               child: const Icon(Icons.autorenew_rounded,
                   color: Colors.white, size: 18),
             ),
@@ -306,20 +395,21 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(widget.getTxt('topik'),
-                      style: const TextStyle(
-                          fontSize: 14,
+                      style: GoogleFonts.poppins(
+                          fontSize: 14.5,
                           fontWeight: FontWeight.w800,
-                          color: _AppColors.textPrimary)),
-                  const SizedBox(height: 2),
+                          color: _periodAccent)),
+                  const SizedBox(height: 3),
                   Text(
                     widget.lang == 'ID'
                         ? 'Temuan dengan pola atau lokasi serupa dikelompokkan otomatis'
                         : widget.lang == 'ZH'
                             ? '相似模式或位置的发现会自动分组'
                             : 'Findings with similar patterns or locations are grouped automatically',
-                    style: const TextStyle(
-                        fontSize: 11,
-                        color: _AppColors.textSecondary,
+                    style: GoogleFonts.poppins(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: _periodAccent,
                         height: 1.3),
                   ),
                 ],
@@ -366,15 +456,58 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
               ],
             ));
           }
-          return ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            itemCount: topics.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 6),
-            itemBuilder: (_, i) => _buildRecurringTopicCard(topics[i]),
-          );
+
+          final totalTopicPages =
+              (topics.length / _topicsPerPage).ceil().clamp(1, 999999);
+          final safeTopicPage = _topicsCurrentPage.clamp(1, totalTopicPages);
+          final tStart = (safeTopicPage - 1) * _topicsPerPage;
+          final tEnd = (tStart + _topicsPerPage) > topics.length
+              ? topics.length
+              : tStart + _topicsPerPage;
+          final pagedTopics = topics.sublist(tStart, tEnd);
+
+          return Column(children: [
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                itemCount: pagedTopics.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 14),
+                itemBuilder: (_, i) => _buildRecurringTopicCard(pagedTopics[i]),
+              ),
+            ),
+            if (totalTopicPages > 1)
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                    12, 4, 12, MediaQuery.of(context).viewPadding.bottom + 10),
+                child: _RecurringPagePickerIndicator(
+                  currentPage: safeTopicPage,
+                  totalPages: totalTopicPages,
+                  color: _periodAccent,
+                  onPageChanged: (p) => setState(() => _topicsCurrentPage = p),
+                ),
+              )
+            else
+              SizedBox(height: MediaQuery.of(context).viewPadding.bottom + 10),
+          ]);
         },
       )),
     ]);
+  }
+  
+  Color _severityColor(int total) {
+    if (total >= 6) return const Color(0xFFEF4444);
+    if (total >= 3) return const Color(0xFFF59E0B);
+    return const Color(0xFF10B981);
+  }
+
+  String _severityLabel(int total) {
+    if (total >= 6) {
+      return widget.lang == 'ID' ? 'Sering Terjadi' : widget.lang == 'ZH' ? '频繁发生' : 'Frequent';
+    }
+    if (total >= 3) {
+      return widget.lang == 'ID' ? 'Cukup Sering' : widget.lang == 'ZH' ? '较常见' : 'Recurring';
+    }
+    return widget.lang == 'ID' ? 'Jarang' : widget.lang == 'ZH' ? '较少' : 'Occasional';
   }
 
   // TOPIC CARD
@@ -382,28 +515,8 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
     final isKts = topic.findings.isNotEmpty &&
         (topic.findings.first['jenis_temuan'] ?? '') == 'KTS Production';
 
-    final Color severityColor = topic.total >= 6
-        ? const Color(0xFFEF4444)
-        : topic.total >= 3
-            ? const Color(0xFFF59E0B)
-            : const Color(0xFF10B981);
-    final String severityLabel = topic.total >= 6
-        ? (widget.lang == 'ID'
-            ? 'Sering Terjadi'
-            : widget.lang == 'ZH'
-                ? '频繁发生'
-                : 'Frequent')
-        : topic.total >= 3
-            ? (widget.lang == 'ID'
-                ? 'Cukup Sering'
-                : widget.lang == 'ZH'
-                    ? '较常见'
-                    : 'Recurring')
-            : (widget.lang == 'ID'
-                ? 'Jarang'
-                : widget.lang == 'ZH'
-                    ? '较少'
-                    : 'Occasional');
+    final severityColor = _severityColor(topic.total);
+    final severityLabel = _severityLabel(topic.total);
     final String occurrenceLabel = widget.lang == 'ID'
         ? '${topic.total} kejadian'
         : widget.lang == 'ZH'
@@ -428,7 +541,7 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // Strip tingkat keseringan
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
               color: severityColor.withValues(alpha:0.10),
               borderRadius:
@@ -438,15 +551,15 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
               Icon(Icons.autorenew_rounded, size: 13, color: severityColor),
               const SizedBox(width: 4),
               Text(severityLabel,
-                  style: TextStyle(
+                  style: GoogleFonts.poppins(
                       fontSize: 10.5,
                       fontWeight: FontWeight.w700,
                       color: severityColor)),
               const Spacer(),
               Text(occurrenceLabel,
-                  style: TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
+                  style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
                       color: severityColor)),
             ]),
           ),
@@ -477,49 +590,68 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(topic.topic,
-                        style: const TextStyle(
-                            fontSize: 14,
+                        style: GoogleFonts.poppins(
+                            fontSize: 16,
                             fontWeight: FontWeight.w700,
-                            color: _AppColors.textPrimary),
+                            color: Colors.black),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 4),
-                    Row(children: [
-                      Icon(
-                        isKts ? Icons.tag_rounded : Icons.location_on_rounded,
-                        size: 13,
-                        color: isKts
-                            ? const Color(0xFFD97706)
-                            : _AppColors.primary,
-                      ),
-                      const SizedBox(width: 3),
-                      Expanded(
-                          child: Text(
-                        isKts
-                            ? '${widget.lang == 'ID' ? 'No. Order' : widget.lang == 'ZH' ? '订单号' : 'Order No.'}: ${topic.locationArea}'
-                            : topic.locationArea,
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: isKts
-                                ? const Color(0xFFD97706)
-                                : _AppColors.textSecondary),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      )),
-                    ]),
+                    const SizedBox(height: 6),
+                    if (isKts)
+                      Row(children: [
+                        const Icon(Icons.tag_rounded,
+                            size: 13, color: Color(0xFFD97706)),
+                        const SizedBox(width: 4),
+                        Expanded(
+                            child: Text(
+                          '${widget.lang == 'ID' ? 'No. Order' : widget.lang == 'ZH' ? '订单号' : 'Order No.'}: ${topic.locationArea}',
+                          style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFFD97706)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        )),
+                      ])
+                    else
+                      Builder(builder: (_) {
+                        final locInfo = _recurringLocationBadgeInfo(topic);
+                        final locColor = locInfo['color'] as Color;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: locColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: locColor.withValues(alpha: 0.4)),
+                          ),
+                          child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(locInfo['icon'] as IconData,
+                                    size: 12, color: locColor),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    locInfo['label'] as String,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: locColor),
+                                  ),
+                                ),
+                              ]),
+                        );
+                      }),
                   ]),
             )),
             Padding(
-              padding: const EdgeInsets.only(right: 10),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Text('${topic.total}',
-                    style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: severityColor)),
-                Icon(Icons.chevron_right_rounded,
-                    color: _AppColors.textMuted, size: 18),
-              ]),
+              padding: const EdgeInsets.only(right: 14),
+              child: Icon(Icons.chevron_right_rounded,
+                  color: Colors.black, size: 22),
             ),
           ]),
         ]),
@@ -527,481 +659,18 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
     );
   }
 
-  // DETAIL BOTTOM SHEET
+  // DETAIL FULL SCREEN
   void _showRecurringDetail(RecurringTopic5R topic) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        maxChildSize: 0.95,
-        minChildSize: 0.5,
-        builder: (_, scrollCtrl) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(children: [
-            Container(
-                margin: const EdgeInsets.only(top: 10),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2))),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(children: [
-                Expanded(
-                    child: Builder(builder: (context) {
-                  final isKts = topic.findings.isNotEmpty &&
-                      (topic.findings.first['jenis_temuan'] ?? '') ==
-                          'KTS Production';
-                  return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(topic.topic,
-                            style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: _AppColors.textPrimary)),
-                        const SizedBox(height: 2),
-                        Row(children: [
-                          Icon(
-                              isKts
-                                  ? Icons.tag_rounded
-                                  : Icons.location_on_rounded,
-                              size: 13,
-                              color: isKts
-                                  ? const Color(0xFFD97706)
-                                  : _AppColors.primary),
-                          const SizedBox(width: 3),
-                          Flexible(
-                              child: Text(
-                            isKts
-                                ? '${widget.lang == 'ID' ? 'No. Order' : widget.lang == 'ZH' ? '订单号' : 'Order No.'}: ${topic.locationArea}'
-                                : '${widget.getTxt('di_sekitar')} ${topic.locationArea}',
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: isKts
-                                    ? const Color(0xFFD97706)
-                                    : _AppColors.textSecondary),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          )),
-                        ]),
-                      ]);
-                })),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                      color: _AppColors.primaryLight,
-                      borderRadius: BorderRadius.circular(10)),
-                  child: Text(
-                      '${widget.getTxt('total')}: ${topic.total}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: _AppColors.primary)),
-                ),
-              ]),
-            ),
-            const Divider(height: 1, color: _AppColors.divider),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-              child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                      '${widget.getTxt('daftar_temuan')} (${topic.total})',
-                      style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: _AppColors.textPrimary))),
-            ),
-            Expanded(
-                child: ListView.separated(
-              controller: scrollCtrl,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              itemCount: topic.findings.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (_, i) =>
-                  _buildRecurringFindingCard(topic.findings[i]),
-            )),
-          ]),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _RecurringTopicDetailScreen(
+          topic: topic,
+          lang: widget.lang,
+          severityColor: _severityColor(topic.total),
+          severityLabel: _severityLabel(topic.total),
         ),
       ),
-    );
-  }
-
-  // FINDING CARD
-  Widget _buildRecurringFindingCard(Map<String, dynamic> data) {
-    final isKts = (data['jenis_temuan'] ?? '') == 'KTS Production';
-
-    if (isKts) {
-      return KtsFindingCard(
-        data: data,
-        lang: widget.lang,
-        onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (_) => FindingDetailScreen(
-                    initialData: data, lang: widget.lang))),
-      );
-    }
-
-    final imageUrl = (data['gambar_temuan'] ?? '').toString();
-    final title = (data['judul_temuan'] ?? '-').toString();
-    final status = (data['status_temuan'] ?? '').toString();
-    final s = status.toLowerCase();
-    final isFinished =
-        ['selesai', 'done', 'completed', 'closed'].any((e) => s.contains(e));
-    final isPro = data['is_pro'] == true;
-    final isVisitor = data['is_visitor'] == true;
-    final isEksekutif = data['is_eksekutif'] == true;
-    final poin = int.tryParse((data['poin_temuan'] ?? 0).toString()) ?? 0;
-    final isKtsCard = (data['jenis_temuan'] ?? '') == 'KTS Production';
-
-    final tanggal = () {
-      final v = data['created_at'];
-      if (v == null) return '-';
-      final dt = v is DateTime ? v : DateTime.tryParse(v.toString());
-      if (dt == null) return '-';
-      return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
-    }();
-
-    String location = '';
-    if (data['area'] != null) { location = data['area']['nama_area'] ?? ''; }
-    else if (data['subunit'] != null) { location = data['subunit']['nama_subunit'] ?? ''; }
-    else if (data['unit'] != null) { location = data['unit']['nama_unit'] ?? ''; }
-    else if (data['lokasi'] != null) { location = data['lokasi']['nama_lokasi'] ?? ''; }
-
-    final statusColor =
-        isFinished ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
-    final statusBg =
-        isFinished ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2);
-    final statusIcon = isFinished
-        ? Icons.check_circle_rounded
-        : Icons.pending_actions_rounded;
-    final statusText = isFinished
-        ? (widget.lang == 'ID'
-            ? 'Selesai'
-            : widget.lang == 'ZH'
-                ? '已完成'
-                : 'Finished')
-        : (widget.lang == 'ID'
-            ? 'Belum Selesai'
-            : widget.lang == 'ZH'
-                ? '未完成'
-                : 'Unfinished');
-
-    final List<Widget> badges = [];
-    if (isPro) {
-      badges.add(_buildBadge('PROFESIONAL',
-          const Color.fromARGB(255, 255, 244, 45), Colors.black));
-    }
-    if (isVisitor) {
-      badges.add(
-          _buildBadge('VISITOR', const Color(0xFF3B82F6), Colors.white));
-    }
-    if (isEksekutif) {
-      badges.add(
-          _buildBadge('EKSEKUTIF', const Color(0xFFEF4444), Colors.white));
-    }
-
-    final Color borderColor =
-        isKtsCard ? const Color(0xFFFDE68A) : const Color(0xFF38BDF8);
-
-    Widget? timeIndicator;
-    if (isFinished) {
-      final penyelesaianData = data['penyelesaian'] as Map<String, dynamic>?;
-      String completionDateText = '-';
-      if (penyelesaianData != null) {
-        final v = penyelesaianData['tanggal_selesai'];
-        if (v != null) {
-          final dt = DateTime.tryParse(v.toString());
-          if (dt != null) {
-            completionDateText =
-                '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
-          }
-        }
-      }
-      timeIndicator = Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-            color: statusBg,
-            borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(18),
-                bottomRight: Radius.circular(18))),
-        child: Row(children: [
-          Icon(Icons.event_available_rounded, size: 13, color: statusColor),
-          const SizedBox(width: 5),
-          Text(
-              '${widget.lang == 'ID' ? 'Selesai pada' : widget.lang == 'ZH' ? '完成于' : 'Completed on'} $completionDateText',
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: statusColor)),
-        ]),
-      );
-    } else {
-      final deadline =
-          DateTime.tryParse(data['target_waktu_selesai']?.toString() ?? '');
-      if (deadline != null) {
-        final now = DateTime.now();
-        final difference = deadline.difference(now);
-        Color timeColor;
-        String timeText;
-        IconData timeIcon;
-        if (difference.isNegative) {
-          timeColor = Colors.red.shade700;
-          timeIcon = Icons.warning_amber_rounded;
-          final abs = difference.abs();
-          if (abs.inDays > 0) {
-            timeText = widget.lang == 'ID'
-                ? '${abs.inDays} hari terlewat'
-                : widget.lang == 'ZH'
-                    ? '已超过 ${abs.inDays} 天'
-                    : '${abs.inDays} days overdue';
-          } else if (abs.inHours > 0) {
-            timeText = widget.lang == 'ID'
-                ? '${abs.inHours} jam terlewat'
-                : widget.lang == 'ZH'
-                    ? '已超过 ${abs.inHours} 小时'
-                    : '${abs.inHours} hours overdue';
-          } else {
-            timeText = widget.lang == 'ID'
-                ? '${abs.inMinutes} menit terlewat'
-                : widget.lang == 'ZH'
-                    ? '已超过 ${abs.inMinutes} 分钟'
-                    : '${abs.inMinutes} minutes overdue';
-          }
-        } else {
-          final sisaHari = difference.inDays;
-          if (sisaHari == 0) {
-            timeColor = Colors.orange.shade800;
-            timeIcon = Icons.today_rounded;
-            timeText = widget.lang == 'ID'
-                ? 'Deadline hari ini'
-                : widget.lang == 'ZH'
-                    ? '今天截止'
-                    : 'Due today';
-          } else {
-            timeColor = Colors.green.shade800;
-            timeIcon = Icons.timer_outlined;
-            timeText = widget.lang == 'ID'
-                ? '$sisaHari hari tersisa'
-                : widget.lang == 'ZH'
-                    ? '还剩 $sisaHari 天'
-                    : '$sisaHari days remaining';
-          }
-        }
-        timeIndicator = Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-              color: timeColor.withValues(alpha:0.08),
-              borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(18),
-                  bottomRight: Radius.circular(18))),
-          child: Row(children: [
-            Icon(timeIcon, size: 13, color: timeColor),
-            const SizedBox(width: 5),
-            Text(timeText,
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: timeColor)),
-          ]),
-        );
-      }
-    }
-
-    return GestureDetector(
-      onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) =>
-                  FindingDetailScreen(initialData: data, lang: widget.lang))),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: borderColor, width: 1.5),
-          boxShadow: [
-            BoxShadow(
-                color: borderColor.withValues(alpha:0.18),
-                blurRadius: 12,
-                offset: const Offset(0, 5))
-          ],
-        ),
-        child: Column(children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(11, 11, 11, 11),
-            child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 88,
-                    height: 88,
-                    decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(13),
-                        border: Border.all(
-                            color: Colors.black.withValues(alpha:0.12),
-                            width: 1.5)),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(11.5),
-                      child: Container(
-                        color: const Color(0xFFF8FAFC),
-                        child: imageUrl.isNotEmpty
-                            ? Image.network(imageUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.broken_image_rounded,
-                                    color: Colors.grey))
-                            : const Icon(Icons.image_outlined,
-                                color: Colors.grey, size: 26),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                        Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                  child: Text(title,
-                                      style: const TextStyle(
-                                          fontSize: 14,
-                                          height: 1.3,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF0F172A)),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis)),
-                              const SizedBox(width: 6),
-                              Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 4),
-                                  decoration: BoxDecoration(
-                                      color: const Color(0xFF38BDF8)
-                                          .withValues(alpha:0.15),
-                                      borderRadius:
-                                          BorderRadius.circular(8),
-                                      border: Border.all(
-                                          color: const Color(0xFF38BDF8),
-                                          width: 1.1)),
-                                  child: const Text('5R',
-                                      style: TextStyle(
-                                          color: Color(0xFF38BDF8),
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 9))),
-                              if (poin > 0) ...[
-                                const SizedBox(width: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 4),
-                                  decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                          colors: [
-                                            Color(0xFFEF4444),
-                                            Color(0xFFFF6B3D)
-                                          ]),
-                                      borderRadius:
-                                          BorderRadius.circular(10)),
-                                  child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(
-                                            Icons
-                                                .local_fire_department_rounded,
-                                            size: 10,
-                                            color: Colors.white),
-                                        const SizedBox(width: 2),
-                                        Text('$poin',
-                                            style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 10)),
-                                      ]),
-                                ),
-                              ],
-                            ]),
-                        const SizedBox(height: 5),
-                        if (badges.isNotEmpty)
-                          Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Wrap(
-                                  spacing: 4,
-                                  runSpacing: 3,
-                                  children: badges)),
-                        Row(children: [
-                          const Icon(Icons.map,
-                              size: 12, color: Color(0xFF94A3B8)),
-                          const SizedBox(width: 4),
-                          Expanded(
-                              child: Text(location,
-                                  style: const TextStyle(
-                                      fontSize: 11.5,
-                                      color: Color(0xFF475569)),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis)),
-                        ]),
-                        const SizedBox(height: 6),
-                        Row(children: [
-                          const Icon(Icons.calendar_today_rounded,
-                              size: 11, color: Color(0xFF94A3B8)),
-                          const SizedBox(width: 4),
-                          Text(tanggal,
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF64748B),
-                                  fontWeight: FontWeight.w500)),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                                color: statusBg,
-                                borderRadius: BorderRadius.circular(16)),
-                            child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(statusIcon,
-                                      size: 11, color: statusColor),
-                                  const SizedBox(width: 3),
-                                  Text(statusText,
-                                      style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                          color: statusColor)),
-                                ]),
-                          ),
-                        ]),
-                      ])),
-                ]),
-          ),
-          if (timeIndicator != null) timeIndicator,
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildBadge(String text, Color bg, Color textColor) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-      decoration:
-          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(5)),
-      child: Text(text,
-          style: TextStyle(
-              color: textColor,
-              fontSize: 8,
-              fontWeight: FontWeight.w900)),
     );
   }
 
@@ -1062,162 +731,243 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
     );
   }
 
+  Widget _buildUserPickerShimmer() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[200]!,
+      highlightColor: Colors.grey[50]!,
+      child: ListView.builder(
+        padding: const EdgeInsets.only(top: 6, bottom: 12),
+        itemCount: 6,
+        itemBuilder: (_, __) => Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _AppColors.divider),
+          ),
+          child: Row(children: [
+            Container(
+                width: 40, height: 40,
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(height: 13, width: 130, color: Colors.white),
+                  const SizedBox(height: 6),
+                  Container(height: 10, width: 75, color: Colors.white),
+                ],
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLocationPickerShimmer() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[200]!,
+      highlightColor: Colors.grey[50]!,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        itemCount: 6,
+        itemBuilder: (_, __) => Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(children: [
+            Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: Colors.white)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(height: 14, width: 150, color: Colors.white),
+                  const SizedBox(height: 6),
+                  Container(height: 10, width: 90, color: Colors.white),
+                ],
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
   // FILTER DIALOG
   void _showPeriodPicker() async {
     DateTime tempFrom = _recurringFrom;
     DateTime tempTo = _recurringTo;
-    final locale = widget.lang == 'ID'
-        ? 'id_ID'
-        : (widget.lang == 'EN' ? 'en_US' : 'zh_CN');
+
+    Widget dateField({
+      required String label,
+      required IconData labelIcon,
+      required DateTime value,
+      required VoidCallback onTap,
+    }) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(labelIcon, size: 13, color: _periodAccent),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: const TextStyle(
+                  fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: onTap,
+            child: Container(
+              height: 48,
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: _periodAccent.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _periodAccent.withValues(alpha: 0.35)),
+              ),
+              child: Row(children: [
+                Icon(Icons.event_rounded, size: 17, color: _periodAccent),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    DateFormat('EEE, d MMM yyyy').format(value),
+                    style: GoogleFonts.poppins(
+                        fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF0C3A8C)),
+                  ),
+                ),
+                Icon(Icons.keyboard_arrow_right_rounded, size: 18, color: _periodAccent),
+              ]),
+            ),
+          ),
+        ],
+      );
+    }
 
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-          builder: (ctx, setSt) => Dialog(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20)),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: _AppColors.primaryLight, width: 1.5)),
-                  child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          const Icon(Icons.date_range_rounded,
-                              color: _AppColors.primary, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                              child: Text(widget.getTxt('pilih_periode'),
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                      color: _AppColors.textPrimary))),
-                          IconButton(
-                              icon: const Icon(Icons.close, size: 18),
-                              onPressed: () => Navigator.pop(ctx),
-                              padding: EdgeInsets.zero),
-                        ]),
-                        const SizedBox(height: 16),
-                        Text(widget.getTxt('dari'),
-                            style: const TextStyle(
-                                fontSize: 12,
-                                color: _AppColors.textSecondary,
-                                fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 6),
-                        _buildYearMonthPicker(tempFrom, locale,
-                            (d) => setSt(() => tempFrom = d)),
-                        const SizedBox(height: 14),
-                        Text(widget.getTxt('sampai'),
-                            style: const TextStyle(
-                                fontSize: 12,
-                                color: _AppColors.textSecondary,
-                                fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 6),
-                        _buildYearMonthPicker(
-                            tempTo, locale, (d) => setSt(() => tempTo = d)),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              setState(() {
-                                _recurringFrom = tempFrom;
-                                _recurringTo = tempTo;
-                                _recurringFuture = _fetchRecurringData();
-                              });
-                              Navigator.pop(ctx);
-                            },
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: _AppColors.primary,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(12))),
-                            child: Text(widget.getTxt('terapkan')),
-                          ),
-                        ),
-                      ]),
-                ),
-              )),
-    );
-  }
+        builder: (ctx, setSt) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _periodAccent.withValues(alpha: 0.2), width: 1.5),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                        color: _periodAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.date_range_rounded, color: _periodAccent, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      widget.getTxt('pilih_periode'),
+                      style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF0C3A8C)),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20)),
+                      child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFEF4444)),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 18),
 
-  Widget _buildYearMonthPicker(
-      DateTime current, String locale, ValueChanged<DateTime> onChange) {
-    final months = List.generate(
-        12,
-        (i) =>
-            DateFormat.MMM(locale).format(DateTime(2000, i + 1)));
-    final years =
-        List.generate(5, (i) => DateTime.now().year - 2 + i);
-    return Row(children: [
-      Expanded(
-        flex: 3,
-        child: Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-              color: _AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _AppColors.primaryLight)),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<int>(
-              value: current.month - 1,
-              icon: const Icon(Icons.keyboard_arrow_down,
-                  size: 18, color: _AppColors.primary),
-              style: const TextStyle(
-                  fontSize: 13,
-                  color: _AppColors.textPrimary,
-                  fontWeight: FontWeight.w600),
-              dropdownColor: Colors.white,
-              items: List.generate(
-                  12,
-                  (i) => DropdownMenuItem(
-                      value: i, child: Text(months[i]))),
-              onChanged: (v) {
-                if (v != null) onChange(DateTime(current.year, v + 1));
-              },
+                dateField(
+                  label: widget.getTxt('dari'),
+                  labelIcon: Icons.play_circle_outline_rounded,
+                  value: tempFrom,
+                  onTap: () async {
+                    final picked = await showAdminTargetDatePicker(
+                      context: ctx,
+                      lang: widget.lang,
+                      initialDate: tempFrom,
+                    );
+                    if (picked != null) {
+                      setSt(() {
+                        tempFrom = picked;
+                        if (tempTo.isBefore(tempFrom)) tempTo = tempFrom;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                dateField(
+                  label: widget.getTxt('sampai'),
+                  labelIcon: Icons.flag_circle_rounded,
+                  value: tempTo,
+                  onTap: () async {
+                    final picked = await showAdminTargetDatePicker(
+                      context: ctx,
+                      lang: widget.lang,
+                      initialDate: tempTo,
+                    );
+                    if (picked != null) {
+                      setSt(() {
+                        tempTo = picked;
+                        if (tempFrom.isAfter(tempTo)) tempFrom = tempTo;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 20),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _recurringFrom = tempFrom;
+                        _recurringTo = tempTo;
+                        _topicsCurrentPage = 1;
+                        _recurringFuture = _fetchRecurringData();
+                      });
+                      Navigator.pop(ctx);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _periodAccent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(widget.getTxt('terapkan'),
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       ),
-      const SizedBox(width: 8),
-      Expanded(
-        flex: 2,
-        child: Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-              color: _AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _AppColors.primaryLight)),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<int>(
-              value: current.year,
-              icon: const Icon(Icons.keyboard_arrow_down,
-                  size: 18, color: _AppColors.primary),
-              style: const TextStyle(
-                  fontSize: 13,
-                  color: _AppColors.textPrimary,
-                  fontWeight: FontWeight.w600),
-              dropdownColor: Colors.white,
-              items: years
-                  .map((y) => DropdownMenuItem(
-                      value: y, child: Text('$y')))
-                  .toList(),
-              onChanged: (v) {
-                if (v != null) onChange(DateTime(v, current.month));
-              },
-            ),
-          ),
-        ),
-      ),
-    ]);
+    );
   }
 
   // ─── Popup pemilih lokasi (Lokasi/Unit/Subunit/Area) untuk filter finder ──
@@ -1228,7 +978,13 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
     List<Map<String, String>> locItems = [];
     bool loading = true;
     bool initialized = false;
+    int locCurrentPage = 1; // ⬅️ pagination
+    const int locPerPage = 5; // ⬅️ 5 card per halaman
     final searchCtrl = TextEditingController();
+    const headerAccent = Color(0xFF1D72F3);
+    const levelColors = [Color(0xFF10B981), Color(0xFF6366F1), Color(0xFFFBBF24), Color(0xFFF472B6)];
+
+    Color colorForLevel(String lvl) => levelColors[['Lokasi', 'Unit', 'Subunit', 'Area'].indexOf(lvl).clamp(0, 3)];
 
     Future<void> fetchItems(void Function(void Function()) setSt) async {
       loading = true;
@@ -1247,6 +1003,7 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
         locItems = [];
       }
       loading = false;
+      locCurrentPage = 1;
       setSt(() {});
     }
 
@@ -1271,74 +1028,85 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
           final filteredLoc = q.isEmpty
               ? locItems
               : locItems.where((e) => e['name']!.toLowerCase().contains(q)).toList();
+          final currentColor = colorForLevel(tempLevel);
+
+          final totalLocPages = filteredLoc.isEmpty ? 1 : (filteredLoc.length / locPerPage).ceil();
+          final safeLocPage = locCurrentPage.clamp(1, totalLocPages);
+          final locStart = (safeLocPage - 1) * locPerPage;
+          final locEnd = (locStart + locPerPage) > filteredLoc.length ? filteredLoc.length : locStart + locPerPage;
+          final pagedLoc = filteredLoc.isEmpty ? <Map<String, String>>[] : filteredLoc.sublist(locStart, locEnd);
 
           return Dialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Container(
-              width: 320,
-              height: MediaQuery.of(parentContext).size.height * 0.7,
+              width: 340, // ⬅️ disamakan dengan popup Select Finders
+              height: MediaQuery.of(parentContext).size.height * 0.78, // ⬅️ disamakan
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _AppColors.primaryLight, width: 1.5),
+                border: Border.all(color: headerAccent.withValues(alpha: 0.25), width: 1.5),
               ),
               child: Column(children: [
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-                  decoration: const BoxDecoration(
-                    color: _AppColors.primaryLight,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
                   child: Row(children: [
-                    const Icon(Icons.tune_rounded, color: _AppColors.primary, size: 20),
-                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: headerAccent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(Icons.tune_rounded, color: headerAccent, size: 20),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
-                        child: Text(widget.getTxt('pilih_lokasi'),
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 15, color: _AppColors.textPrimary))),
-                    IconButton(
-                        icon: const Icon(Icons.close, size: 18, color: _AppColors.textSecondary),
-                        onPressed: () => Navigator.pop(ctx),
-                        padding: EdgeInsets.zero),
+                      child: Text(widget.getTxt('pilih_lokasi'),
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 15, color: headerAccent)),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha: 0.1), shape: BoxShape.circle),
+                        child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
+                      ),
+                    ),
                   ]),
                 ),
+                const SizedBox(height: 10),
+                Container(height: 1, color: const Color(0xFFF1F5F9)),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: _AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _AppColors.primaryLight),
-                    ),
-                    padding: const EdgeInsets.all(4),
-                    child: Row(children: ['Lokasi', 'Unit', 'Subunit', 'Area'].map((lvl) {
+                  child: Row(
+                    children: List.generate(4, (index) {
+                      final lvl = ['Lokasi', 'Unit', 'Subunit', 'Area'][index];
                       final isSel = lvl == tempLevel;
+                      final color = levelColors[index];
                       return Expanded(
                         child: GestureDetector(
                           onTap: () {
                             tempLevel = lvl;
                             tempId = null;
                             searchCtrl.clear();
+                            locCurrentPage = 1;
                             fetchItems(setSt);
                           },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            height: 34,
+                          child: Container(
                             margin: const EdgeInsets.symmetric(horizontal: 2),
+                            padding: const EdgeInsets.symmetric(vertical: 9),
                             decoration: BoxDecoration(
-                              color: isSel ? _AppColors.primary : Colors.transparent,
+                              color: isSel ? color : Colors.white,
                               borderRadius: BorderRadius.circular(9),
+                              border: Border.all(color: isSel ? color : const Color(0xFFE2E8F0)),
                             ),
-                            child: Center(
-                                child: Text(_levelLabel(lvl),
-                                    style: TextStyle(
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: isSel ? Colors.white : _AppColors.textSecondary))),
+                            child: Column(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(levelIcon(lvl), size: 14, color: isSel ? Colors.white : color),
+                              const SizedBox(height: 2),
+                              Text(_levelLabel(lvl),
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: isSel ? Colors.white : const Color(0xFF475569))),
+                            ]),
                           ),
                         ),
                       );
-                    }).toList()),
+                    }),
                   ),
                 ),
                 Padding(
@@ -1348,19 +1116,31 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: _AppColors.primary.withValues(alpha:0.35), width: 1.3),
+                      border: Border.all(color: currentColor.withValues(alpha: 0.35), width: 1.3),
                     ),
                     child: TextField(
                       controller: searchCtrl,
-                      onChanged: (_) => setSt(() {}),
-                      style: const TextStyle(fontSize: 13, color: _AppColors.textPrimary),
+                      textAlignVertical: TextAlignVertical.center, // ⬅️ placeholder ditengahkan
+                      onChanged: (_) => setSt(() { locCurrentPage = 1; }),
+                      style: GoogleFonts.poppins(fontSize: 13, color: Colors.black, fontWeight: FontWeight.w600),
                       decoration: InputDecoration(
                         hintText: widget.getTxt('cari'),
                         hintStyle: const TextStyle(fontSize: 12.5, color: _AppColors.textMuted),
-                        prefixIcon: const Icon(Icons.search_rounded, color: _AppColors.primary, size: 18),
+                        prefixIcon: Icon(Icons.search_rounded, color: currentColor, size: 18),
+                        suffixIcon: searchCtrl.text.isNotEmpty
+                            ? GestureDetector(
+                                onTap: () => setSt(() { searchCtrl.clear(); locCurrentPage = 1; }),
+                                child: Container(
+                                  margin: const EdgeInsets.all(9),
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha: 0.1), shape: BoxShape.circle),
+                                  child: const Icon(Icons.close_rounded, size: 13, color: Color(0xFFEF4444)),
+                                ),
+                              )
+                            : null,
                         border: InputBorder.none,
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        contentPadding: EdgeInsets.zero, // ⬅️ dari symmetric(vertical:10)
                       ),
                     ),
                   ),
@@ -1368,87 +1148,120 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
                 const Divider(height: 1, color: _AppColors.divider),
                 Expanded(
                   child: loading
-                      ? const Center(child: CircularProgressIndicator(color: _AppColors.primary, strokeWidth: 2))
-                      : ListView(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          children: [
-                            InkWell(
-                              onTap: () => Navigator.pop(ctx, {'level': tempLevel, 'id': null, 'name': null}),
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: tempId == null ? _AppColors.primary.withValues(alpha:0.10) : Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                      color: tempId == null ? _AppColors.primary : _AppColors.divider,
-                                      width: tempId == null ? 1.5 : 1),
-                                ),
-                                child: Row(children: [
-                                  Icon(Icons.apps_rounded,
-                                      size: 18, color: tempId == null ? _AppColors.primary : _AppColors.textSecondary),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                      child: Text('${widget.getTxt('semua_grup_anggota')} (${_levelLabel(tempLevel)})',
-                                          style: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: tempId == null ? FontWeight.bold : FontWeight.w500,
-                                              color: tempId == null ? _AppColors.primary : _AppColors.textPrimary))),
-                                  if (tempId == null)
-                                    const Icon(Icons.check_circle_rounded, color: _AppColors.primary, size: 18),
-                                ]),
-                              ),
-                            ),
-                            if (filteredLoc.isEmpty)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 24),
-                                child: Center(
-                                    child: Text(widget.getTxt('tidak_ada_data_level'),
-                                        style: const TextStyle(fontSize: 12.5, color: _AppColors.textSecondary))),
-                              )
-                            else
-                              ...filteredLoc.map((item) {
-                                final isSel = item['id'] == tempId;
-                                return InkWell(
-                                  onTap: () =>
-                                      Navigator.pop(ctx, {'level': tempLevel, 'id': item['id'], 'name': item['name']}),
+                      ? _buildLocationPickerShimmer() // ⬅️ shimmer, bukan circular lagi
+                      : Column(children: [
+                          Expanded(
+                            child: ListView(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              children: [
+                                InkWell(
+                                  onTap: () => Navigator.pop(ctx, {'level': tempLevel, 'id': null, 'name': null}),
                                   child: Container(
                                     margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
-                                      color: isSel ? _AppColors.primary.withValues(alpha:0.10) : Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                          color: isSel ? _AppColors.primary : _AppColors.divider,
-                                          width: isSel ? 1.5 : 1),
+                                      color: tempId == null ? currentColor.withValues(alpha:0.10) : Colors.white,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: tempId == null ? currentColor : _AppColors.divider, width: tempId == null ? 1.5 : 1),
                                     ),
                                     child: Row(children: [
                                       Container(
-                                        width: 32,
-                                        height: 32,
-                                        decoration: BoxDecoration(
-                                          color: isSel ? _AppColors.primary : _AppColors.surface,
-                                          borderRadius: BorderRadius.circular(9),
-                                        ),
-                                        child: Icon(levelIcon(tempLevel),
-                                            size: 16, color: isSel ? Colors.white : _AppColors.primary),
+                                        width: 44, height: 44,
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(color: currentColor.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
+                                        child: Icon(Icons.map_rounded, size: 20, color: currentColor),
                                       ),
-                                      const SizedBox(width: 10),
+                                      const SizedBox(width: 12),
                                       Expanded(
-                                          child: Text(item['name']!,
-                                              style: TextStyle(
-                                                  fontSize: 13,
-                                                  fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
-                                                  color: isSel ? _AppColors.primary : _AppColors.textPrimary),
-                                              overflow: TextOverflow.ellipsis)),
-                                      if (isSel)
-                                        const Icon(Icons.check_circle_rounded, color: _AppColors.primary, size: 18),
+                                          child: Text('${widget.getTxt('semua_grup_anggota')} (${_levelLabel(tempLevel)})',
+                                              style: GoogleFonts.poppins(fontSize: 13, fontWeight: tempId == null ? FontWeight.w700 : FontWeight.w600, color: tempId == null ? currentColor : _AppColors.textPrimary))),
+                                      if (tempId == null) Icon(Icons.check_circle_rounded, color: currentColor, size: 18),
                                     ]),
                                   ),
-                                );
-                              }),
-                          ],
-                        ),
+                                ),
+                                if (filteredLoc.isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+                                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                      Image.asset(
+                                        'assets/images/team_illustration.png',
+                                        height: 100,
+                                        fit: BoxFit.contain,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          width: 76, height: 76,
+                                          decoration: BoxDecoration(color: currentColor.withValues(alpha: 0.08), shape: BoxShape.circle),
+                                          child: Icon(Icons.search_off_rounded, size: 32, color: currentColor.withValues(alpha: 0.4)),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(widget.getTxt('tidak_ada_data_level'),
+                                          style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: currentColor),
+                                          textAlign: TextAlign.center),
+                                      if (searchCtrl.text.isNotEmpty) ...[
+                                        const SizedBox(height: 12),
+                                        GestureDetector(
+                                          onTap: () => setSt(() { searchCtrl.clear(); locCurrentPage = 1; }),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                                            decoration: BoxDecoration(
+                                              color: currentColor.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(30),
+                                              border: Border.all(color: currentColor.withValues(alpha: 0.35)),
+                                            ),
+                                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                              Icon(Icons.refresh_rounded, size: 14, color: currentColor),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                widget.lang == 'EN' ? 'Clear search' : widget.lang == 'ZH' ? '清除搜索' : 'Hapus pencarian',
+                                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: currentColor),
+                                              ),
+                                            ]),
+                                          ),
+                                        ),
+                                      ],
+                                    ]),
+                                  )
+                                else
+                                  ...pagedLoc.map((item) {
+                                    final isSel = item['id'] == tempId;
+                                    return InkWell(
+                                      onTap: () => Navigator.pop(ctx, {'level': tempLevel, 'id': item['id'], 'name': item['name']}),
+                                      child: Container(
+                                        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: isSel ? currentColor.withValues(alpha:0.10) : Colors.white,
+                                          borderRadius: BorderRadius.circular(14),
+                                          border: Border.all(color: isSel ? currentColor : _AppColors.divider, width: isSel ? 1.5 : 1),
+                                        ),
+                                        child: Row(children: [
+                                          Container(
+                                            width: 44, height: 44,
+                                            alignment: Alignment.center,
+                                            decoration: BoxDecoration(color: currentColor.withValues(alpha: isSel ? 0.20 : 0.14), borderRadius: BorderRadius.circular(12)),
+                                            child: Icon(levelIcon(tempLevel), size: 20, color: currentColor),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                              child: Text(item['name']!,
+                                                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: isSel ? currentColor : _AppColors.textPrimary), // ⬅️ nama lokasi poppins w600
+                                                  overflow: TextOverflow.ellipsis)),
+                                          if (isSel) Icon(Icons.check_circle_rounded, color: currentColor, size: 18),
+                                        ]),
+                                      ),
+                                    );
+                                  }),
+                              ],
+                            ),
+                          ),
+                          if (totalLocPages > 1 && filteredLoc.isNotEmpty)
+                            _RecurringPagePickerIndicator(
+                              currentPage: safeLocPage,
+                              totalPages: totalLocPages,
+                              color: currentColor,
+                              onPageChanged: (p) => setSt(() => locCurrentPage = p),
+                            ),
+                        ]),
                 ),
               ]),
             ),
@@ -1467,7 +1280,27 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
     List<Map<String, dynamic>> filtered = [];
     bool loadingUsers = true;
     bool initialized = false;
+    int currentPage = 1;
+    const int perPage = 7; // ⬅️ diubah jadi 7 card per halaman
+    const headerAccent = Color(0xFF1D72F3);
     final ctrl = TextEditingController();
+
+    const finderLevelColors = [
+      Color(0xFF10B981), // Lokasi
+      Color(0xFF6366F1), // Unit
+      Color(0xFFFBBF24), // Subunit
+      Color(0xFFF472B6), // Area
+    ];
+    Color colorForLocLevel(String lvl) =>
+        finderLevelColors[['Lokasi', 'Unit', 'Subunit', 'Area'].indexOf(lvl).clamp(0, 3)];
+    IconData iconForLocLevel(String lvl) {
+      switch (lvl) {
+        case 'Unit': return Icons.business_rounded;
+        case 'Subunit': return Icons.layers_rounded;
+        case 'Area': return Icons.place_rounded;
+        default: return Icons.location_city_rounded;
+      }
+    }
 
     Future<void> loadUsers(void Function(void Function()) setSt) async {
       loadingUsers = true;
@@ -1496,6 +1329,7 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
       filtered = q.isEmpty
           ? List.from(items)
           : items.where((e) => (e['nama'] as String).toLowerCase().contains(q)).toList();
+      currentPage = 1;
       loadingUsers = false;
       setSt(() {});
     }
@@ -1510,38 +1344,51 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
             initialized = true;
             loadUsers(setSt);
           }
+
+          final totalPages = filtered.isEmpty ? 1 : (filtered.length / perPage).ceil();
+          final safePage = currentPage.clamp(1, totalPages);
+          final startIdx = (safePage - 1) * perPage;
+          final endIdx = (startIdx + perPage) > filtered.length ? filtered.length : startIdx + perPage;
+          final pageItems = filtered.isEmpty ? <Map<String, dynamic>>[] : filtered.sublist(startIdx, endIdx);
+
           return Dialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Container(
               width: 340,
-              height: MediaQuery.of(context).size.height * 0.72,
+              height: MediaQuery.of(context).size.height * 0.78,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _AppColors.primaryLight, width: 1.5),
+                border: Border.all(color: headerAccent.withValues(alpha: 0.25), width: 1.5),
               ),
               child: Column(children: [
                 // HEADER
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-                  decoration: const BoxDecoration(
-                    color: _AppColors.primaryLight,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
                   child: Row(children: [
-                    const Icon(Icons.person_search_rounded, color: _AppColors.primary, size: 20),
-                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: headerAccent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(Icons.person_search_rounded, color: headerAccent, size: 20),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
-                        child: Text(widget.getTxt('pilih_penemu'),
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 15, color: _AppColors.textPrimary))),
-                    IconButton(
-                        icon: const Icon(Icons.close, size: 18, color: _AppColors.textSecondary),
-                        onPressed: () => Navigator.pop(ctx),
-                        padding: EdgeInsets.zero),
+                      child: Text(widget.getTxt('pilih_penemu'),
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 15, color: headerAccent)),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha: 0.1), shape: BoxShape.circle),
+                        child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
+                      ),
+                    ),
                   ]),
                 ),
-                // SEARCH + FILTER LOKASI (BERSEBELAHAN)
+                const SizedBox(height: 12),
+                Container(height: 1, color: const Color(0xFFF1F5F9)),
+                // SEARCH + FILTER LOKASI
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
                   child: Row(children: [
@@ -1551,33 +1398,43 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: _AppColors.primary.withValues(alpha:0.35), width: 1.3),
-                          boxShadow: [
-                            BoxShadow(
-                                color: _AppColors.primary.withValues(alpha:0.08),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2))
-                          ],
+                          border: Border.all(color: headerAccent.withValues(alpha: 0.35), width: 1.3),
+                          boxShadow: [BoxShadow(color: headerAccent.withValues(alpha: 0.08), blurRadius: 6, offset: const Offset(0, 2))],
                         ),
                         child: TextField(
                           controller: ctrl,
+                          textAlignVertical: TextAlignVertical.center, // ⬅️ placeholder ditengahkan
                           onChanged: (q) {
                             filtered = q.trim().isEmpty
                                 ? List.from(items)
-                                : items
-                                    .where((e) => (e['nama'] as String).toLowerCase().contains(q.toLowerCase()))
-                                    .toList();
+                                : items.where((e) => (e['nama'] as String).toLowerCase().contains(q.toLowerCase())).toList();
+                            currentPage = 1;
                             setSt(() {});
                           },
-                          style: const TextStyle(
-                              fontSize: 13, color: _AppColors.textPrimary, fontWeight: FontWeight.w500),
+                          style: GoogleFonts.poppins(fontSize: 13, color: Colors.black, fontWeight: FontWeight.w600),
                           decoration: InputDecoration(
                             hintText: widget.getTxt('cari'),
-                            hintStyle: const TextStyle(fontSize: 12.5, color: _AppColors.textMuted),
-                            prefixIcon: const Icon(Icons.search_rounded, color: _AppColors.primary, size: 19),
+                            hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFFBDBDBD)),
+                            prefixIcon: const Icon(Icons.search_rounded, color: headerAccent, size: 19),
+                            suffixIcon: ctrl.text.isNotEmpty
+                                ? GestureDetector(
+                                    onTap: () {
+                                      ctrl.clear();
+                                      filtered = List.from(items);
+                                      currentPage = 1;
+                                      setSt(() {});
+                                    },
+                                    child: Container(
+                                      margin: const EdgeInsets.all(10),
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha: 0.1), shape: BoxShape.circle),
+                                      child: const Icon(Icons.close_rounded, size: 14, color: Color(0xFFEF4444)),
+                                    ),
+                                  )
+                                : null,
                             border: InputBorder.none,
                             isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                            contentPadding: EdgeInsets.zero, // ⬅️ dari symmetric(vertical:12)
                           ),
                         ),
                       ),
@@ -1597,165 +1454,553 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: currentLocId != null ? _AppColors.primary : Colors.white,
+                          color: currentLocId != null ? headerAccent : Colors.white,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: currentLocId != null
-                                  ? _AppColors.primary
-                                  : _AppColors.primary.withValues(alpha:0.35),
-                              width: 1.3),
-                          boxShadow: [
-                            BoxShadow(
-                                color: _AppColors.primary.withValues(alpha:0.08),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2))
-                          ],
+                          border: Border.all(color: currentLocId != null ? headerAccent : headerAccent.withValues(alpha: 0.35), width: 1.3),
+                          boxShadow: [BoxShadow(color: headerAccent.withValues(alpha: 0.08), blurRadius: 6, offset: const Offset(0, 2))],
                         ),
-                        child: Icon(Icons.map,
-                            color: currentLocId != null ? Colors.white : _AppColors.primary, size: 20),
+                        child: Icon(Icons.map, color: currentLocId != null ? Colors.white : headerAccent, size: 20),
                       ),
                     ),
                   ]),
                 ),
-                // INFO FILTER LOKASI AKTIF + COUNT
+                // INFO COUNT (label menarik + icon) + LOKASI AKTIF
                 Padding(
                   padding: const EdgeInsets.only(left: 14, right: 14, bottom: 4),
-                  child: Row(children: [
-                    Text('${filtered.length} ${widget.lang == 'ID' ? 'penemu' : widget.lang == 'ZH' ? '发现者' : 'finders'}',
-                        style: const TextStyle(fontSize: 11, color: _AppColors.textSecondary)),
-                    if (currentLocName != null) ...[
-                      const Spacer(),
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: _AppColors.primaryLight,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(currentLocName!,
-                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _AppColors.primary),
-                              overflow: TextOverflow.ellipsis),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: headerAccent.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: headerAccent.withValues(alpha: 0.3)),
                         ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.groups_rounded, size: 13, color: headerAccent),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${filtered.length} ${widget.lang == 'ID' ? 'Penemu' : widget.lang == 'ZH' ? '发现者' : 'Finders'}',
+                            style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w600, color: headerAccent),
+                          ),
+                        ]),
                       ),
+                      const Spacer(),
+                      if (currentLocName != null)
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 165),
+                          child: Container(
+                            padding: const EdgeInsets.only(left: 9, right: 4, top: 3, bottom: 3),
+                            decoration: BoxDecoration(
+                              color: colorForLocLevel(currentLocLevel).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: colorForLocLevel(currentLocLevel).withValues(alpha: 0.4)),
+                            ),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(iconForLocLevel(currentLocLevel),
+                                  size: 11, color: colorForLocLevel(currentLocLevel)),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(currentLocName!,
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: colorForLocLevel(currentLocLevel)),
+                                    overflow: TextOverflow.ellipsis),
+                              ),
+                              const SizedBox(width: 4),
+                              GestureDetector(
+                                onTap: () {
+                                  currentLocId = null;
+                                  currentLocName = null;
+                                  loadUsers(setSt);
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close_rounded,
+                                      size: 10, color: Color(0xFFEF4444)),
+                                ),
+                              ),
+                            ]),
+                          ),
+                        ),
                     ],
-                  ]),
+                  ),
                 ),
                 const Divider(height: 1, color: _AppColors.divider),
                 // LIST
                 Expanded(
                   child: loadingUsers
-                      ? const Center(child: CircularProgressIndicator(color: _AppColors.primary, strokeWidth: 2))
-                      : ListView.builder(
-                          padding: const EdgeInsets.only(top: 6, bottom: 12),
-                          itemCount: filtered.length,
-                          itemBuilder: (_, i) {
-                            final item = filtered[i];
-                            final name = item['nama'] as String;
-                            final id = item['id_user']?.toString();
-                            final avatarUrl = item['gambar_user'] as String?;
-                            final idJabatan = item['id_jabatan'] as int?;
-                            final isVerificator = item['is_verificator'] as bool?;
-                            final jabatanNama =
-                                (item['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?;
-                            final isSelected =
-                                id == _recurringUserId || (id == null && _recurringUserId == null);
-                            final isAll = id == null;
-
-                            return InkWell(
-                              onTap: () {
-                                Navigator.pop(ctx);
-                                setState(() {
-                                  _recurringUserId = id;
-                                  _recurringUserName = isAll
-                                      ? (widget.lang == 'ID'
-                                          ? 'Semua Penemu'
-                                          : widget.lang == 'ZH'
-                                              ? '所有发现者'
-                                              : 'All Finders')
-                                      : name;
-                                  _recurringFuture = _fetchRecurringData();
-                                });
-                              },
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: isSelected ? _AppColors.primaryLight : Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                      color: isSelected ? _AppColors.primary : _AppColors.divider,
-                                      width: isSelected ? 1.5 : 1),
+                      ? _buildUserPickerShimmer() // ⬅️ shimmer, bukan circular lagi
+                      : filtered.isEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+                              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                Image.asset(
+                                  'assets/images/team_illustration.png',
+                                  height: 110,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    width: 84, height: 84,
+                                    decoration: BoxDecoration(color: headerAccent.withValues(alpha: 0.08), shape: BoxShape.circle),
+                                    child: const Icon(Icons.search_off_rounded, size: 36, color: headerAccent),
+                                  ),
                                 ),
-                                child: Row(children: [
-                                  if (isAll)
-                                    Container(
-                                      width: 40,
-                                      height: 40,
+                                const SizedBox(height: 12),
+                                Text(
+                                    widget.lang == 'EN' ? 'No users found' : widget.lang == 'ZH' ? '未找到用户' : 'Pengguna tidak ditemukan',
+                                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: headerAccent),
+                                    textAlign: TextAlign.center),
+                                if (ctrl.text.isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  GestureDetector(
+                                    onTap: () {
+                                      ctrl.clear();
+                                      filtered = List.from(items);
+                                      currentPage = 1;
+                                      setSt(() {});
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
                                       decoration: BoxDecoration(
-                                        color: isSelected ? _AppColors.primary : _AppColors.surface,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(color: _AppColors.primaryLight),
+                                        color: headerAccent.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(30),
+                                        border: Border.all(color: headerAccent.withValues(alpha: 0.35)),
                                       ),
-                                      child: Icon(Icons.group_rounded,
-                                          color: isSelected ? Colors.white : _AppColors.primary, size: 20),
-                                    )
-                                  else if (avatarUrl != null && avatarUrl.isNotEmpty)
-                                    CircleAvatar(
-                                      radius: 20,
-                                      backgroundImage: NetworkImage(avatarUrl),
-                                      onBackgroundImageError: (_, __) {},
-                                      backgroundColor: _AppColors.primaryLight,
-                                    )
-                                  else
-                                    CircleAvatar(
-                                      radius: 20,
-                                      backgroundColor: isSelected ? _AppColors.primary : _AppColors.primaryLight,
-                                      child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                          style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 15,
-                                              color: isSelected ? Colors.white : _AppColors.primary)),
-                                    ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
+                                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                        const Icon(Icons.refresh_rounded, size: 14, color: headerAccent),
+                                        const SizedBox(width: 6),
                                         Text(
-                                            isAll
-                                                ? (widget.lang == 'ID'
-                                                    ? 'Semua Penemu'
-                                                    : widget.lang == 'ZH'
-                                                        ? '所有发现者'
-                                                        : 'All Finders')
-                                                : name,
-                                            style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                                color: isSelected ? _AppColors.primary : _AppColors.textPrimary)),
-                                        if (!isAll) ...[
-                                          const SizedBox(height: 4),
-                                          _buildJabatanBadge(
-                                              idJabatan: idJabatan,
-                                              jabatanNama: jabatanNama,
-                                              isVerificator: isVerificator),
-                                        ],
-                                      ],
+                                          widget.lang == 'EN' ? 'Clear search' : widget.lang == 'ZH' ? '清除搜索' : 'Hapus pencarian',
+                                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: headerAccent),
+                                        ),
+                                      ]),
                                     ),
                                   ),
-                                  if (isSelected)
-                                    const Icon(Icons.check_circle_rounded, color: _AppColors.primary, size: 18),
-                                ]),
+                                ],
+                              ]),
+                            )
+                          : Column(children: [
+                              Expanded(
+                                child: ListView.builder(
+                                  padding: const EdgeInsets.only(top: 6, bottom: 12),
+                                  itemCount: pageItems.length,
+                                  itemBuilder: (_, i) {
+                                    final item = pageItems[i];
+                                    final name = item['nama'] as String;
+                                    final id = item['id_user']?.toString();
+                                    final avatarUrl = item['gambar_user'] as String?;
+                                    final idJabatan = item['id_jabatan'] as int?;
+                                    final isVerificator = item['is_verificator'] as bool?;
+                                    final jabatanNama = (item['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?;
+                                    final isSelected = id == _recurringUserId || (id == null && _recurringUserId == null);
+                                    final isAll = id == null;
+
+                                    return InkWell(
+                                      onTap: () {
+                                        Navigator.pop(ctx);
+                                        setState(() {
+                                          _recurringUserId = id;
+                                          _recurringUserName = isAll
+                                              ? (widget.lang == 'ID' ? 'Semua Penemu' : widget.lang == 'ZH' ? '所有发现者' : 'All Finders')
+                                              : name;
+                                          _topicsCurrentPage = 1;
+                                          _recurringFuture = _fetchRecurringData();
+                                        });
+                                      },
+                                      child: Container(
+                                        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                        decoration: BoxDecoration(
+                                          color: isSelected ? headerAccent.withValues(alpha: 0.10) : Colors.white,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: isSelected ? headerAccent : _AppColors.divider, width: isSelected ? 1.5 : 1),
+                                        ),
+                                        child: Row(children: [
+                                          if (isAll)
+                                            Container(
+                                              width: 40, height: 40,
+                                              decoration: BoxDecoration(
+                                                color: isSelected ? headerAccent : _AppColors.surface,
+                                                shape: BoxShape.circle,
+                                                border: Border.all(color: _AppColors.primaryLight),
+                                              ),
+                                              child: Icon(Icons.group_rounded, color: isSelected ? Colors.white : headerAccent, size: 20),
+                                            )
+                                          else if (avatarUrl != null && avatarUrl.isNotEmpty)
+                                            CircleAvatar(
+                                              radius: 20,
+                                              backgroundImage: NetworkImage(avatarUrl),
+                                              onBackgroundImageError: (_, __) {},
+                                              backgroundColor: _AppColors.primaryLight,
+                                            )
+                                          else
+                                            CircleAvatar(
+                                              radius: 20,
+                                              backgroundColor: isSelected ? headerAccent : _AppColors.primaryLight,
+                                              child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: isSelected ? Colors.white : headerAccent)),
+                                            ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                    isAll
+                                                        ? (widget.lang == 'ID' ? 'Semua Penemu' : widget.lang == 'ZH' ? '所有发现者' : 'All Finders')
+                                                        : name,
+                                                    style: isAll
+                                                        ? TextStyle(fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.w500, color: isSelected ? headerAccent : _AppColors.textPrimary)
+                                                        : GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black)), // ⬅️ nama user poppins w600 hitam
+                                                if (!isAll) ...[
+                                                  const SizedBox(height: 4),
+                                                  _buildJabatanBadge(idJabatan: idJabatan, jabatanNama: jabatanNama, isVerificator: isVerificator),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                          if (isSelected) Icon(Icons.check_circle_rounded, color: headerAccent, size: 18),
+                                        ]),
+                                      ),
+                                    );
+                                  },
+                                ),
                               ),
-                            );
-                          },
-                        ),
+                              if (totalPages > 1)
+                                _RecurringPagePickerIndicator(
+                                  currentPage: safePage,
+                                  totalPages: totalPages,
+                                  color: headerAccent,
+                                  onPageChanged: (p) => setSt(() => currentPage = p),
+                                ),
+                            ]),
                 ),
               ]),
             ),
           );
         },
       ),
+    );
+  }
+}
+
+class _RecurringPagePickerIndicator extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final Color color;
+  final ValueChanged<int> onPageChanged;
+
+  const _RecurringPagePickerIndicator({
+    required this.currentPage,
+    required this.totalPages,
+    required this.color,
+    required this.onPageChanged,
+  });
+
+  static const int _maxVisibleButtons = 7;
+
+  List<int> _visiblePageNumbers() {
+    if (totalPages <= _maxVisibleButtons) {
+      return List.generate(totalPages, (i) => i + 1);
+    }
+    int start = currentPage - 2;
+    int end = currentPage + 2;
+    if (start < 1) { start = 1; end = _maxVisibleButtons; }
+    else if (end > totalPages) { end = totalPages; start = totalPages - (_maxVisibleButtons - 1); }
+    return List.generate(end - start + 1, (i) => start + i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canPrev = currentPage > 1;
+    final bool canNext = currentPage < totalPages;
+    final pageNumbers = _visiblePageNumbers();
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.12), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Row(children: [
+        GestureDetector(
+          onTap: canPrev ? () => onPageChanged(currentPage - 1) : null,
+          child: Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: canPrev ? color.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.arrow_back_ios_new_rounded, size: 15, color: canPrev ? color : Colors.grey.shade400),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Row(children: [
+            for (final p in pageNumbers) ...[
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => p == currentPage ? null : onPageChanged(p),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: p == currentPage ? color : color.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: p == currentPage ? null : Border.all(color: color.withValues(alpha: 0.25)),
+                    ),
+                    child: Text('$p',
+                        style: GoogleFonts.poppins(color: p == currentPage ? Colors.white : color, fontWeight: FontWeight.w800, fontSize: 13)),
+                  ),
+                ),
+              ),
+              if (p != pageNumbers.last) const SizedBox(width: 8),
+            ],
+          ]),
+        ),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: canNext ? () => onPageChanged(currentPage + 1) : null,
+          child: Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: canNext ? color.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.arrow_forward_ios_rounded, size: 15, color: canNext ? color : Colors.grey.shade400),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ─── Recurring Topic Detail (Full Screen) ─────────────────────────────────
+class _RecurringTopicDetailScreen extends StatefulWidget {
+  final RecurringTopic5R topic;
+  final String lang;
+  final Color severityColor;
+  final String severityLabel;
+
+  const _RecurringTopicDetailScreen({
+    required this.topic,
+    required this.lang,
+    required this.severityColor,
+    required this.severityLabel,
+  });
+
+  @override
+  State<_RecurringTopicDetailScreen> createState() =>
+      _RecurringTopicDetailScreenState();
+}
+
+class _RecurringTopicDetailScreenState
+    extends State<_RecurringTopicDetailScreen> {
+  int _currentPage = 1;
+  static const int _perPage = 7;
+
+  Widget _buildFindingCard(Map<String, dynamic> data) {
+    final isKts = (data['jenis_temuan'] ?? '') == 'KTS Production';
+    if (isKts) {
+      return KtsFindingCard(
+        data: data,
+        lang: widget.lang,
+        onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => FindingDetailScreen(
+                    initialData: data, lang: widget.lang))),
+      );
+    }
+    return FindingCard(
+      data: data,
+      lang: widget.lang,
+      onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) =>
+                  FindingDetailScreen(initialData: data, lang: widget.lang))),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topic = widget.topic;
+    final color = widget.severityColor;
+    final isKts = topic.findings.isNotEmpty &&
+        (topic.findings.first['jenis_temuan'] ?? '') == 'KTS Production';
+
+    final totalPages =
+        topic.findings.isEmpty ? 1 : (topic.findings.length / _perPage).ceil();
+    final safePage = _currentPage.clamp(1, totalPages);
+    final startIdx = (safePage - 1) * _perPage;
+    final endIdx = (startIdx + _perPage) > topic.findings.length
+        ? topic.findings.length
+        : startIdx + _perPage;
+    final pageItems = topic.findings.isEmpty
+        ? <Map<String, dynamic>>[]
+        : topic.findings.sublist(startIdx, endIdx);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFF),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        scrolledUnderElevation: 0.5,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        centerTitle: true,
+        title: Text(
+          widget.lang == 'ID'
+              ? 'Detail Berulang'
+              : widget.lang == 'ZH'
+                  ? '重复详情'
+                  : 'Recurring Detail',
+          style: GoogleFonts.poppins(
+              fontSize: 17, fontWeight: FontWeight.w700, color: Colors.black),
+        ),
+      ),
+      body: Column(children: [
+        // INFO HEADER
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.3), width: 1.3),
+            boxShadow: [
+              BoxShadow(
+                  color: color.withValues(alpha: 0.10),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4)),
+            ],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: color.withValues(alpha: 0.4)),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.autorenew_rounded, size: 13, color: color),
+                  const SizedBox(width: 4),
+                  Text(widget.severityLabel,
+                      style: GoogleFonts.poppins(
+                          fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+                ]),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                      colors: [color, color.withValues(alpha: 0.7)]),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                        color: color.withValues(alpha: 0.35),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3)),
+                  ],
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.bar_chart_rounded, size: 14, color: Colors.white),
+                  const SizedBox(width: 5),
+                  Text(
+                      '${widget.lang == 'ID' ? 'Total' : widget.lang == 'ZH' ? '总计' : 'Total'}: ${topic.total}',
+                      style: GoogleFonts.poppins(
+                          fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+                ]),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            if (isKts)
+              Row(children: [
+                const Icon(Icons.tag_rounded, size: 13, color: Color(0xFFD97706)),
+                const SizedBox(width: 4),
+                Expanded(
+                    child: Text(
+                  '${widget.lang == 'ID' ? 'No. Order' : widget.lang == 'ZH' ? '订单号' : 'Order No.'}: ${topic.locationArea}',
+                  style: GoogleFonts.poppins(
+                      fontSize: 12.5, fontWeight: FontWeight.w600, color: const Color(0xFFD97706)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                )),
+              ])
+            else
+              Builder(builder: (_) {
+                final locInfo = _recurringLocationBadgeInfo(topic);
+                final locColor = locInfo['color'] as Color;
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: locColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: locColor.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(locInfo['icon'] as IconData, size: 13, color: locColor),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(locInfo['label'] as String,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                              fontSize: 12.5, fontWeight: FontWeight.w700, color: locColor)),
+                    ),
+                  ]),
+                );
+              }),
+          ]),
+        ),
+
+        const SizedBox(height: 10),
+
+        Expanded(
+          child: topic.findings.isEmpty
+              ? Center(
+                  child: Text('-',
+                      style: GoogleFonts.poppins(color: const Color(0xFF64748B))))
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  itemCount: pageItems.length,
+                  itemBuilder: (_, i) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildFindingCard(pageItems[i]),
+                  ),
+                ),
+        ),
+
+        if (totalPages > 1)
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+                16, 4, 16, MediaQuery.of(context).viewPadding.bottom + 12),
+            child: _RecurringPagePickerIndicator(
+              currentPage: safePage,
+              totalPages: totalPages,
+              color: color,
+              onPageChanged: (p) => setState(() => _currentPage = p),
+            ),
+          )
+        else
+          SizedBox(height: MediaQuery.of(context).viewPadding.bottom + 12),
+      ]),
     );
   }
 }
