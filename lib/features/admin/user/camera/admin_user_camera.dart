@@ -51,11 +51,13 @@ class AdminUserPhotoCameraWarmupService {
 class AdminUserPhotoCameraScreen extends StatefulWidget {
   final String lang;
   final bool isEdit;
+  final String? customLabel;
 
   const AdminUserPhotoCameraScreen({
     super.key,
     required this.lang,
     required this.isEdit,
+    this.customLabel,
   });
 
   @override
@@ -78,6 +80,9 @@ class _AdminUserPhotoCameraScreenState
   String get _lang => widget.lang;
 
   String get _labelText {
+    if (widget.customLabel != null && widget.customLabel!.isNotEmpty) {
+      return widget.customLabel!;
+    }
     if (widget.isEdit) {
       return _lang == 'EN'
           ? 'EDIT USER PHOTO PROFILE'

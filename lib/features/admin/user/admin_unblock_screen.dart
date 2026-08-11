@@ -9,7 +9,8 @@ import 'picker/admin_user_indicator.dart';
 
 class AdminUnblockScreen extends StatefulWidget {
   final String lang;
-  const AdminUnblockScreen({super.key, required this.lang});
+  final bool embedded;
+  const AdminUnblockScreen({super.key, required this.lang, this.embedded = false});
 
   @override
   State<AdminUnblockScreen> createState() => _AdminUnblockScreenState();
@@ -335,6 +336,60 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
   Widget build(BuildContext context) {
     final double bottomInset = MediaQuery.of(context).padding.bottom;
 
+    final Widget listArea = _isLoading
+        ? _buildShimmerList()
+        : _filtered.isEmpty
+            ? _buildEmpty()
+            : Stack(
+                children: [
+                  RefreshIndicator(
+                    onRefresh: _loadRequests,
+                    color: _primary,
+                    child: ListView.separated(
+                      padding: EdgeInsets.fromLTRB(
+                        16, 12, 16,
+                        _totalPages > 1 ? (100 + bottomInset) : 32,
+                      ),
+                      itemCount: _pagedRequests.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (_, i) => _buildRequestCard(_pagedRequests[i]),
+                    ),
+                  ),
+                  if (_totalPages > 1)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: AdminUserIndicatorScreen(
+                        currentPage: _currentPage,
+                        totalPages: _totalPages,
+                        onPageChanged: (p) => setState(() => _currentPage = p),
+                      ),
+                    ),
+                ],
+              );
+
+    if (widget.embedded) {
+      return Container(
+        color: _bg,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+              child: Row(
+                children: [
+                  Expanded(child: _buildSearchField()),
+                  const SizedBox(width: 8),
+                  _buildJabatanFilterButton(),
+                ],
+              ),
+            ),
+            Expanded(child: listArea),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
@@ -373,38 +428,7 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
           ),
         ),
       ),
-      body: _isLoading
-          ? _buildShimmerList()
-          : _filtered.isEmpty
-              ? _buildEmpty()
-              : Stack(
-                  children: [
-                    RefreshIndicator(
-                      onRefresh: _loadRequests,
-                      color: _primary,
-                      child: ListView.separated(
-                        padding: EdgeInsets.fromLTRB(
-                          16, 12, 16,
-                          _totalPages > 1 ? (100 + bottomInset) : 32,
-                        ),
-                        itemCount: _pagedRequests.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (_, i) => _buildRequestCard(_pagedRequests[i]),
-                      ),
-                    ),
-                    if (_totalPages > 1)
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: AdminUserIndicatorScreen(
-                          currentPage: _currentPage,
-                          totalPages: _totalPages,
-                          onPageChanged: (p) => setState(() => _currentPage = p),
-                        ),
-                      ),
-                  ],
-                ),
+      body: listArea,
     );
   }
 
@@ -423,9 +447,9 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
           _search = v;
           _applyFilter();
         }),
-        style: GoogleFonts.poppins(color: const Color(0xFF7F1D1D), fontSize: 14),
+        style: GoogleFonts.poppins(color: Colors.black, fontWeight: FontWeight.w600, fontSize: 14),
         decoration: InputDecoration(
-          isDense: true,
+          isCollapsed: true,
           hintText: _lang == 'EN'
               ? 'Search by name or email...'
               : _lang == 'ZH'
@@ -454,7 +478,7 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
                 )
               : null,
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          contentPadding: EdgeInsets.zero,
         ),
       ),
     );
@@ -558,9 +582,9 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
                           ? '没有解封请求'
                           : 'Tidak ada pengajuan buka blokir'),
               style: GoogleFonts.poppins(
-                color: Colors.black38,
+                color: Colors.black,
                 fontSize: 14,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w700,
               ),
               textAlign: TextAlign.center,
             ),
@@ -572,7 +596,7 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
                     : _lang == 'ZH'
                         ? '请尝试调整搜索或筛选条件。'
                         : 'Coba ubah kata kunci pencarian atau filter kamu.',
-                style: GoogleFonts.poppins(fontSize: 12, color: Colors.black38),
+                style: GoogleFonts.poppins(fontSize: 12, color: Colors.black, fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
@@ -712,19 +736,19 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFFFEF2F2),
+              color: const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _primary.withValues(alpha: 0.15)),
+              border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
             ),
             child: Row(
               children: [
-                const Icon(Icons.schedule_rounded, size: 14, color: _primary),
+                Icon(Icons.access_time_rounded, size: 14, color: Colors.grey.shade600),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     _formatRequestDate(user['unblock_requested_at']),
                     style: GoogleFonts.poppins(
-                        fontSize: 11, fontWeight: FontWeight.w600, color: _primary),
+                        fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade600),
                   ),
                 ),
               ],

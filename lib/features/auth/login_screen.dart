@@ -1,11 +1,17 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:ui';
 import 'dart:async';
 import '../../core/utils/app_branding_cache.dart';
 import '../admin/admin_shell_screen.dart';
+import '../admin/user/camera/admin_user_camera.dart';
+import '../user/home/alert/required_field_alert.dart';
 import '../user/home/popup/home_point_popup.dart';
 import 'auth_service.dart';
 import '../user/home/home_screen.dart';
@@ -105,6 +111,16 @@ class _LoginScreenState extends State<LoginScreen> {
       'select_language': 'Select Language',
       'select_language_desc': 'Choose your preferred display language',
       'pass_hint': 'Password',
+      'change_password_title': 'Request Password Change',
+      'change_password_desc': 'Fill in your email, new password, and upload an identity proof photo. Your request will be reviewed by an admin.',
+      'new_password_label': 'New Password',
+      'identity_proof_label': 'Identity Proof',
+      'identity_proof_hint': 'Take a photo of your identity proof',
+      'retake_photo': 'Retake',
+      'submit_request': 'Submit Request',
+      'err_reset_fields': 'Please fill in email, new password, and identity proof!',
+      'err_reset_pass_length': 'New password must be at least 8 characters',
+      'reset_request_sent': 'Password change request sent! Waiting for admin approval.',
     },
     'ID': {
       'login': 'Masuk',
@@ -129,6 +145,16 @@ class _LoginScreenState extends State<LoginScreen> {
       'select_language': 'Pilih Bahasa',
       'select_language_desc': 'Pilih bahasa tampilan yang Anda inginkan',
       'pass_hint': 'Kata Sandi',
+      'change_password_title': 'Ajukan Ganti Password',
+      'change_password_desc': 'Isi email, password baru, dan unggah bukti identitas. Permintaan akan diproses oleh admin.',
+      'new_password_label': 'Password Baru',
+      'identity_proof_label': 'Bukti Identitas',
+      'identity_proof_hint': 'Ambil foto bukti identitas',
+      'retake_photo': 'Ambil Ulang',
+      'submit_request': 'Kirim Permintaan',
+      'err_reset_fields': 'Lengkapi email, password baru, dan bukti identitas!',
+      'err_reset_pass_length': 'Password baru minimal 8 karakter',
+      'reset_request_sent': 'Permintaan ganti password terkirim! Menunggu persetujuan admin.',
     },
     'ZH': {
       'login': '登录',
@@ -153,6 +179,16 @@ class _LoginScreenState extends State<LoginScreen> {
       'select_language': '选择语言',
       'select_language_desc': '选择您偏好的显示语言',
       'pass_hint': '密码',
+      'change_password_title': '申请更改密码',
+      'change_password_desc': '填写您的电子邮件、新密码，并上传身份证明照片。您的请求将由管理员审核。',
+      'new_password_label': '新密码',
+      'identity_proof_label': '身份证明',
+      'identity_proof_hint': '拍摄身份证明照片',
+      'retake_photo': '重拍',
+      'submit_request': '提交请求',
+      'err_reset_fields': '请填写电子邮件、新密码和身份证明！',
+      'err_reset_pass_length': '新密码至少需要8个字符',
+      'reset_request_sent': '密码更改请求已发送！等待管理员批准。',
     },
   };
 
@@ -826,6 +862,341 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Widget _buildDialogTextField({
+    required TextEditingController controller,
+    required String hint,
+    bool isPassword = false,
+    bool obscure = false,
+    VoidCallback? onToggleObscure,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Container(
+      height: 50,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE3F2FD).withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF90CAF9).withValues(alpha: 0.8), width: 1.2),
+      ),
+      child: TextField(
+        controller: controller,
+        obscureText: isPassword && obscure,
+        keyboardType: keyboardType,
+        style: GoogleFonts.poppins(color: const Color(0xFF1D72F3), fontWeight: FontWeight.w700, fontSize: 14),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: GoogleFonts.poppins(color: const Color(0xFF64748B), fontSize: 13, fontWeight: FontWeight.w600),
+          suffixIcon: isPassword
+              ? IconButton(
+                  icon: Icon(
+                    obscure ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                    color: const Color(0xFF1D72F3),
+                    size: 20,
+                  ),
+                  onPressed: onToggleObscure,
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
+        ),
+      ),
+    );
+  }
+
+  void _openProofPreview(XFile file) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black,
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return FadeTransition(
+            opacity: animation,
+            child: _ProofImagePreviewScreen(imageXFile: file),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showChangePasswordRequestDialog() {
+    AdminUserPhotoCameraWarmupService.instance.warmUp();
+    final resetEmailCtrl = TextEditingController(text: _emailController.text);
+    final resetPassCtrl = TextEditingController();
+    bool isPassVisible = false;
+    XFile? proofPhoto;
+    bool isSubmitting = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            Future<void> pickProof() async {
+              final XFile? picked = await Navigator.push<XFile?>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AdminUserPhotoCameraScreen(
+                    lang: selectedLanguage,
+                    isEdit: false,
+                    customLabel: getTxt('identity_proof_label'),
+                  ),
+                ),
+              );
+              AdminUserPhotoCameraWarmupService.instance.warmUp();
+              if (picked != null) setDialogState(() => proofPhoto = picked);
+            }
+
+            Future<void> submit() async {
+              final email = resetEmailCtrl.text.trim();
+              final pass = resetPassCtrl.text.trim();
+
+              final List<MissingFieldItem> missingFields = [];
+              if (email.isEmpty) {
+                missingFields.add(MissingFieldItem(
+                  icon: Icons.email_outlined,
+                  label: getTxt('email_label'),
+                ));
+              }
+              if (pass.isEmpty) {
+                missingFields.add(MissingFieldItem(
+                  icon: Icons.lock_outline,
+                  label: getTxt('new_password_label'),
+                ));
+              }
+              if (proofPhoto == null) {
+                missingFields.add(MissingFieldItem(
+                  icon: Icons.badge_outlined,
+                  label: getTxt('identity_proof_label'),
+                ));
+              }
+
+              if (missingFields.isNotEmpty) {
+                await RequiredFieldAlert.show(
+                  context,
+                  lang: selectedLanguage,
+                  missingFields: missingFields,
+                );
+                return;
+              }
+              if (pass.length < 8) {
+                _showCustomDialog(getTxt('err_reset_pass_length'));
+                return;
+              }
+
+              setDialogState(() => isSubmitting = true);
+              try {
+                final userRow = await Supabase.instance.client
+                    .from('User')
+                    .select('id_user')
+                    .eq('email', email)
+                    .maybeSingle();
+
+                if (userRow == null) {
+                  setDialogState(() => isSubmitting = false);
+                  _showCustomDialog(getTxt('err_unknown'));
+                  return;
+                }
+
+                final bytes = await proofPhoto!.readAsBytes();
+                final ext = proofPhoto!.name.split('.').last.toLowerCase();
+                final safeExt = ext == 'png' ? 'png' : 'jpg';
+                final fileName = 'proof-${DateTime.now().millisecondsSinceEpoch}.$safeExt';
+
+                await Supabase.instance.client.storage.from('avatars').uploadBinary(
+                      'identity_proof/$fileName',
+                      bytes,
+                      fileOptions: FileOptions(
+                        contentType: safeExt == 'png' ? 'image/png' : 'image/jpeg',
+                        upsert: true,
+                      ),
+                    );
+                final proofUrl = Supabase.instance.client.storage
+                    .from('avatars')
+                    .getPublicUrl('identity_proof/$fileName');
+
+                final hashedPass = _auth.hashPassword(email, pass);
+
+                await Supabase.instance.client.from('password_reset_request').insert({
+                  'id_user': userRow['id_user'],
+                  'email': email,
+                  'new_password': pass,
+                  'new_password_hash': hashedPass,
+                  'bukti_identitas_url': proofUrl,
+                  'status': 'pending',
+                });
+
+                if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+                if (mounted) _showSuccessDialog(getTxt('reset_request_sent'));
+              } catch (e) {
+                setDialogState(() => isSubmitting = false);
+                _showCustomDialog('Error: $e');
+              }
+            }
+
+            return Dialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
+                          child: const Icon(Icons.lock_reset_rounded, color: Color(0xFF1D72F3), size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            getTxt('change_password_title'),
+                            style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w800, color: const Color(0xFF1D72F3)),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => Navigator.pop(ctx),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(color: Color(0xFFDC2626).withValues(alpha: 0.1), shape: BoxShape.circle),
+                            child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFDC2626)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      getTxt('change_password_desc'),
+                      style: GoogleFonts.poppins(fontSize: 11.5, color: Colors.black, height: 1.4, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 18),
+
+                    _buildLabel(getTxt('email_label'), icon: Icons.email_outlined, required: true),
+                    _buildDialogTextField(controller: resetEmailCtrl, hint: getTxt('email_hint'), keyboardType: TextInputType.emailAddress),
+                    const SizedBox(height: 14),
+
+                    _buildLabel(getTxt('new_password_label'), icon: Icons.lock_outline, required: true),
+                    _buildDialogTextField(
+                      controller: resetPassCtrl,
+                      hint: getTxt('pass_hint'),
+                      isPassword: true,
+                      obscure: !isPassVisible,
+                      onToggleObscure: () => setDialogState(() => isPassVisible = !isPassVisible),
+                    ),
+                    const SizedBox(height: 14),
+
+                    _buildLabel(getTxt('identity_proof_label'), icon: Icons.badge_outlined, required: true),
+                    const SizedBox(height: 6),
+                    GestureDetector(
+                      onTap: proofPhoto != null
+                          ? () => _openProofPreview(proofPhoto!)
+                          : pickProof,
+                      child: Container(
+                        height: proofPhoto != null ? 140 : 90,
+                        width: double.infinity,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE3F2FD).withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        foregroundDecoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: proofPhoto != null ? const Color(0xFF1D72F3) : const Color(0xFF90CAF9),
+                            width: 1.3,
+                          ),
+                        ),
+                        child: proofPhoto != null
+                            ? Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  kIsWeb
+                                      ? Image.network(proofPhoto!.path, fit: BoxFit.cover)
+                                      : Image.file(File(proofPhoto!.path), fit: BoxFit.cover),
+                                  Positioned(
+                                    left: 8,
+                                    bottom: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.55),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.fullscreen_rounded, color: Colors.white, size: 16),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    right: 8,
+                                    bottom: 8,
+                                    child: GestureDetector(
+                                      onTap: pickProof,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(alpha: 0.55),
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.refresh_rounded, size: 13, color: Colors.white),
+                                            const SizedBox(width: 4),
+                                            Text(getTxt('retake_photo'),
+                                                style: GoogleFonts.poppins(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600)),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.camera_alt_rounded, color: Color(0xFF1D72F3), size: 26),
+                                    const SizedBox(height: 6),
+                                    Text(getTxt('identity_proof_hint'),
+                                        style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w600, color: const Color(0xFF1D72F3))),
+                                  ],
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: isSubmitting ? null : submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1D72F3),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: isSubmitting
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : Text(getTxt('submit_request'), style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -1039,14 +1410,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ),
                                       const SizedBox(width: 10),
                                       GestureDetector(
-                                        onTap: () {
-                                          if (_emailController.text.isNotEmpty) {
-                                            _auth.resetPassword(_emailController.text);
-                                            _showSuccessDialog(getTxt('reset_sent'));
-                                          } else {
-                                            _showCustomDialog(getTxt('fill_email_reset'));
-                                          }
-                                        },
+                                        onTap: () => _showChangePasswordRequestDialog(),
                                         child: Text(
                                           getTxt('forgot_pass'),
                                           overflow: TextOverflow.ellipsis,
@@ -1200,11 +1564,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       onTap: () => Navigator.pop(ctx),
                       child: Container(
                         padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFEFF6FF),
+                        decoration: BoxDecoration(
+                          color: Color(0xFFDC2626).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF1D72F3)),
+                        child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFFDC2626)),
                       ),
                     ),
                   ],
@@ -1317,7 +1681,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildLabel(String label, {required IconData icon}) {
+  Widget _buildLabel(String label, {required IconData icon, bool required = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6, left: 2),
       child: Row(
@@ -1332,6 +1696,15 @@ class _LoginScreenState extends State<LoginScreen> {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (required)
+            Text(
+              ' *',
+              style: GoogleFonts.poppins(
+                color: const Color(0xFFDC2626),
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
         ],
       ),
     );
@@ -1387,6 +1760,51 @@ class _LoginScreenState extends State<LoginScreen> {
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         ),
+      ),
+    );
+  }
+}
+
+class _ProofImagePreviewScreen extends StatelessWidget {
+  final XFile imageXFile;
+
+  const _ProofImagePreviewScreen({required this.imageXFile});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: InteractiveViewer(
+              minScale: 1.0,
+              maxScale: 5.0,
+              child: Center(
+                child: kIsWeb
+                    ? Image.network(imageXFile.path, fit: BoxFit.contain)
+                    : Image.file(File(imageXFile.path), fit: BoxFit.contain),
+              ),
+            ),
+          ),
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 12,
+            right: 16,
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).pop(),
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEF4444),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close_rounded,
+                    color: Colors.white, size: 24),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

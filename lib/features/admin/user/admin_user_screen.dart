@@ -8,7 +8,7 @@ import 'admin_add_user.dart';
 import 'admin_delete_user.dart';
 import 'admin_detail_user.dart';
 import 'admin_edit_user.dart';
-import 'admin_unblock_screen.dart';
+import 'admin_user_notif.dart';
 import 'filter/admin_user_filter.dart';
 import 'picker/admin_user_indicator.dart';
 
@@ -128,6 +128,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
   Map<String, Map<String, dynamic>> _supervisorMap = {};
   Map<String, String> _sectionNameMap = {};
   int _unblockBadgeCount = 0;
+  int _passwordBadgeCount = 0; 
+
+  int get _totalNotifBadge => _unblockBadgeCount + _passwordBadgeCount;
 
   static const _primary = Color(0xFF6366F1);
   static const _bg = Color(0xFFF8FAFC);
@@ -142,6 +145,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     _loadSectionNameMap();
     _loadData();
     _loadUnblockBadgeCount();
+    _loadPasswordBadgeCount();
   }
 
   @override
@@ -172,6 +176,18 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       if (mounted) setState(() => _unblockBadgeCount = count);
     } catch (e) {
       debugPrint('Error loading unblock badge count: $e');
+    }
+  }
+
+  Future<void> _loadPasswordBadgeCount() async {
+    try {
+      final count = await Supabase.instance.client
+          .from('password_reset_request')
+          .count(CountOption.exact)
+          .eq('status', 'pending');
+      if (mounted) setState(() => _passwordBadgeCount = count);
+    } catch (e) {
+      debugPrint('Error loading password badge count: $e');
     }
   }
 
@@ -400,40 +416,27 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => AdminUnblockScreen(lang: widget.lang),
+                    builder: (_) => AdminUserNotifScreen(lang: widget.lang),
                   ),
                 );
                 _markUnblockRequestsViewed();
+                _loadPasswordBadgeCount();
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEF2F2),
-                  borderRadius: BorderRadius.circular(20),
+                  color: const Color(0xFFEEF2FF),
+                  shape: BoxShape.circle,
                   border: Border.all(
-                    color: const Color(0xFFDC2626).withValues(alpha: 0.35),
+                    color: _primary.withValues(alpha: 0.35),
                     width: 1.2,
                   ),
                 ),
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.lock_open_rounded, size: 16, color: Color(0xFFDC2626)),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Unblock',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFFDC2626),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_unblockBadgeCount > 0)
+                    const Icon(Icons.mail_outline_rounded, size: 20, color: _primary),
+                    if (_totalNotifBadge > 0)
                       Positioned(
                         top: -8,
                         right: -8,
@@ -447,7 +450,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                           constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
                           child: Center(
                             child: Text(
-                              _unblockBadgeCount > 9 ? '9+' : '$_unblockBadgeCount',
+                              _totalNotifBadge > 9 ? '9+' : '$_totalNotifBadge',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 9,
@@ -639,9 +642,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           _applyFilter();
         }),
         style: GoogleFonts.poppins(
-            color: const Color(0xFF1E3A8A), fontSize: 14),
+            color: Colors.black, fontWeight: FontWeight.w600, fontSize: 14),
         decoration: InputDecoration(
-          isDense: true,
+          isCollapsed: true,
           hintText: _langCode == 'EN'
               ? 'Search by name or email...'
               : _langCode == 'ZH'
@@ -673,8 +676,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                 )
               : null,
           border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(vertical: 12),
+          contentPadding: EdgeInsets.zero,
         ),
       ),
     );
@@ -906,9 +908,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                           ? '未找到用户'
                           : 'Tidak ada pengguna'),
               style: GoogleFonts.poppins(
-                color: Colors.black38,
+                color: Colors.black,
                 fontSize: 14,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w700,
               ),
               textAlign: TextAlign.center,
             ),
@@ -920,7 +922,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                     : _langCode == 'ZH'
                         ? '请尝试调整搜索或筛选条件。'
                         : 'Coba ubah kata kunci pencarian atau filter kamu.',
-                style: GoogleFonts.poppins(fontSize: 12, color: Colors.black38),
+                style: GoogleFonts.poppins(fontSize: 12, color: Colors.black, fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
