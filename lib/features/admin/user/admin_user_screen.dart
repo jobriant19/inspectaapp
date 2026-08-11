@@ -686,7 +686,6 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     final isVisitor = user['is_visitor'] == true;
     final avatarUrl = user['gambar_user'] as String?;
     final name = user['nama'] ?? '';
-    final monthlyPoin = _monthlyPoints[user['id_user']?.toString() ?? ''] ?? 0;
     final areaName = user['area']?['nama_area'];
     final subunitName = user['subunit']?['nama_subunit'];
     final unitName = user['unit']?['nama_unit'];
@@ -729,52 +728,25 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       ),
       child: Row(
         children: [
-          // AVATAR
-          Stack(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: roleColor.withValues(alpha:0.12),
-                backgroundImage: avatarUrl != null
-                    ? CachedNetworkImageProvider(avatarUrl)
-                    : null,
-                child: avatarUrl == null
-                    ? Text(
-                        name.isNotEmpty
-                            ? name[0].toUpperCase()
-                            : '?',
-                        style: GoogleFonts.poppins(
-                          color: roleColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
-                        ),
-                      )
-                    : null,
-              ),
-              // POINT BADGE
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 4, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFBBF24),
-                    borderRadius: BorderRadius.circular(8),
-                    border:
-                        Border.all(color: Colors.white, width: 1.5),
-                  ),
-                  child: Text(
-                    '$monthlyPoin',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 8,
+          // AVATAR 
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: roleColor.withValues(alpha:0.12),
+            backgroundImage: avatarUrl != null
+                ? CachedNetworkImageProvider(avatarUrl)
+                : null,
+            child: avatarUrl == null
+                ? Text(
+                    name.isNotEmpty
+                        ? name[0].toUpperCase()
+                        : '?',
+                    style: GoogleFonts.poppins(
+                      color: roleColor,
                       fontWeight: FontWeight.bold,
+                      fontSize: 20,
                     ),
-                  ),
-                ),
-              ),
-            ],
+                  )
+                : null,
           ),
           const SizedBox(width: 14),
 
@@ -792,12 +764,12 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                // LINE 1: ROLE + VISITOR/VERIF BADGE
+                // LINE 1: ROLE
                 Wrap(
                   spacing: 5,
                   runSpacing: 4,
                   children: [
-                    _buildChip(jabatan, roleColor, roleIcon),
+                    if (!isVerif) _buildChip(jabatan, roleColor, roleIcon),
                     if (isVisitor)
                       _buildChip(
                         _langCode == 'EN' ? 'Visitor' : _langCode == 'ZH' ? '访客' : 'Pengunjung',
