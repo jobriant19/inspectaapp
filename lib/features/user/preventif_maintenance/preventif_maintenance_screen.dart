@@ -62,6 +62,24 @@ extension _PmLateFilterExt on _PmLateFilter {
       case _PmLateFilter.notReported: return lang == 'EN' ? 'Not Reported' : lang == 'ZH' ? '未报告'  : 'Tidak Lapor';
     }
   }
+
+  IconData get icon {
+    switch (this) {
+      case _PmLateFilter.late:        return Icons.priority_high_rounded;
+      case _PmLateFilter.onTime:      return Icons.check_circle_rounded;
+      case _PmLateFilter.notReported: return Icons.help_outline_rounded;
+      case _PmLateFilter.all:         return Icons.list_alt_rounded;
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case _PmLateFilter.late:        return const Color(0xFFEF4444);
+      case _PmLateFilter.onTime:      return _PC.barColor;
+      case _PmLateFilter.notReported: return const Color(0xFF94A3B8);
+      case _PmLateFilter.all:         return _PC.primary;
+    }
+  }
 }
 
 class _PmKasieRow {
@@ -937,6 +955,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
           onReset: _filterBagian != null
               ? () { setState(() => _filterBagian = null); _loadTableData(); }
               : null,
+          activeColor: const Color(0xFF1D72F3),
         )),
       ]),
       const SizedBox(height: 8),
@@ -944,11 +963,12 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
         Expanded(child: _filterBtn(
           label: _lateFilter.label(widget.lang),
           active: _lateFilter != _PmLateFilter.all,
-          icon: Icons.flag_circle_rounded,
+          icon: _lateFilter.icon,
           onTap: _showLateFilterPicker,
           onReset: _lateFilter != _PmLateFilter.all
               ? () { setState(() => _lateFilter = _PmLateFilter.all); _loadTableData(); }
               : null,
+          activeColor: _lateFilter.color,
         )),
       ]),
     ]);
@@ -1041,14 +1061,8 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
           const SizedBox(height: 8),
           ..._PmLateFilter.values.map((f) {
             final sel = _lateFilter == f;
-            IconData icon;
-            Color color;
-            switch (f) {
-              case _PmLateFilter.late:        icon = Icons.priority_high_rounded; color = const Color(0xFFEF4444); break;
-              case _PmLateFilter.onTime:      icon = Icons.check_circle_rounded;  color = _PC.barColor; break;
-              case _PmLateFilter.notReported: icon = Icons.help_outline_rounded;  color = const Color(0xFF94A3B8); break;
-              case _PmLateFilter.all:         icon = Icons.list_alt_rounded;      color = _PC.primary; break;
-            }
+            final icon = f.icon;
+            final color = f.color;
             return GestureDetector(onTap: () { Navigator.pop(ctx); setState(() => _lateFilter = f); _loadTableData(); },
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -1075,19 +1089,27 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
     ));
   }
 
-  Widget _filterBtn({required String label, required VoidCallback onTap, bool active = false, IconData icon = Icons.keyboard_arrow_down_rounded, VoidCallback? onReset}) {
+  Widget _filterBtn({
+    required String label,
+    required VoidCallback onTap,
+    bool active = false,
+    IconData icon = Icons.keyboard_arrow_down_rounded,
+    VoidCallback? onReset,
+    Color activeColor = _PC.primary,
+  }) {
+    final color = active ? activeColor : _PC.primary;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         height: 38, padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: active ? _PC.primary : Colors.white, borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: active ? _PC.primary : _PC.primaryLight, width: 1.5),
-          boxShadow: [BoxShadow(color: _PC.primary.withValues(alpha:0.12), blurRadius: 6, offset: const Offset(0, 2))]),
+          color: Colors.white, borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: active ? activeColor : _PC.primaryLight, width: 1.5),
+          boxShadow: [BoxShadow(color: color.withValues(alpha:0.12), blurRadius: 6, offset: const Offset(0, 2))]),
         child: Row(children: [
-          Icon(icon, size: 14, color: active ? Colors.white : _PC.primary),
+          Icon(icon, size: 14, color: color),
           const SizedBox(width: 6),
-          Expanded(child: Text(label, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: active ? Colors.white : _PC.primary), overflow: TextOverflow.ellipsis)),
+          Expanded(child: Text(label, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: color), overflow: TextOverflow.ellipsis)),
           const SizedBox(width: 4),
           if (active && onReset != null)
             GestureDetector(
@@ -1103,7 +1125,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
               ),
             )
           else
-            Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: active ? Colors.white : _PC.primary),
+            Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: color),
         ]),
       ),
     );

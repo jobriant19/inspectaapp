@@ -216,8 +216,8 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
   // CHART STATE
   bool _chartExpanded = false;
 
-  // KTS COST SUB FILTER: 'faktor' | 'bagian' | 'kasie'
-  String _biayaSubFilter = 'faktor';
+  // KTS COST SUB FILTER: 'bagian' | 'faktor' | 'kasie'
+  String _biayaSubFilter = 'bagian';
 
   // DATA STATE
   bool _loading = false;
@@ -623,26 +623,39 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
   }
 
   void _showKasieRangePicker() async {
+    const pColor      = Color(0xFF1D4ED8); // sama seperti _PC.primary di Analytics Preventif Tab
+    const pColorDark  = Color(0xFF1E3A8A); // sama seperti _PC.primaryDark / _PC.textPrimary
+
     await showDialog(
       context: context,
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: _C.primaryLight, width: 1.5)),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: pColor.withValues(alpha: 0.2), width: 1.5)),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-              decoration: const BoxDecoration(color: _C.primaryLight, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
               child: Row(children: [
-                const Icon(Icons.date_range_rounded, color: _C.kasieColor, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(
-                  widget.lang == 'EN' ? 'Select Period' : widget.lang == 'ZH' ? '选择期间' : 'Pilih Periode',
-                  style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 15, color: _C.textPrimary),
-                )),
-                IconButton(icon: const Icon(Icons.close, size: 18, color: _C.textSec), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: pColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.date_range_rounded, color: pColor, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(widget.lang == 'EN' ? 'Select Period' : widget.lang == 'ZH' ? '选择期间' : 'Pilih Periode',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: pColor))),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha: 0.1), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
+                  ),
+                ),
               ]),
             ),
+            const SizedBox(height: 12),
+            Container(height: 1, color: const Color(0xFFF1F5F9)),
             const SizedBox(height: 8),
             ..._RangeFilter.values.where((r) => r != _RangeFilter.custom).map((r) {
               final sel = _kasieRange == r;
@@ -656,15 +669,15 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                   margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                   decoration: BoxDecoration(
-                    color: sel ? _C.kasieColor.withValues(alpha:0.12) : Colors.white,
+                    color: sel ? pColor.withValues(alpha: 0.10) : Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: sel ? _C.kasieColor : const Color(0xFFE2E8F0), width: sel ? 1.8 : 1),
+                    border: Border.all(color: sel ? pColor : const Color(0xFFE2E8F0), width: sel ? 1.8 : 1),
                   ),
                   child: Row(children: [
                     Expanded(child: Text(r.label(widget.lang),
-                      style: TextStyle(fontFamily: 'Poppins', fontSize: 14, fontWeight: FontWeight.w700, color: sel ? _C.kasieColor : const Color(0xFF1E293B)),
+                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: sel ? pColorDark : const Color(0xFF1E293B)),
                     )),
-                    if (sel) const Icon(Icons.check_circle_rounded, color: _C.kasieColor, size: 20),
+                    if (sel) const Icon(Icons.check_circle_rounded, color: pColor, size: 20),
                   ]),
                 ),
               );
@@ -675,23 +688,23 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                 decoration: BoxDecoration(
-                  color: _kasieRange == _RangeFilter.custom ? _C.kasieColor.withValues(alpha:0.12) : Colors.white,
+                  color: _kasieRange == _RangeFilter.custom ? pColor.withValues(alpha: 0.10) : Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: _kasieRange == _RangeFilter.custom ? _C.kasieColor : const Color(0xFFE2E8F0),
+                    color: _kasieRange == _RangeFilter.custom ? pColor : const Color(0xFFE2E8F0),
                     width: _kasieRange == _RangeFilter.custom ? 1.8 : 1,
                   ),
                 ),
                 child: Row(children: [
-                  const Icon(Icons.edit_calendar_rounded, size: 16, color: _C.kasieColor),
+                  const Icon(Icons.edit_calendar_rounded, size: 16, color: pColor),
                   const SizedBox(width: 8),
                   Expanded(child: Text(
                     _kasieRange == _RangeFilter.custom && _kasieCustomStart != null && _kasieCustomEnd != null
                         ? '${DateFormat('MMM yyyy').format(_kasieCustomStart!)} – ${DateFormat('MMM yyyy').format(_kasieCustomEnd!)}'
                         : (widget.lang == 'EN' ? 'Custom (Start – End)' : widget.lang == 'ZH' ? '自定义（开始-结束）' : 'Kustom (Mulai – Selesai)'),
-                    style: TextStyle(fontFamily: 'Poppins', fontSize: 14, fontWeight: FontWeight.w700, color: _kasieRange == _RangeFilter.custom ? _C.kasieColor : const Color(0xFF1E293B)),
+                    style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: _kasieRange == _RangeFilter.custom ? pColorDark : const Color(0xFF1E293B)),
                   )),
-                  if (_kasieRange == _RangeFilter.custom) const Icon(Icons.check_circle_rounded, color: _C.kasieColor, size: 20),
+                  if (_kasieRange == _RangeFilter.custom) const Icon(Icons.check_circle_rounded, color: pColor, size: 20),
                 ]),
               ),
             ),
@@ -703,35 +716,58 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
   }
 
   void _showKasieCustomRangePicker() async {
+    const pColor      = Color(0xFF1D4ED8); // sama seperti _PC.primary di Analytics Preventif Tab
+    const pColorDark  = Color(0xFF1E3A8A); // sama seperti _PC.primaryDark / _PC.textPrimary
+
     final now = DateTime.now();
     DateTime tempStart = _kasieCustomStart ?? DateTime(now.year, now.month, 1);
     DateTime tempEnd   = _kasieCustomEnd   ?? DateTime(now.year, now.month, 1);
 
     await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
-      Widget monthYearPicker(String title, DateTime value, ValueChanged<DateTime> onChanged) {
-        return Container(
-          padding: const EdgeInsets.all(12),
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          decoration: BoxDecoration(color: const Color(0xFFFFFBEB), borderRadius: BorderRadius.circular(12), border: Border.all(color: _C.divider)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w700, color: _C.textSec)),
-            const SizedBox(height: 8),
+      Widget monthYearField({
+        required String label,
+        required IconData labelIcon,
+        required DateTime value,
+        required ValueChanged<int> onMonthChanged,
+        required ValueChanged<int> onYearChanged,
+      }) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(children: [
-              Expanded(child: DropdownButton<int>(
-                isExpanded: true, value: value.month, underline: const SizedBox.shrink(),
-                items: List.generate(12, (i) => i + 1).map((m) => DropdownMenuItem(value: m,
-                  child: Text(DateFormat('MMMM').format(DateTime(2024, m, 1)), style: const TextStyle(fontFamily: 'Poppins', fontSize: 13)))).toList(),
-                onChanged: (m) { if (m != null) onChanged(DateTime(value.year, m, 1)); },
-              )),
-              const SizedBox(width: 8),
-              Expanded(child: DropdownButton<int>(
-                isExpanded: true, value: value.year, underline: const SizedBox.shrink(),
-                items: List.generate(6, (i) => now.year - 4 + i).map((y) => DropdownMenuItem(value: y,
-                  child: Text('$y', style: const TextStyle(fontFamily: 'Poppins', fontSize: 13)))).toList(),
-                onChanged: (y) { if (y != null) onChanged(DateTime(y, value.month, 1)); },
-              )),
+              Icon(labelIcon, size: 13, color: pColor),
+              const SizedBox(width: 5),
+              Text(label, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF64748B))),
             ]),
-          ]),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: pColor.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: pColor.withValues(alpha: 0.35)),
+              ),
+              child: Row(children: [
+                Icon(Icons.event_rounded, size: 17, color: pColor),
+                const SizedBox(width: 10),
+                Expanded(child: DropdownButton<int>(
+                  isExpanded: true, value: value.month, underline: const SizedBox.shrink(),
+                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: pColorDark),
+                  items: List.generate(12, (i) => i + 1).map((m) => DropdownMenuItem(value: m,
+                    child: Text(DateFormat('MMMM').format(DateTime(2024, m, 1)), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)))).toList(),
+                  onChanged: (m) { if (m != null) onMonthChanged(m); },
+                )),
+                const SizedBox(width: 8),
+                Expanded(child: DropdownButton<int>(
+                  isExpanded: true, value: value.year, underline: const SizedBox.shrink(),
+                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: pColorDark),
+                  items: List.generate(6, (i) => now.year - 4 + i).map((y) => DropdownMenuItem(value: y,
+                    child: Text('$y', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600)))).toList(),
+                  onChanged: (y) { if (y != null) onYearChanged(y); },
+                )),
+              ]),
+            ),
+          ],
         );
       }
 
@@ -741,44 +777,80 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       return Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-              decoration: const BoxDecoration(color: _C.primaryLight, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-              child: Row(children: [
-                const Icon(Icons.edit_calendar_rounded, color: _C.kasieColor, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(widget.lang == 'EN' ? 'Custom Period' : widget.lang == 'ZH' ? '自定义期间' : 'Periode Kustom',
-                  style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 15, color: _C.textPrimary))),
-                IconButton(icon: const Icon(Icons.close, size: 18, color: _C.textSec), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: pColor.withValues(alpha: 0.2), width: 1.5),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: pColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.edit_calendar_rounded, color: pColor, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    widget.lang == 'EN' ? 'Custom Period' : widget.lang == 'ZH' ? '自定义期间' : 'Periode Kustom',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: pColorDark),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha: 0.1), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFFEF4444)),
+                  ),
+                ),
               ]),
-            ),
-            const SizedBox(height: 8),
-            monthYearPicker(widget.lang == 'EN' ? 'Start' : widget.lang == 'ZH' ? '开始' : 'Mulai', tempStart, (d) => setLocal(() => tempStart = d)),
-            monthYearPicker(widget.lang == 'EN' ? 'End' : widget.lang == 'ZH' ? '结束' : 'Selesai', tempEnd, (d) => setLocal(() => tempEnd = d)),
-            if (!isValid)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  widget.lang == 'EN' ? 'Range must be between 0–12 months' : widget.lang == 'ZH' ? '范围必须在0-12个月之间' : 'Rentang maksimal 12 bulan',
-                  style: const TextStyle(fontFamily: 'Poppins', fontSize: 11, color: Color(0xFFEF4444))),
+              const SizedBox(height: 18),
+
+              monthYearField(
+                label: widget.lang == 'EN' ? 'Start' : widget.lang == 'ZH' ? '开始' : 'Mulai',
+                labelIcon: Icons.play_circle_outline_rounded,
+                value: tempStart,
+                onMonthChanged: (m) => setLocal(() => tempStart = DateTime(tempStart.year, m, 1)),
+                onYearChanged: (y) => setLocal(() => tempStart = DateTime(y, tempStart.month, 1)),
               ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: SizedBox(width: double.infinity, child: ElevatedButton(
-                onPressed: isValid ? () {
-                  Navigator.pop(ctx);
-                  setState(() { _kasieRange = _RangeFilter.custom; _kasieCustomStart = tempStart; _kasieCustomEnd = tempEnd; });
-                  _loadKasieSectionData();
-                } : null,
-                style: ElevatedButton.styleFrom(backgroundColor: _C.kasieColor, foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                child: Text(widget.lang == 'EN' ? 'Apply' : widget.lang == 'ZH' ? '应用' : 'Terapkan', style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w700)),
-              )),
-            ),
-          ]),
+              const SizedBox(height: 16),
+              monthYearField(
+                label: widget.lang == 'EN' ? 'End' : widget.lang == 'ZH' ? '结束' : 'Selesai',
+                labelIcon: Icons.flag_circle_rounded,
+                value: tempEnd,
+                onMonthChanged: (m) => setLocal(() => tempEnd = DateTime(tempEnd.year, m, 1)),
+                onYearChanged: (y) => setLocal(() => tempEnd = DateTime(y, tempEnd.month, 1)),
+              ),
+              if (!isValid)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(
+                    widget.lang == 'EN' ? 'Range must be between 0–12 months' : widget.lang == 'ZH' ? '范围必须在0-12个月之间' : 'Rentang maksimal 12 bulan',
+                    style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFFEF4444))),
+                ),
+              const SizedBox(height: 20),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isValid ? () {
+                    Navigator.pop(ctx);
+                    setState(() { _kasieRange = _RangeFilter.custom; _kasieCustomStart = tempStart; _kasieCustomEnd = tempEnd; });
+                    _loadKasieSectionData();
+                  } : null,
+                  style: ElevatedButton.styleFrom(backgroundColor: pColor, foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  child: Text(widget.lang == 'EN' ? 'Apply' : widget.lang == 'ZH' ? '应用' : 'Terapkan',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }));
@@ -1048,15 +1120,12 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     return GestureDetector(
       onTap: () {
         Navigator.pop(ctx);
+        final isSame = _activeFilter == type;
         setState(() {
-          if (_activeFilter == type) {
-            _activeFilter = null;
-            _subBagian    = null;
-            _subFaktorId  = null;
-          } else {
-            _activeFilter = type;
-            _subBagian    = null;
-            _subFaktorId  = null;
+          _activeFilter = type;
+          if (!isSame) {
+            _subBagian   = null;
+            _subFaktorId = null;
           }
         });
         if (_activeFilter == _FilterType.kasie) {
@@ -1096,87 +1165,248 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
   }
 
   void _showFaktorPicker() async {
+    final TextEditingController searchCtrl = TextEditingController();
+    int page = 1;
+    const int perPage = 6;
+
     await showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: _C.greenLight, width: 1.5)),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-              decoration: BoxDecoration(color: _C.greenLight, borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
-              child: Row(children: [
-                const Icon(Icons.tag_rounded, color: _C.green, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(_t('pilih_faktor'), style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 15, color: _C.green))),
-                IconButton(icon: const Icon(Icons.close, size: 18, color: _C.green), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
-              ]),
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSt) {
+        final q = searchCtrl.text.trim().toLowerCase();
+        final filtered = q.isEmpty
+            ? _faktorMaster
+            : _faktorMaster.where((f) =>
+                ((f['nama_subkategoritemuan'] as String?) ?? '').toLowerCase().contains(q)).toList();
+
+        final totalPages = filtered.isEmpty ? 1 : (filtered.length / perPage).ceil();
+        final safePage = page.clamp(1, totalPages);
+        final start = (safePage - 1) * perPage;
+        final end = (start + perPage) > filtered.length ? filtered.length : start + perPage;
+        final pageItems = filtered.isEmpty ? <Map<String, dynamic>>[] : filtered.sublist(start, end);
+
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            width: 340,
+            height: MediaQuery.of(context).size.height * 0.72,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _C.green.withValues(alpha: 0.25), width: 1.5),
             ),
-            Flexible(child: ListView.builder(
-              padding: const EdgeInsets.only(bottom: 12, top: 4),
-              itemCount: _faktorMaster.length + 1,
-              itemBuilder: (_, i) {
-                final isAll = i == 0;
-                final id   = isAll ? null : _faktorMaster[i - 1]['id_subkategoritemuan']?.toString();
-                final lbl  = isAll ? _t('semua_faktor') : (_faktorMaster[i - 1]['nama_subkategoritemuan'] as String? ?? '-');
-                final sel  = id == _subFaktorId;
-                return InkWell(
-                  onTap: () { Navigator.pop(ctx); setState(() => _subFaktorId = id); _loadData(); },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: sel ? _C.greenLight : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: sel ? _C.green : const Color(0xFFE2E8F0), width: sel ? 1.5 : 1),
-                    ),
-                    child: Row(children: [
-                      Container(
-                        width: 34, height: 34,
-                        decoration: BoxDecoration(color: sel ? _C.green : _C.greenLight, borderRadius: BorderRadius.circular(9)),
-                        child: Center(child: Icon(Icons.tag_rounded, size: 16, color: sel ? Colors.white : _C.green)),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(lbl, style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: sel ? FontWeight.bold : FontWeight.normal, color: sel ? _C.green : const Color(0xFF1E293B)))),
-                      if (sel) const Icon(Icons.check_circle_rounded, color: _C.green, size: 18),
-                    ]),
+            child: Column(children: [
+              // HEADER (icon sama seperti opsi "Cause Factor" di Select View)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
+                child: Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: _C.green.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.report_problem_rounded, color: _C.green, size: 20),
                   ),
-                );
-              },
-            )),
-          ]),
-        ),
-      ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(_t('pilih_faktor'),
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15, color: _C.green))),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha: 0.1), shape: BoxShape.circle),
+                      child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
+                    ),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 10),
+              Container(height: 1, color: const Color(0xFFF1F5F9)),
+              // SEARCH BAR + RESET
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Container(
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFF),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _C.green.withValues(alpha: 0.35), width: 1.2),
+                  ),
+                  child: TextField(
+                    controller: searchCtrl,
+                    textAlignVertical: TextAlignVertical.center,
+                    onChanged: (_) => setSt(() { page = 1; }),
+                    style: GoogleFonts.poppins(fontSize: 13, color: Colors.black, fontWeight: FontWeight.w600),
+                    decoration: InputDecoration(
+                      hintText: widget.lang == 'EN' ? 'Search factor...' : widget.lang == 'ZH' ? '搜索因素...' : 'Cari faktor...',
+                      hintStyle: GoogleFonts.poppins(fontSize: 12.5, color: const Color(0xFFBDBDBD), fontWeight: FontWeight.w600),
+                      prefixIcon: const Icon(Icons.search_rounded, color: _C.green, size: 18),
+                      suffixIcon: searchCtrl.text.isNotEmpty
+                          ? GestureDetector(
+                              onTap: () => setSt(() { searchCtrl.clear(); page = 1; }),
+                              child: Container(
+                                margin: const EdgeInsets.all(9),
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha: 0.1), shape: BoxShape.circle),
+                                child: const Icon(Icons.close_rounded, size: 13, color: Color(0xFFEF4444)),
+                              ),
+                            )
+                          : null,
+                      border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+              ),
+              Container(height: 1, color: const Color(0xFFD1FAE5)),
+              // LIST + PAGINATION
+              Expanded(
+                child: Column(children: [
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                      children: [
+                        InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: () { Navigator.pop(ctx); setState(() => _subFaktorId = null); _loadData(); },
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: _subFaktorId == null ? _C.greenLight : Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: _subFaktorId == null ? _C.green : const Color(0xFFE0F2FE), width: _subFaktorId == null ? 1.5 : 1),
+                            ),
+                            child: Row(children: [
+                              Container(
+                                width: 40, height: 40, alignment: Alignment.center,
+                                decoration: BoxDecoration(color: _subFaktorId == null ? _C.green : _C.greenLight, borderRadius: BorderRadius.circular(10)),
+                                child: Icon(Icons.report_problem_rounded, size: 18, color: _subFaktorId == null ? Colors.white : _C.green),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(_t('semua_faktor'),
+                                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: _subFaktorId == null ? _C.green : const Color(0xFF1E293B)))),
+                              Icon(_subFaktorId == null ? Icons.check_circle_rounded : Icons.chevron_right_rounded,
+                                size: _subFaktorId == null ? 20 : 18, color: _subFaktorId == null ? _C.green : const Color(0xFFCBD5E1)),
+                            ]),
+                          ),
+                        ),
+                        if (filtered.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+                            child: Column(mainAxisSize: MainAxisSize.min, children: [
+                              Image.asset('assets/images/team_illustration.png', height: 110, fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 80, height: 80,
+                                  decoration: BoxDecoration(color: _C.green.withValues(alpha: 0.08), shape: BoxShape.circle),
+                                  child: Icon(Icons.search_off_rounded, size: 34, color: _C.green.withValues(alpha: 0.4)),
+                                )),
+                              const SizedBox(height: 12),
+                              Text(
+                                widget.lang == 'EN' ? 'No factors found' : widget.lang == 'ZH' ? '未找到因素' : 'Tidak ada faktor',
+                                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: _C.green),
+                                textAlign: TextAlign.center,
+                              ),
+                              if (searchCtrl.text.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                GestureDetector(
+                                  onTap: () => setSt(() { searchCtrl.clear(); page = 1; }),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                                    decoration: BoxDecoration(color: _C.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(30), border: Border.all(color: _C.green.withValues(alpha: 0.35))),
+                                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                      Icon(Icons.refresh_rounded, size: 14, color: _C.green),
+                                      const SizedBox(width: 6),
+                                      Text(widget.lang == 'EN' ? 'Clear search' : widget.lang == 'ZH' ? '清除搜索' : 'Hapus pencarian',
+                                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _C.green)),
+                                    ]),
+                                  ),
+                                ),
+                              ],
+                            ]),
+                          )
+                        else
+                          ...pageItems.map((f) {
+                            final id  = f['id_subkategoritemuan']?.toString();
+                            final lbl = f['nama_subkategoritemuan'] as String? ?? '-';
+                            final sel = id == _subFaktorId;
+                            return InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: () { Navigator.pop(ctx); setState(() => _subFaktorId = id); _loadData(); },
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: sel ? _C.greenLight : Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: sel ? _C.green : const Color(0xFFE0F2FE), width: sel ? 1.5 : 1),
+                                ),
+                                child: Row(children: [
+                                  Container(
+                                    width: 40, height: 40, alignment: Alignment.center,
+                                    decoration: BoxDecoration(color: sel ? _C.green : _C.greenLight, borderRadius: BorderRadius.circular(10)),
+                                    child: Icon(Icons.tag_rounded, size: 18, color: sel ? Colors.white : _C.green),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: Text(lbl,
+                                    style: GoogleFonts.poppins(fontWeight: sel ? FontWeight.w700 : FontWeight.w600, fontSize: 13.5, color: sel ? _C.green : const Color(0xFF1E293B)),
+                                    overflow: TextOverflow.ellipsis)),
+                                  Icon(sel ? Icons.check_circle_rounded : Icons.chevron_right_rounded,
+                                    size: sel ? 20 : 18, color: sel ? _C.green : const Color(0xFFCBD5E1)),
+                                ]),
+                              ),
+                            );
+                          }),
+                      ],
+                    ),
+                  ),
+                  if (totalPages > 1 && filtered.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      child: _buildFaktorPageIndicator(safePage, totalPages, (p) => setSt(() => page = p)),
+                    ),
+                ]),
+              ),
+            ]),
+          ),
+        );
+      }),
     );
   }
 
-  // Popup pemilihan sub-grup KTS Cost: Faktor / Section / Kasie
+  // Popup pemilihan sub-grup KTS Cost: Section / Factor / Kasie
   void _showBiayaSubFilterPicker() async {
     await showDialog(
       context: context,
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: _C.primaryLight, width: 1.5)),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: _C.orange.withValues(alpha:0.25), width: 1.5)),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-              decoration: BoxDecoration(color: _C.primaryLight, borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
               child: Row(children: [
-                Icon(Icons.filter_list_rounded, color: _C.orange, size: 20),
-                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: _C.orange.withValues(alpha:0.12), borderRadius: BorderRadius.circular(10)),
+                  child: Icon(Icons.workspaces_rounded, color: _C.orange, size: 20),
+                ),
+                const SizedBox(width: 12),
                 Expanded(child: Text(
                   widget.lang == 'EN' ? 'Select Group' : widget.lang == 'ZH' ? '选择分组' : 'Pilih Kelompok',
-                  style: const TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, fontSize: 15, color: _C.textPrimary),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 15, color: _C.orange),
                 )),
-                IconButton(icon: const Icon(Icons.close, size: 18, color: _C.textSec), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha:0.1), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, color: Color(0xFFEF4444), size: 18),
+                  ),
+                ),
               ]),
             ),
+            const SizedBox(height: 12),
+            Container(height: 1, color: const Color(0xFFF1F5F9)),
             const SizedBox(height: 8),
-            _biayaSubOption(ctx, 'faktor', Icons.tag_rounded, widget.lang == 'ZH' ? '因素' : widget.lang == 'EN' ? 'Factor' : 'Faktor', _C.green),
             _biayaSubOption(ctx, 'bagian', Icons.grid_view_rounded, widget.lang == 'ZH' ? '部门' : widget.lang == 'EN' ? 'Section' : 'Bagian', _C.blue),
+            _biayaSubOption(ctx, 'faktor', Icons.report_problem_rounded, widget.lang == 'ZH' ? '因素' : widget.lang == 'EN' ? 'Factor' : 'Faktor', _C.green),
             _biayaSubOption(ctx, 'kasie', Icons.person_outline_rounded, _t('kasie'), _C.kasieColor),
             const SizedBox(height: 12),
           ]),
@@ -1214,7 +1444,151 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     );
   }
 
-  // ==================== FILTER BAR ====================
+  // TOMBOL "SELECT VIEW" UNIVERSAL (dipakai di bar Bagian/Faktor/Biaya & bar Kasie)
+  // Default (Cause Section) -> panah. Selain default -> tombol reset X merah -> kembali ke Cause Section.
+  Widget _buildSelectViewButton() {
+    String filterLabel;
+    Color filterColor;
+    IconData filterIcon;
+
+    if (_activeFilter == _FilterType.bagian) {
+      filterLabel = _t('bagian_penyebab');
+      filterColor = _C.blue;
+      filterIcon  = Icons.grid_view_rounded;
+    } else if (_activeFilter == _FilterType.faktor) {
+      filterLabel = _t('faktor_penyebab');
+      filterColor = _C.green;
+      filterIcon  = Icons.report_problem_rounded;
+    } else if (_activeFilter == _FilterType.kasie) {
+      filterLabel = _t('kasie_section');
+      filterColor = _C.kasieColor;
+      filterIcon  = Icons.supervisor_account_rounded;
+    } else {
+      filterLabel = _t('biaya_kts');
+      filterColor = _C.orange;
+      filterIcon  = Icons.payments_rounded;
+    }
+
+    final bool isDefault = _activeFilter == _FilterType.bagian;
+
+    return GestureDetector(
+      onTap: _showFilterTypePicker,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: filterColor, width: 1.5),
+          boxShadow: [BoxShadow(color: filterColor.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(children: [
+          Icon(filterIcon, size: 13, color: filterColor),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              filterLabel,
+              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: filterColor),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 2),
+          if (isDefault)
+            Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: filterColor)
+          else
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _activeFilter = _FilterType.bagian;
+                  _subBagian    = null;
+                  _subFaktorId  = null;
+                });
+                _loadData();
+              },
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.5)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            ),
+        ]),
+      ),
+    );
+  }
+
+  // PAGINATION INDICATOR UNTUK POPUP SELECT FACTOR (style sama seperti section picker, warna hijau)
+  Widget _buildFaktorPageIndicator(int currentPage, int totalPages, ValueChanged<int> onPageChanged) {
+    const int maxVisible = 5;
+    List<int> pageNumbers;
+    if (totalPages <= maxVisible) {
+      pageNumbers = List.generate(totalPages, (i) => i + 1);
+    } else {
+      int start = currentPage - 2;
+      int end = currentPage + 2;
+      if (start < 1) { start = 1; end = maxVisible; }
+      else if (end > totalPages) { end = totalPages; start = totalPages - (maxVisible - 1); }
+      pageNumbers = List.generate(end - start + 1, (i) => start + i);
+    }
+    final canPrev = currentPage > 1;
+    final canNext = currentPage < totalPages;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _C.green.withValues(alpha: 0.2)),
+        boxShadow: [BoxShadow(color: _C.green.withValues(alpha: 0.12), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Row(children: [
+        GestureDetector(
+          onTap: canPrev ? () => onPageChanged(currentPage - 1) : null,
+          child: Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(color: canPrev ? _C.green.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08), shape: BoxShape.circle),
+            child: Icon(Icons.arrow_back_ios_new_rounded, size: 15, color: canPrev ? _C.green : Colors.grey.shade400),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Row(children: [
+            for (final p in pageNumbers) ...[
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => p == currentPage ? null : onPageChanged(p),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: p == currentPage ? _C.green : _C.green.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: p == currentPage ? null : Border.all(color: _C.green.withValues(alpha: 0.25)),
+                    ),
+                    child: Text('$p', style: GoogleFonts.poppins(color: p == currentPage ? Colors.white : _C.green, fontWeight: FontWeight.w800, fontSize: 13)),
+                  ),
+                ),
+              ),
+              if (p != pageNumbers.last) const SizedBox(width: 8),
+            ],
+          ]),
+        ),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: canNext ? () => onPageChanged(currentPage + 1) : null,
+          child: Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(color: canNext ? _C.green.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08), shape: BoxShape.circle),
+            child: Icon(Icons.arrow_forward_ios_rounded, size: 15, color: canNext ? _C.green : Colors.grey.shade400),
+          ),
+        ),
+      ]),
+    );
+  }
 
   Widget _buildFilterBar() {
     if (_activeFilter == _FilterType.kasie) {
@@ -1226,33 +1600,6 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         ? DateFormat('d MMM yyyy', locale).format(_selDate!)
         : _months[_monthIdx];
 
-    String filterLabel;
-    Color  filterColor;
-    VoidCallback? subAction;
-
-    if (_activeFilter == _FilterType.bagian) {
-      filterLabel = _subBagian != null ? _sectionDisplayName(_subBagian!) : _t('bagian_penyebab');
-      filterColor = _C.blue;
-      subAction   = _showBagianPicker;
-    } else if (_activeFilter == _FilterType.faktor) {
-      filterLabel = _subFaktorId == null
-          ? _t('faktor_penyebab')
-          : (_faktorMaster.firstWhere(
-              (f) => f['id_subkategoritemuan']?.toString() == _subFaktorId,
-              orElse: () => {'nama_subkategoritemuan': _t('faktor_penyebab')},
-            )['nama_subkategoritemuan'] as String);
-      filterColor = _C.green;
-      subAction   = _showFaktorPicker;
-    } else if (_activeFilter == _FilterType.biaya) {
-      filterLabel = _t('biaya_kts');
-      filterColor = _C.orange;
-      subAction   = null;
-    } else {
-      filterLabel = _t('pilih_filter');
-      filterColor = _C.primary;
-      subAction   = null;
-    }
-
     final bool showBiayaSub = _activeFilter == _FilterType.biaya;
 
     return Container(
@@ -1261,7 +1608,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            // PERIOD BUTTON (style mengikuti 5R Inspection)
+            // PERIOD BUTTON
             _buildTimeFilterButton(
               label: periodLabel,
               isActive: _mode == 'daily' || _monthIdx != DateTime.now().month - 1,
@@ -1269,153 +1616,193 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
             ),
             const SizedBox(width: 6),
 
-            // SELECT VIEW BUTTON - BACKGROUND PUTIH, WARNA KHAS PER PILIHAN
-            Expanded(
-              flex: showBiayaSub ? 2 : 3,
-              child: GestureDetector(
-                onTap: _showFilterTypePicker,
-                child: Container(
-                  height: 38,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: filterColor, width: 1.5),
-                    boxShadow: [BoxShadow(color: filterColor.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
-                  ),
-                  child: Row(children: [
-                    if (_activeFilter != null) ...[
-                      Icon(
-                        _activeFilter == _FilterType.bagian ? Icons.grid_view_rounded
-                            : _activeFilter == _FilterType.faktor ? Icons.report_problem_rounded
-                            : Icons.payments_rounded,
-                        size: 13, color: filterColor,
-                      ),
-                      const SizedBox(width: 4),
-                    ],
-                    Expanded(
-                      child: Text(
-                        filterLabel,
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: filterColor,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 2),
-                    // DEFAULT "Cause Section" -> ARROW. SELAIN ITU (Faktor/KTS Cost) -> TOMBOL RESET X MERAH
-                    if (_activeFilter == _FilterType.faktor || _activeFilter == _FilterType.biaya)
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {
-                          setState(() {
-                            _activeFilter = null;
-                            _subBagian    = null;
-                            _subFaktorId  = null;
-                          });
-                          _loadData();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEF4444).withValues(alpha:0.1),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFFEF4444).withValues(alpha:0.6)),
-                          ),
-                          child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
-                        ),
-                      )
-                    else
-                      Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: filterColor),
-                  ]),
-                ),
-              ),
-            ),
+            // SELECT VIEW - width sama dengan tombol sub-filter di sampingnya
+            Expanded(flex: 1, child: _buildSelectViewButton()),
+            const SizedBox(width: 6),
 
-            // SUB FILTER
-            if (subAction != null) ...[
-              const SizedBox(width: 6),
-              GestureDetector(
-                onTap: subAction,
-                child: Container(
-                  height: 38,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  decoration: BoxDecoration(
-                    color: (_activeFilter == _FilterType.bagian ? _subBagian != null : _subFaktorId != null)
-                        ? filterColor : Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: filterColor, width: 1.5),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.tune_rounded, size: 13,
-                        color: (_activeFilter == _FilterType.bagian ? _subBagian != null : _subFaktorId != null)
-                            ? Colors.white : filterColor),
-                    const SizedBox(width: 3),
-                    Text(
-                      _activeFilter == _FilterType.bagian
-                          ? (_subBagian != null ? _sectionDisplayName(_subBagian!) : _t('semua_bagian'))
-                          : (_subFaktorId == null
-                              ? _t('semua_faktor')
-                              : (_faktorMaster.firstWhere(
-                                  (f) => f['id_subkategoritemuan']?.toString() == _subFaktorId,
-                                  orElse: () => {'nama_subkategoritemuan': '?'},
-                                )['nama_subkategoritemuan'] as String)),
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: (_activeFilter == _FilterType.bagian ? _subBagian != null : _subFaktorId != null)
-                            ? Colors.white : filterColor,
-                      ),
-                    ),
-                  ]),
-                ),
-              ),
-            ],
-
-            // KTS COST SUB FILTER (POPUP)
-            if (showBiayaSub) ...[
-              const SizedBox(width: 6),
+            // SUB FILTER: Select Section (Bagian) / Select Factor (Faktor) / Select Group (Biaya)
+            if (_activeFilter == _FilterType.bagian)
               Expanded(
-                flex: 2,
-                child: _buildBiayaSubFilterButton(),
-              ),
-            ],
+                flex: 1,
+                child: _buildSectionFilterButton(
+                  sectionName: _subBagian,
+                  onTap: _showBagianPicker,
+                  onReset: () { setState(() => _subBagian = null); _loadData(); },
+                  baseColor: _C.blue,
+                ),
+              )
+            else if (_activeFilter == _FilterType.faktor)
+              Expanded(flex: 1, child: _buildFaktorSubFilterButton())
+            else if (showBiayaSub)
+              Expanded(flex: 1, child: _buildBiayaSubFilterButton()),
           ]),
 
           // TOMBOL PILIH SECTION (khusus KTS Cost saat sub-filter "Bagian" aktif)
           if (showBiayaSub && _biayaSubFilter == 'bagian') ...[
             const SizedBox(height: 8),
-            GestureDetector(
-              onTap: _showBagianPicker,
-              child: Container(
-                width: double.infinity,
-                height: 38,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: _subBagian != null ? _C.orange : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _C.orange, width: 1.5),
-                  boxShadow: [BoxShadow(color: _C.orange.withValues(alpha:0.08), blurRadius: 6, offset: const Offset(0, 2))],
-                ),
-                child: Row(children: [
-                  Icon(Icons.grid_view_rounded, size: 14, color: _subBagian != null ? Colors.white : _C.orange),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      _subBagian != null ? _sectionDisplayName(_subBagian!) : _t('semua_bagian'),
-                      style: TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w700, color: _subBagian != null ? Colors.white : _C.orange),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: _subBagian != null ? Colors.white : _C.orange),
-                ]),
+            SizedBox(
+              width: double.infinity,
+              child: _buildSectionFilterButton(
+                sectionName: _subBagian,
+                onTap: _showBagianPicker,
+                onReset: () { setState(() => _subBagian = null); _loadData(); },
+                baseColor: _C.orange,
               ),
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  // TOMBOL SECTION UNIVERSAL:
+  // - Kosong ("Semua Bagian") -> putih + warna khas konteks (baseColor)
+  // - Ada pilihan -> putih + icon/teks 0xFF1D72F3 + tombol reset X merah
+  Widget _buildSectionFilterButton({
+    required String? sectionName,
+    required VoidCallback onTap,
+    required VoidCallback onReset,
+    Color baseColor = _C.blue,
+  }) {
+    const activeColor = Color(0xFF1D72F3);
+    final hasSelection = sectionName != null;
+    final color = hasSelection ? activeColor : baseColor;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color, width: 1.5),
+          boxShadow: [BoxShadow(color: color.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.grid_view_rounded, size: 14, color: color),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              hasSelection ? _sectionDisplayName(sectionName) : _t('semua_bagian'),
+              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 4),
+          if (hasSelection)
+            GestureDetector(
+              onTap: onReset,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.5)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            )
+          else
+            Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: color),
+        ]),
+      ),
+    );
+  }
+
+  // TOMBOL SUB-FILTER FAKTOR - putih + hijau, panah / reset X merah sesuai spesifikasi
+  Widget _buildFaktorSubFilterButton() {
+    final hasSelection = _subFaktorId != null;
+    return GestureDetector(
+      onTap: _showFaktorPicker,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _C.green, width: 1.5),
+          boxShadow: [BoxShadow(color: _C.green.withValues(alpha: 0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.tag_rounded, size: 14, color: _C.green),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              hasSelection
+                  ? (_faktorMaster.firstWhere(
+                      (f) => f['id_subkategoritemuan']?.toString() == _subFaktorId,
+                      orElse: () => {'nama_subkategoritemuan': '?'},
+                    )['nama_subkategoritemuan'] as String)
+                  : _t('semua_faktor'),
+              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.green),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 4),
+          if (hasSelection)
+            GestureDetector(
+              onTap: () { setState(() => _subFaktorId = null); _loadData(); },
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.5)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            )
+          else
+            Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: _C.green),
+        ]),
+      ),
+    );
+  }
+
+  // TOMBOL FILTER PERIODE (Kasie Section) - putih dengan icon/teks kasieColor selalu.
+  // Default (3 Bulan) -> panah bawah. Selain default -> tombol reset X merah -> kembali ke default.
+  Widget _buildKasieRangeFilterButton(String rangeLabel) {
+    const pColor = Color(0xFF1D4ED8); // sama seperti _PC.primary di Analytics Preventif Tab
+    final isActive = _kasieRange != _RangeFilter.threeMonths;
+    return GestureDetector(
+      onTap: _showKasieRangePicker,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: pColor, width: 1.5),
+          boxShadow: [BoxShadow(color: pColor.withValues(alpha: 0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.date_range_rounded, size: 15, color: pColor),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(rangeLabel,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: pColor)),
+          ),
+          const SizedBox(width: 4),
+          if (isActive)
+            GestureDetector(
+              onTap: () {
+                setState(() => _kasieRange = _RangeFilter.threeMonths);
+                _loadKasieSectionData();
+              },
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.45)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            )
+          else
+            const Icon(Icons.keyboard_arrow_down_rounded, color: pColor, size: 18),
+        ]),
       ),
     );
   }
@@ -1429,81 +1816,21 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
       child: Row(children: [
-        _filterBtn(
-          label: rangeLabel,
-          active: _kasieRange != _RangeFilter.threeMonths,
-          color: _C.kasieColor,
-          icon: Icons.date_range_rounded,
-          onTap: _showKasieRangePicker,
-        ),
+        Expanded(flex: 1, child: _buildKasieRangeFilterButton(rangeLabel)),
+        const SizedBox(width: 6),
+        // SELECT VIEW (KASIE SECTION) - width sama dengan tombol Section di sampingnya, reset X karena bukan default
+        Expanded(flex: 1, child: _buildSelectViewButton()),
         const SizedBox(width: 6),
         Expanded(
-          flex: 3,
-          child: GestureDetector(
-            onTap: _showFilterTypePicker,
-            child: Container(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _C.kasieColor, width: 1.5),
-                boxShadow: [BoxShadow(color: _C.kasieColor.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
-              ),
-              child: Row(children: [
-                Icon(Icons.supervisor_account_rounded, size: 13, color: _C.kasieColor),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    _t('kasie_section'),
-                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.kasieColor),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                // KASIE SECTION BUKAN DEFAULT -> SELALU TOMBOL RESET X MERAH
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    setState(() {
-                      _activeFilter = null;
-                      _subBagian    = null;
-                      _subFaktorId  = null;
-                    });
-                    _loadData();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEF4444).withValues(alpha:0.1),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFFEF4444).withValues(alpha:0.6)),
-                    ),
-                    child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
-                  ),
-                ),
-              ]),
-            ),
-          ),
-        ),
-        const SizedBox(width: 6),
-        GestureDetector(
-          onTap: _showKasieBagianPicker,
-          child: Container(
-            height: 38,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              color: _kasieFilterBagian != null ? _C.kasieColor : Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _C.kasieColor, width: 1.5),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.tune_rounded, size: 13, color: _kasieFilterBagian != null ? Colors.white : _C.kasieColor),
-              const SizedBox(width: 3),
-              Text(
-                _kasieFilterBagian != null ? _sectionDisplayName(_kasieFilterBagian!) : _t('semua_bagian'),
-                style: TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: FontWeight.w700, color: _kasieFilterBagian != null ? Colors.white : _C.kasieColor),
-              ),
-            ]),
+          flex: 1,
+          child: _buildSectionFilterButton(
+            sectionName: _kasieFilterBagian,
+            onTap: _showKasieBagianPicker,
+            onReset: () {
+              setState(() => _kasieFilterBagian = null);
+              _loadKasieSectionData();
+            },
+            baseColor: _C.kasieColor,
           ),
         ),
       ]),
@@ -1511,32 +1838,62 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
   }
 
   Widget _buildBiayaSubFilterButton() {
-    final label = _biayaSubFilter == 'faktor'
-        ? (widget.lang == 'ZH' ? '因素' : widget.lang == 'EN' ? 'Factor' : 'Faktor')
-        : _biayaSubFilter == 'bagian'
-            ? (widget.lang == 'ZH' ? '部门' : widget.lang == 'EN' ? 'Section' : 'Bagian')
-            : _t('kasie');
+    String label;
+    Color color;
+    IconData icon;
+    if (_biayaSubFilter == 'faktor') {
+      label = widget.lang == 'ZH' ? '因素' : widget.lang == 'EN' ? 'Factor' : 'Faktor';
+      color = _C.green;
+      icon  = Icons.report_problem_rounded;
+    } else if (_biayaSubFilter == 'kasie') {
+      label = _t('kasie');
+      color = _C.kasieColor;
+      icon  = Icons.person_outline_rounded;
+    } else {
+      label = widget.lang == 'ZH' ? '部门' : widget.lang == 'EN' ? 'Section' : 'Bagian';
+      color = _C.blue;
+      icon  = Icons.grid_view_rounded;
+    }
+
+    final bool isDefault = _biayaSubFilter == 'bagian';
+
     return GestureDetector(
       onTap: _showBiayaSubFilterPicker,
       child: Container(
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: _C.orange,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _C.orange, width: 1.5),
+          border: Border.all(color: color, width: 1.5),
+          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
+        child: Row(children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 4),
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(fontFamily: 'Poppins', fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
+              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: color),
               overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
             ),
           ),
           const SizedBox(width: 2),
-          const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Colors.white),
+          if (isDefault)
+            Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: color)
+          else
+            GestureDetector(
+              onTap: () => setState(() => _biayaSubFilter = 'bagian'),
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.5)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            ),
         ]),
       ),
     );
@@ -1576,27 +1933,6 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     );
   }
 
-  Widget _filterBtn({required String label, required VoidCallback onTap, bool active = false, required Color color, IconData icon = Icons.keyboard_arrow_down_rounded}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: active ? color : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: active ? color : _C.primaryLight, width: 1.5),
-          boxShadow: [BoxShadow(color: color.withValues(alpha:0.12), blurRadius: 6, offset: const Offset(0, 2))],
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Flexible(child: Text(label, style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w600, color: active ? Colors.white : color), overflow: TextOverflow.ellipsis)),
-          const SizedBox(width: 4),
-          Icon(icon, color: active ? Colors.white : color, size: 18),
-        ]),
-      ),
-    );
-  }
-
   // ==================== CHART TOGGLE HEADER ====================
 
   Widget _buildChartToggle() {
@@ -1623,7 +1959,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
           child: Row(children: [
             Icon(Icons.bar_chart_rounded, size: 16, color: _C.kasieColor),
             const SizedBox(width: 8),
-            Expanded(child: Text('${_t('grafik')} ${_t('kasie_section')} – $rangeLabel', style: TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w600, color: _C.kasieColor))),
+            Expanded(child: Text('${_t('grafik')} ${_t('kasie_section')} ($rangeLabel)', style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.kasieColor))),
             AnimatedRotation(turns: _chartExpanded ? 0.5 : 0, duration: const Duration(milliseconds: 250), child: Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: _C.kasieColor)),
           ]),
         ),
@@ -1649,7 +1985,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         child: Row(children: [
           Icon(Icons.bar_chart_rounded, size: 16, color: _C.primary),
           const SizedBox(width: 8),
-          Expanded(child: Text('${_t('grafik')} $lbl', style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w600, color: _C.primaryDark))),
+          Expanded(child: Text('${_t('grafik')} $lbl', style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.primaryDark))),
           AnimatedRotation(turns: _chartExpanded ? 0.5 : 0, duration: const Duration(milliseconds: 250), child: const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: _C.primary)),
         ]),
       ),
@@ -1768,7 +2104,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                     left: left,
                     top: 0,
                     child: Text('${xTicks[i]}',
-                      style: const TextStyle(fontFamily: 'Poppins', fontSize: 9, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600),
+                      style: GoogleFonts.poppins(fontSize: 9, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w600),
                       textAlign: i == 0 ? TextAlign.left : i == xTicks.length - 1 ? TextAlign.right : TextAlign.center,
                     ),
                   );
@@ -1795,7 +2131,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                     SizedBox(
                       width: labelW,
                       child: Text(row.kasieNama,
-                        style: TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: FontWeight.w500, color: isZero ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
+                        style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w600, color: isZero ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.right,
                       ),
@@ -1847,7 +2183,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(child: Text(title, style: TextStyle(fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w800, color: color))),
+          Center(child: Text(title, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w800, color: color))),
           const SizedBox(height: 10),
           const Divider(height: 1, color: Color(0xFFE2E8F0)),
           const SizedBox(height: 8),
@@ -1860,7 +2196,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                 SizedBox(
                   width: 100,
                   child: Text(row.label,
-                    style: TextStyle(fontFamily: 'Poppins', fontSize: 11, color: isZero ? const Color(0xFFCBD5E1) : const Color(0xFF334155), fontWeight: FontWeight.w500),
+                    style: GoogleFonts.poppins(fontSize: 11, color: isZero ? const Color(0xFFCBD5E1) : const Color(0xFF334155), fontWeight: FontWeight.w600),
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.right,
                   ),
@@ -1885,7 +2221,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                               child: Center(
                                 child: Text(
                                   labelStr,
-                                  style: const TextStyle(fontFamily: 'Poppins', fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white),
+                                  style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white),
                                 ),
                               ),
                             ),
@@ -1901,11 +2237,11 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
           Row(children: [
             const SizedBox(width: 108),
             Expanded(child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-              Text('${_t('total')} KTS ', style: const TextStyle(fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155))),
+              Text('${_t('total')} KTS ', style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF334155))),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                 decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
-                child: Text('$total', style: const TextStyle(fontFamily: 'Poppins', fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
+                child: Text('$total', style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
               ),
             ])),
           ]),
@@ -2081,9 +2417,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
               child: Center(
                 child: Text(
                   _t('biaya_kts'),
-                  style: const TextStyle(
-                    fontFamily: 'Poppins', fontSize: 13, fontWeight: FontWeight.w800, color: _C.orange,
-                  ),
+                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w800, color: _C.orange),
                 ),
               ),
             ),
@@ -2091,9 +2425,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
               widget.lang == 'ZH' ? '百万卢比'
                   : widget.lang == 'EN' ? 'Million IDR'
                   : 'Juta Rupiah',
-              style: const TextStyle(
-                fontFamily: 'Poppins', fontSize: 10, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500,
-              ),
+              style: GoogleFonts.poppins(fontSize: 10, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w600),
             ),
           ]),
           const SizedBox(height: 8),
@@ -2129,11 +2461,10 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                               textAlign: i == 0 ? TextAlign.left
                                   : i == axisVals.length - 1 ? TextAlign.right
                                   : TextAlign.center,
-                              style: const TextStyle(
-                                fontFamily: 'Poppins',
+                              style: GoogleFonts.poppins(
                                 fontSize: 8.5,
-                                color: Color(0xFF94A3B8),
-                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF94A3B8),
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           );
@@ -2168,13 +2499,12 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                               width: labelW,
                               child: Text(
                                 row.label,
-                                style: TextStyle(
-                                  fontFamily: 'Poppins',
+                                style: GoogleFonts.poppins(
                                   fontSize: 11,
                                   color: isZero
                                       ? const Color(0xFFCBD5E1)
                                       : const Color(0xFF334155),
-                                  fontWeight: FontWeight.w500,
+                                  fontWeight: FontWeight.w600,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                                 textAlign: TextAlign.right,
@@ -2206,11 +2536,10 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                                         alignment: Alignment.centerLeft,
                                         child: Text(
                                           valStr,
-                                          style: const TextStyle(
-                                            fontFamily: 'Poppins',
+                                          style: GoogleFonts.poppins(
                                             fontSize: 10,
                                             fontWeight: FontWeight.w700,
-                                            color: Color(0xFF334155),
+                                            color: const Color(0xFF334155),
                                           ),
                                         ),
                                       ),
@@ -2241,9 +2570,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                 widget.lang == 'ZH' ? '总费用 '
                     : widget.lang == 'EN' ? 'Total Cost '
                     : 'Total Biaya ',
-                style: const TextStyle(
-                  fontFamily: 'Poppins', fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF334155),
-                ),
+                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF334155)),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -2253,9 +2580,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                 ),
                 child: Text(
                   totalLabel,
-                  style: const TextStyle(
-                    fontFamily: 'Poppins', fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white,
-                  ),
+                  style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white),
                 ),
               ),
             ],
@@ -2632,7 +2957,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       decoration: BoxDecoration(color: bg, borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
       child: Row(children: List.generate(cols.length, (i) => Expanded(flex: flexes[i], child: Text(cols[i],
         textAlign: TextAlign.center,
-        style: TextStyle(fontFamily: 'Poppins', fontSize: 11, fontWeight: FontWeight.w700, color: color),
+        style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700, color: color),
       )))),
     );
   }
@@ -2646,7 +2971,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         final color = mutedRow ? const Color(0xFFCBD5E1) : isHl ? (highlightColor ?? _C.textPrimary) : const Color(0xFF334155);
         return Expanded(flex: flexes[i], child: Text(vals[i],
           textAlign: TextAlign.center,
-          style: TextStyle(fontFamily: 'Poppins', fontSize: isNum ? 13 : 12, fontWeight: isHl ? FontWeight.w800 : FontWeight.w500, color: color),
+          style: GoogleFonts.poppins(fontSize: isNum ? 13 : 12, fontWeight: isHl ? FontWeight.w800 : FontWeight.w600, color: color),
         ));
       })),
     );
@@ -2658,7 +2983,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       decoration: BoxDecoration(color: bg.withValues(alpha:0.6), borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12))),
       child: Row(children: List.generate(vals.length, (i) => Expanded(flex: flexes[i], child: Text(vals[i],
         textAlign: TextAlign.center,
-        style: TextStyle(fontFamily: 'Poppins', fontSize: i == 1 ? 15 : 12, fontWeight: FontWeight.w900, color: i == 0 ? _C.textPrimary : color),
+        style: GoogleFonts.poppins(fontSize: i == 1 ? 15 : 12, fontWeight: FontWeight.w900, color: i == 0 ? _C.textPrimary : color),
       )))),
     );
   }
