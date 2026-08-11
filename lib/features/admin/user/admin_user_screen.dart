@@ -125,6 +125,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
   }
 
   final Map<String, int> _monthlyPoints = {};
+  Map<String, Map<String, dynamic>> _supervisorMap = {};
   Map<String, String> _sectionNameMap = {};
   int _unblockBadgeCount = 0;
 
@@ -211,6 +212,10 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
             .select('id_user, poin')
             .gte('created_at', monthStart)
             .lt('created_at', monthEnd),
+        Supabase.instance.client
+            .from('User')
+            .select('id_user, nama, gambar_user, id_jabatan, jabatan(nama_jabatan)')
+            .inFilter('id_jabatan', [2, 3]),
       ]);
 
       if (mounted) {
@@ -221,11 +226,19 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           pMap[uid] = (pMap[uid] ?? 0) + (log['poin'] as int? ?? 0);
         }
 
+        final supList = List<Map<String, dynamic>>.from(results[3] as List);
+        final Map<String, Map<String, dynamic>> supMap = {};
+        for (final s in supList) {
+          final uid = s['id_user']?.toString();
+          if (uid != null) supMap[uid] = s;
+        }
+
         setState(() {
           _users = List<Map<String, dynamic>>.from(results[0] as List);
           _jabatanList = List<Map<String, dynamic>>.from(results[1] as List);
           _monthlyPoints.clear();
           _monthlyPoints.addAll(pMap);
+          _supervisorMap = supMap;
           _applyFilter();
           _isLoading = false;
         });
@@ -301,11 +314,13 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
   }
 
   void _showUserDetail(Map<String, dynamic> user) {
+    final supervisorId = user['id_supervisor']?.toString();
     AdminUserDetailSheet.show(
       context: context,
       user: user,
       lang: widget.lang,
       monthlyPoin: _monthlyPoints[user['id_user']?.toString() ?? ''] ?? 0,
+      supervisor: supervisorId != null ? _supervisorMap[supervisorId] : null,
       onEdit: () => _showUserDialog(user: user),
       onDelete: () => _deleteUser(user['id_user'], user['nama'] ?? '-'),
     );
