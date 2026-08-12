@@ -31,7 +31,8 @@ class LeaderboardMember {
   final String name;
   final String? avatarUrl;
   final int score;
-  final int monthlyPoints; // poin dari log_poin bulan ini
+  final int monthlyPoints; // poin dari log_poin sesuai periode yang dipilih (bulanan/harian)
+  final int logCount; // jumlah baris log_poin pada periode yang sama
   final int? idJabatan;
   final String? jabatanNama;
   final bool? isVerificator;
@@ -43,6 +44,7 @@ class LeaderboardMember {
     this.avatarUrl,
     required this.score,
     this.monthlyPoints = 0,
+    this.logCount = 0,
     this.idJabatan,
     this.jabatanNama,
     this.isVerificator,
@@ -276,13 +278,15 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
           .gte('created_at', startOfMonth)
           .lt('created_at', endOfMonth);
 
-      // 2. Hitung total per user
+      // 2. Hitung total poin & jumlah log per user (periode sama persis)
       final Map<String, int> monthlyMap = {};
+      final Map<String, int> logCountMap = {};
       for (final log in logData) {
         final uid = log['id_user']?.toString() ?? '';
         if (uid.isEmpty) continue;
         final p = (log['poin'] as num?)?.toInt() ?? 0;
         monthlyMap[uid] = (monthlyMap[uid] ?? 0) + p;
+        logCountMap[uid] = (logCountMap[uid] ?? 0) + 1;
       }
 
       if (monthlyMap.isEmpty) return [];
@@ -317,6 +321,7 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
           'nama'           : user['nama'] as String,
           'gambar_user'    : user['gambar_user'] as String?,
           'poin'           : monthlyMap[uid] ?? 0,
+          'log_count'      : logCountMap[uid] ?? 0,
           'id_jabatan'     : user['id_jabatan'] as int?,
           'is_verificator' : user['is_verificator'] as bool?,
           'jabatan_nama'   : (user['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?,
@@ -335,6 +340,7 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
           avatarUrl    : item['gambar_user'] as String?,
           score        : item['poin'] as int,
           monthlyPoints: item['poin'] as int,
+          logCount     : item['log_count'] as int,
           idJabatan    : item['id_jabatan'] as int?,
           jabatanNama  : item['jabatan_nama'] as String?,
           isVerificator: item['is_verificator'] as bool?,
@@ -360,13 +366,15 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
           .gte('created_at', startOfDay)
           .lte('created_at', endOfDay);
 
-      // 2. Hitung total per user
+      // 2. Hitung total poin & jumlah log per user (periode sama persis)
       final Map<String, int> dailyMap = {};
+      final Map<String, int> dailyLogCountMap = {};
       for (final log in logData) {
         final uid = log['id_user']?.toString() ?? '';
         if (uid.isEmpty) continue;
         final p = (log['poin'] as num?)?.toInt() ?? 0;
         dailyMap[uid] = (dailyMap[uid] ?? 0) + p;
+        dailyLogCountMap[uid] = (dailyLogCountMap[uid] ?? 0) + 1;
       }
 
       if (dailyMap.isEmpty) return [];
@@ -403,6 +411,7 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
             'nama'           : user['nama'] as String,
             'gambar_user'    : user['gambar_user'] as String?,
             'poin'           : dp,
+            'log_count'      : dailyLogCountMap[uid] ?? 0,
             'id_jabatan'     : user['id_jabatan'] as int?,
             'is_verificator' : user['is_verificator'] as bool?,
             'jabatan_nama'   : (user['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?,
@@ -422,6 +431,7 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
           avatarUrl    : item['gambar_user'] as String?,
           score        : item['poin'] as int,
           monthlyPoints: item['poin'] as int,
+          logCount     : item['log_count'] as int,
           idJabatan    : item['id_jabatan'] as int?,
           jabatanNama  : item['jabatan_nama'] as String?,
           isVerificator: item['is_verificator'] as bool?,

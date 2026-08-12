@@ -45,6 +45,9 @@ class ActivityLogDetailPopup {
     return '${dt.day} ${bulanIdFull[dt.month]} ${dt.year}, $jam:$menit';
   }
 
+  /// [iconColor] — WAJIB diisi dengan warna icon jenis aktivitas yang sama
+  /// dengan yang tampil di icon kiri pada card (mis. hasil dari _getTipeColor
+  /// di file pemanggil), agar warna icon header popup konsisten dengan card.
   static void show({
     required BuildContext context,
     required String lang,
@@ -53,9 +56,11 @@ class ActivityLogDetailPopup {
     required int poin,
     required String tipeAktivitas,
     required dynamic createdAt,
+    required Color iconColor,
   }) {
     final bool isPositive = poin >= 0;
-    final Color color = isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+    // ── Badge poin: hijau untuk penambahan, merah untuk pengurangan ──
+    final Color pointColor = isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
     final IconData icon = _getTipeIcon(tipeAktivitas, isPositive);
     final String tanggal = _formatFullDate(createdAt, lang);
 
@@ -111,7 +116,7 @@ class ActivityLogDetailPopup {
                   ),
                   const SizedBox(height: 2),
 
-                  // ICON
+                  // ICON — kini pakai warna sesuai jenis aktivitas (sama seperti icon kiri card)
                   Container(
                     width: 58,
                     height: 58,
@@ -120,11 +125,11 @@ class ActivityLogDetailPopup {
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [color.withValues(alpha: 0.18), color.withValues(alpha: 0.08)],
+                        colors: [iconColor.withValues(alpha: 0.18), iconColor.withValues(alpha: 0.08)],
                       ),
-                      border: Border.all(color: color.withValues(alpha: 0.4), width: 1.5),
+                      border: Border.all(color: iconColor.withValues(alpha: 0.4), width: 1.5),
                     ),
-                    child: Icon(icon, color: color, size: 28),
+                    child: Icon(icon, color: iconColor, size: 28),
                   ),
                   const SizedBox(height: 14),
 
@@ -165,13 +170,13 @@ class ActivityLogDetailPopup {
                   ],
                   const SizedBox(height: 16),
 
-                  // POINT BADGE
+                  // POINT BADGE — hijau/merah sesuai tambah/kurang
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
+                      color: pointColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: color.withValues(alpha: 0.3)),
+                      border: Border.all(color: pointColor.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -179,7 +184,7 @@ class ActivityLogDetailPopup {
                         Icon(
                           isPositive ? Icons.add_circle_rounded : Icons.remove_circle_rounded,
                           size: 17,
-                          color: color,
+                          color: pointColor,
                         ),
                         const SizedBox(width: 7),
                         Text(
@@ -187,7 +192,7 @@ class ActivityLogDetailPopup {
                           style: GoogleFonts.poppins(
                             fontSize: 15.5,
                             fontWeight: FontWeight.w700,
-                            color: color,
+                            color: pointColor,
                           ),
                         ),
                       ],

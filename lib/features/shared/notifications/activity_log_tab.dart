@@ -165,9 +165,10 @@ class _ActivityLogTabState extends State<ActivityLogTab>
 
   String _formatDate(dynamic value) {
     if (value == null) return '-';
-    final dt =
+    DateTime? dt =
         value is DateTime ? value : DateTime.tryParse(value.toString());
     if (dt == null) return '-';
+    dt = dt.toLocal();
     final now = DateTime.now();
     final diff = now.difference(dt);
     if (diff.inMinutes < 1) {
@@ -203,8 +204,9 @@ class _ActivityLogTabState extends State<ActivityLogTab>
 
   int _recencyLevel(dynamic value) {
     if (value == null) return 3;
-    final dt = value is DateTime ? value : DateTime.tryParse(value.toString());
+    DateTime? dt = value is DateTime ? value : DateTime.tryParse(value.toString());
     if (dt == null) return 3;
+    dt = dt.toLocal();
     final diff = DateTime.now().difference(dt);
     if (diff.inHours < 1) return 0;
     if (diff.inDays < 1) return 1;
@@ -780,6 +782,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
     );
     final String tanggal = _formatDate(log['created_at']);
     final Color color = _getTipeColor(tipe, isPositive);
+    final Color pointColor = isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
     final IconData icon = _getTipeIcon(tipe, isPositive);
 
     final int recency = _recencyLevel(log['created_at']);
@@ -817,6 +820,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
         poin: poin,
         tipeAktivitas: tipe,
         createdAt: log['created_at'],
+        iconColor: color,
       ),
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -881,10 +885,10 @@ class _ActivityLogTabState extends State<ActivityLogTab>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+                color: pointColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
             child: Text(
               isPositive ? '+$poin' : '$poin',
-              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: color),
+              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: pointColor),
             ),
           ),
         ]),

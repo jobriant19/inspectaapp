@@ -24,6 +24,7 @@ class RankMember {
   final String name;
   final int score;
   final int monthlyPoints;
+  final int logCount; // jumlah baris log_poin pada periode yang sama dengan monthlyPoints
   final String? avatarUrl;
   final Color avatarColor;
   final bool isSelf;
@@ -37,6 +38,7 @@ class RankMember {
     required this.name,
     required this.score,
     required this.monthlyPoints,
+    this.logCount = 0,
     this.avatarUrl,
     required this.avatarColor,
     this.isSelf = false,
@@ -208,13 +210,15 @@ class _RankingScreenState extends State<RankingScreen> {
           .gte('created_at', startStr)
           .lte('created_at', endStr);
 
-      // Hitung total poin per user
+      // Hitung total poin & jumlah log per user (periode sama persis)
       final Map<String, int> monthlyMap = {};
+      final Map<String, int> logCountMap = {};
       for (final log in logData) {
         final uid = log['id_user']?.toString() ?? '';
         if (uid.isEmpty) continue;
         final p = (log['poin'] as num?)?.toInt() ?? 0;
         monthlyMap[uid] = (monthlyMap[uid] ?? 0) + p;
+        logCountMap[uid] = (logCountMap[uid] ?? 0) + 1;
       }
 
       if (monthlyMap.isEmpty) return [];
@@ -251,6 +255,7 @@ class _RankingScreenState extends State<RankingScreen> {
           'nama': user['nama'] as String,
           'gambar_user': user['gambar_user'] as String?,
           'monthlyPoints': mp,
+          'log_count': logCountMap[uid] ?? 0,
           'id_jabatan': user['id_jabatan'] as int?,
           'is_verificator': user['is_verificator'] as bool?,
           'jabatan_nama': (user['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?,
@@ -273,6 +278,7 @@ class _RankingScreenState extends State<RankingScreen> {
             name: item['nama'] as String,
             score: item['monthlyPoints'] as int,
             monthlyPoints: item['monthlyPoints'] as int,
+            logCount: item['log_count'] as int,
             avatarUrl: item['gambar_user'] as String?,
             isSelf: uid == currentUserId,
             avatarColor: _AppColors.primary,

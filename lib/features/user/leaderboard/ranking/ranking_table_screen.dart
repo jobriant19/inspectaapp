@@ -111,6 +111,7 @@ class RankingTableScreen {
                 m: rankList[i],
                 lang: lang,
                 getTxt: getTxt,
+                isDaily: isDaily,
               ),
               childCount: rankList.length,
             ),
@@ -261,10 +262,11 @@ class RankingTableScreen {
     required RankMember m,
     required String lang,
     required String Function(String key) getTxt,
+    required bool isDaily,
   }) {
     final isTop3 = m.isTop3;
     return InkWell(
-      onTap: () => _showUserProfileModal(context, m, lang),
+      onTap: () => _showUserProfileModal(context, m, lang, isDaily),
       child: Container(
         decoration: BoxDecoration(
           color: m.isSelf
@@ -383,7 +385,14 @@ class RankingTableScreen {
     BuildContext context,
     RankMember member,
     String lang,
+    bool isDaily,
   ) {
+    // ── Card di User Detail HARUS selalu menampilkan total poin & jumlah log
+    // BULAN BERJALAN dari log_poin, terlepas dari filter Ranking sedang
+    // Harian atau Bulanan. Saat mode Harian, member.monthlyPoints/logCount
+    // hanya mewakili HARI itu — jadi TIDAK dikirim, agar UserProfileModal
+    // otomatis fallback ke query live bulan berjalan miliknya sendiri.
+    // Saat mode Bulanan, nilainya sudah pasti bulan berjalan, jadi aman dikirim. ──
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -393,6 +402,8 @@ class RankingTableScreen {
           userAvatarUrl: member.avatarUrl,
           userRank: member.rank,
           lang: lang,
+          initialMonthlyPoin: isDaily ? null : member.monthlyPoints,
+          initialLogCount: isDaily ? null : member.logCount,
         ),
       ),
     );

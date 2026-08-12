@@ -19,7 +19,13 @@ class UserProfileModal extends StatefulWidget {
   final String userName;
   final String? userAvatarUrl;
   final int userRank;
-  final String lang; 
+  final String lang;
+  // ── Poin & jumlah log yang sudah dihitung di tabel leaderboard/ranking,
+  // untuk periode yang SAMA PERSIS dengan baris yang diklik (bisa bulan lain
+  // atau mode harian). Jika diisi, summary card memakai nilai ini apa adanya
+  // agar selalu identik dengan baris tabel — bukan dihitung ulang di sini. ──
+  final int? initialMonthlyPoin;
+  final int? initialLogCount;
 
   const UserProfileModal({
     super.key,
@@ -28,6 +34,8 @@ class UserProfileModal extends StatefulWidget {
     this.userAvatarUrl,
     required this.userRank,
     required this.lang,
+    this.initialMonthlyPoin,
+    this.initialLogCount,
   });
 
   @override
@@ -51,6 +59,15 @@ class _UserProfileModalState extends State<UserProfileModal>
   String? _userLokasiLevel;
 
   // ACTIVITY TAB STATE
+  // ── Rentang tanggal default = bulan berjalan, IDENTIK dengan
+  // activity_log_tab.dart, agar card ringkasan DAN daftar log di bawahnya
+  // sama-sama terbatas pada bulan berjalan (tidak ada lagi mismatch antara
+  // angka ringkasan dengan isi daftar). ──
+  final DateTime _filterFrom =
+      DateTime(DateTime.now().year, DateTime.now().month, 1);
+  final DateTime _filterTo = DateTime(
+      DateTime.now().year, DateTime.now().month + 1, 0, 23, 59, 59);
+
   bool _isActivityLoading = true;
   List<Map<String, dynamic>> _activityLogs = [];
   int _activityPage = 1;
@@ -255,10 +272,16 @@ class _UserProfileModalState extends State<UserProfileModal>
 
   Future<void> _fetchActivityLogs() async {
     try {
+      // ── Filter bulan berjalan, IDENTIK dengan activity_log_tab.dart,
+      // supaya daftar log yang tampil di bawah card selalu sama persis
+      // dengan card ringkasan di atasnya (tidak ada lagi log dari bulan
+      // lain yang ikut ter-load & bikin pagination tidak nyambung). ──
       final logs = await Supabase.instance.client
           .from('log_poin')
           .select('poin, deskripsi, deskripsi_en, deskripsi_zh, tipe_aktivitas, created_at')
           .eq('id_user', widget.userId)
+          .gte('created_at', _filterFrom.toIso8601String())
+          .lte('created_at', _filterTo.toIso8601String())
           .order('created_at', ascending: false);
       if (mounted) {
         setState(() {
@@ -742,8 +765,9 @@ class _UserProfileModalState extends State<UserProfileModal>
 
   String _formatDate(dynamic value) {
     if (value == null) return '-';
-    final dt = value is DateTime ? value : DateTime.tryParse(value.toString());
+    DateTime? dt = value is DateTime ? value : DateTime.tryParse(value.toString());
     if (dt == null) return '-';
+    dt = dt.toLocal();
     final now = DateTime.now();
     final diff = now.difference(dt);
     if (diff.inMinutes < 1) {
@@ -769,8 +793,9 @@ class _UserProfileModalState extends State<UserProfileModal>
 
   int _recencyLevel(dynamic value) {
     if (value == null) return 3;
-    final dt = value is DateTime ? value : DateTime.tryParse(value.toString());
+    DateTime? dt = value is DateTime ? value : DateTime.tryParse(value.toString());
     if (dt == null) return 3;
+    dt = dt.toLocal();
     final diff = DateTime.now().difference(dt);
     if (diff.inHours < 1) return 0;
     if (diff.inDays < 1) return 1;
@@ -781,8 +806,17 @@ class _UserProfileModalState extends State<UserProfileModal>
   Widget _buildActivityTab() {
     if (_isActivityLoading) return _buildActivitySkeleton();
 
-    final totalPoin = _activityLogs.fold<int>(
+    // ── Total poin & jumlah log SELALU dihitung dari _activityLogs, yang
+    // sekarang sudah difilter ke bulan berjalan (lihat _fetchActivityLogs()).
+    // Ini menjamin card ringkasan selalu identik dengan daftar log yang
+    // tampil di bawahnya — persis pola activity_log_tab.dart. Nilai dari
+    // leaderboard/ranking (initialMonthlyPoin/initialLogCount) tetap dipakai
+    // duluan HANYA agar angka langsung muncul instan (tanpa nunggu loading)
+    // saat baris tabel diklik dan periodenya memang bulan berjalan. ──
+    final int computedTotalPoin = _activityLogs.fold<int>(
         0, (sum, l) => sum + ((l['poin'] as num?)?.toInt() ?? 0));
+    final int totalPoin = widget.initialMonthlyPoin ?? computedTotalPoin;
+    final int logCount = widget.initialLogCount ?? _activityLogs.length;
     final fireColor = _getFireColor(totalPoin);
 
     final totalPages =
@@ -873,7 +907,7 @@ class _UserProfileModalState extends State<UserProfileModal>
                     color: Colors.white.withValues(alpha: 0.9), size: 18),
                 const SizedBox(height: 4),
                 Text(
-                  '${_activityLogs.length}',
+                  '$logCount',
                   style: GoogleFonts.poppins(
                       fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white),
                 ),
@@ -929,6 +963,7 @@ class _UserProfileModalState extends State<UserProfileModal>
     );
     final String tanggal = _formatDate(log['created_at']);
     final Color color = _getTipeColor(tipe, isPositive);
+    final Color pointColor = isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
     final IconData icon = _getTipeIcon(tipe, isPositive);
 
     final int recency = _recencyLevel(log['created_at']);
@@ -966,6 +1001,7 @@ class _UserProfileModalState extends State<UserProfileModal>
         poin: poin,
         tipeAktivitas: tipe,
         createdAt: log['created_at'],
+        iconColor: color,
       ),
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -1031,10 +1067,10 @@ class _UserProfileModalState extends State<UserProfileModal>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+                color: pointColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
             child: Text(
               isPositive ? '+$poin' : '$poin',
-              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: color),
+              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: pointColor),
             ),
           ),
         ]),

@@ -212,6 +212,8 @@ class LeaderboardTableScreen extends StatelessWidget {
               userAvatarUrl: item.avatarUrl,
               userRank: item.rank,
               lang: lang,
+              initialMonthlyPoin: item.monthlyPoints,
+              initialLogCount: item.logCount,
             ),
           ),
         );

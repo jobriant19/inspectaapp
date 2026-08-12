@@ -202,8 +202,9 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
 
   String _formatDate(String? raw) {
     if (raw == null) return '-';
-    final dt = DateTime.tryParse(raw);
+    DateTime? dt = DateTime.tryParse(raw);
     if (dt == null) return '-';
+    dt = dt.toLocal();
     final now = DateTime.now();
     final diff = now.difference(dt);
     if (diff.inMinutes < 1) {
@@ -241,8 +242,9 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
 
   int _recencyLevel(dynamic value) {
     if (value == null) return 3;
-    final dt = value is DateTime ? value : DateTime.tryParse(value.toString());
+    DateTime? dt = value is DateTime ? value : DateTime.tryParse(value.toString());
     if (dt == null) return 3;
+    dt = dt.toLocal();
     final diff = DateTime.now().difference(dt);
     if (diff.inHours < 1) return 0;
     if (diff.inDays < 1) return 1;
@@ -351,6 +353,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
 
         final IconData icon = _getTipeIcon(tipe, isPositive);
         final Color iconColor = _getTipeColor(tipe, isPositive);
+        final Color pointColor = isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
 
         final int recency = _recencyLevel(log['created_at']);
         late final Color timeColor;
@@ -387,6 +390,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
             poin: poin,
             tipeAktivitas: tipe,
             createdAt: log['created_at'],
+            iconColor: iconColor,
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 9),
@@ -450,7 +454,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha:0.1),
+                    color: pointColor.withValues(alpha:0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -458,7 +462,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
-                      color: iconColor,
+                      color: pointColor,
                     ),
                   ),
                 ),
