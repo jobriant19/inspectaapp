@@ -69,10 +69,10 @@
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="inspecta_channel"/>
 
-        <!-- Icon default untuk FCM notification (harus monochrome) -->
+        <!-- Icon default untuk FCM notification  -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@mipmap/ic_launcher"/>
+            android:resource="@drawable/logo_notif"/>
 
         <!-- Warna accent notifikasi -->
         <meta-data

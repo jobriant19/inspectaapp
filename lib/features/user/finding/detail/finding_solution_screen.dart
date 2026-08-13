@@ -699,6 +699,41 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
             .eq('id_user', user.id);
       }
 
+      final String? idCreatorSolusi = data['id_user']?.toString();
+      if (idCreatorSolusi != null && idCreatorSolusi != user.id) {
+        try {
+          final creatorSolusiData = await supabase
+              .from('User')
+              .select('fcm_token, nama')
+              .eq('id_user', idCreatorSolusi)
+              .maybeSingle();
+          final fcmTokenCreator = creatorSolusiData?['fcm_token']?.toString();
+          if (fcmTokenCreator != null && fcmTokenCreator.trim().isNotEmpty) {
+            final notifTitleSolusi = widget.lang == 'EN'
+                ? '✅ Your Finding Has Been Resolved'
+                : widget.lang == 'ZH'
+                    ? '✅ 您的发现已解决'
+                    : '✅ Temuan Anda Telah Diselesaikan';
+            final notifBodySolusi = data['judul_temuan']?.toString() ?? '';
+            await supabase.functions.invoke(
+              'send-fcm-v1',
+              body: {
+                'token': fcmTokenCreator.trim(),
+                'title': notifTitleSolusi,
+                'body': notifBodySolusi,
+                'data': {
+                  'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+                  'route': 'findings',
+                },
+              },
+            );
+            debugPrint('✅ FCM sent to finding creator: ${creatorSolusiData?['nama']}');
+          }
+        } catch (e) {
+          debugPrint('❌ FCM creator (resolution) error: $e');
+        }
+      }
+
       if (mounted && Navigator.canPop(context)) Navigator.pop(context);
 
       await _showFinishSuccessDialog();
