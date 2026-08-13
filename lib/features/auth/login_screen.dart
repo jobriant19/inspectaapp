@@ -17,6 +17,7 @@ import 'auth_service.dart';
 import '../user/home/home_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/utils/font_warmup.dart';
+import 'login_guide_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? initialLang;
@@ -108,6 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
       'fill_email_reset': 'Fill your email to reset password!',
       'err_unknown': 'Unknown Email! Not registered.',
       'sign_in': 'Sign In',
+      'login_guide': 'Login Guide',
       'select_language': 'Select Language',
       'select_language_desc': 'Choose your preferred display language',
       'pass_hint': 'Password',
@@ -142,6 +144,7 @@ class _LoginScreenState extends State<LoginScreen> {
       'fill_email_reset': 'Isi email dulu untuk mereset password!',
       'err_unknown': 'Email Tidak Terdaftar!',
       'sign_in': 'Masuk',
+      'login_guide': 'Panduan Login',
       'select_language': 'Pilih Bahasa',
       'select_language_desc': 'Pilih bahasa tampilan yang Anda inginkan',
       'pass_hint': 'Kata Sandi',
@@ -176,6 +179,7 @@ class _LoginScreenState extends State<LoginScreen> {
       'fill_email_reset': '请先填写您的邮箱以重置密码！',
       'err_unknown': '未知的电子邮件！',
       'sign_in': '登录',
+      'login_guide': '登录指南',
       'select_language': '选择语言',
       'select_language_desc': '选择您偏好的显示语言',
       'pass_hint': '密码',
@@ -1443,6 +1447,38 @@ class _LoginScreenState extends State<LoginScreen> {
                                         getTxt('sign_in'),
                                         style: GoogleFonts.poppins(
                                             fontSize: 16, fontWeight: FontWeight.w700),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 14),
+
+                                  // AKSES PANDUAN LOGIN
+                                  Center(
+                                    child: GestureDetector(
+                                      onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => LoginGuideScreen(lang: selectedLanguage),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.help_outline_rounded,
+                                              size: 16, color: Color(0xFF1D72F3)),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            getTxt('login_guide'),
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                              color: const Color(0xFF1D72F3),
+                                              decoration: TextDecoration.underline,
+                                              decorationColor: const Color(0xFF1D72F3),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),

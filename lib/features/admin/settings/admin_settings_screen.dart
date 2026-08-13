@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'about/admin_about_screen.dart';
+import 'guide/admin_guide_settings.dart';
 import 'news/admin_news_screen.dart';
 import 'onboarding/admin_onboarding_settings.dart';
 import 'privacy/admin_privacy_policy.dart';
@@ -135,6 +136,26 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
             )),
           );
           _prefetchAppInfo();
+        },
+      ),
+      _SettingMenu(
+        title: widget.lang == 'EN'
+            ? 'Login Guide'
+            : widget.lang == 'ZH'
+                ? '登录指南'
+                : 'Panduan Login',
+        subtitle: widget.lang == 'EN'
+            ? 'Manage step-by-step login guide'
+            : widget.lang == 'ZH'
+                ? '管理登录分步指南'
+                : 'Kelola panduan login per langkah',
+        icon: Icons.menu_book_rounded,
+        color: const Color(0xFF0EA5E9),
+        onTap: () async {
+          await Navigator.push(
+            context,
+            slideRoute(AdminGuideSettingsScreen(lang: widget.lang)),
+          );
         },
       ),
       _SettingMenu(
