@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
+import 'kts_kasie_picker.dart';
 import 'kts_section_location_picker.dart';
 
 class _C {
@@ -127,6 +128,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       'pilih_faktor'   : 'Pilih Faktor',
       'semua_bagian'   : 'Semua Bagian',
       'semua_faktor'   : 'Semua Faktor',
+      'semua_kasie'    : 'Semua Kasie',
       'pilih_bulan'    : 'Pilih Bulan',
       'terapkan'       : 'Terapkan',
       'bulanan'        : 'Bulanan',
@@ -155,6 +157,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       'pilih_faktor'   : 'Select Factor',
       'semua_bagian'   : 'All Sections',
       'semua_faktor'   : 'All Factors',
+      'semua_kasie'    : 'All Kasie',
       'pilih_bulan'    : 'Select Month',
       'terapkan'       : 'Apply',
       'bulanan'        : 'Monthly',
@@ -183,6 +186,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       'pilih_faktor'   : '选择因素',
       'semua_bagian'   : '所有部门',
       'semua_faktor'   : '所有因素',
+      'semua_kasie'    : '所有科长',
       'pilih_bulan'    : '选择月份',
       'terapkan'       : '应用',
       'bulanan'        : '按月',
@@ -212,6 +216,8 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
   _FilterType? _activeFilter = _FilterType.bagian;
   String? _subBagian;
   String? _subFaktorId;
+  String? _subKasieId;
+  String? _subKasieNama;
 
   // CHART STATE
   bool _chartExpanded = false;
@@ -238,7 +244,8 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
 
   // STATE UNTUK MODE "KASIE SECTION" (gabungan dari tab Kasie lama)
   _RangeFilter _kasieRange = _RangeFilter.threeMonths;
-  String? _kasieFilterBagian;
+  String? _kasieFilterKasieId;
+  String? _kasieFilterKasieNama;
   DateTime? _kasieCustomStart;
   DateTime? _kasieCustomEnd;
   bool _kasieLoading = false;
@@ -413,6 +420,11 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
             _resolveSectionName((p['bagian'] as String?)?.trim() ?? '') != _subBagian) { return false; }
         if (_subFaktorId != null &&
             p['id_subkategoritemuan_penyebab']?.toString() != _subFaktorId) { return false; }
+        if (_subKasieId != null) {
+          final bagianName = _resolveSectionName((p['bagian'] as String?)?.trim() ?? '');
+          final picInfo = _sectionPicInfo[bagianName.toLowerCase()];
+          if (picInfo == null || picInfo.picId != _subKasieId) return false;
+        }
         return true;
       }).toList();
 
@@ -547,9 +559,8 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       _kasieBulanLabels = months.map((m) => DateFormat('MMM yy', locale).format(m)).toList();
 
       var entries = _sectionPicInfo.entries.toList();
-      if (_kasieFilterBagian != null) {
-        final targetKey = _resolveSectionName(_kasieFilterBagian!).toLowerCase();
-        entries = entries.where((e) => e.key == targetKey).toList();
+      if (_kasieFilterKasieId != null) {
+        entries = entries.where((e) => e.value.picId == _kasieFilterKasieId).toList();
       }
 
       if (entries.isEmpty) {
@@ -856,11 +867,50 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     }));
   }
 
-  void _showKasieBagianPicker() async {
-    final result = await showKtsSectionLocationPicker(context, lang: widget.lang, accentColor: _C.kasieColor);
+  // Mengambil daftar Kasie unik dari section.id_pic (untuk picker)
+  List<KtsKasieItem> _buildKasieItems() {
+    final Map<String, String> uniq = {};
+    for (final info in _sectionPicInfo.values) {
+      if (info.picId.isEmpty) continue;
+      uniq[info.picId] = info.picNama;
+    }
+    final items = uniq.entries.map((e) => KtsKasieItem(id: e.key, nama: e.value)).toList()
+      ..sort((a, b) => a.nama.compareTo(b.nama));
+    return items;
+  }
+
+  // Picker Kasie untuk mode "Kasie Section"
+  void _showKasieKasiePicker() async {
+    final items = _buildKasieItems();
+    final result = await showKtsKasiePicker(context, lang: widget.lang, kasieList: items, accentColor: _C.kasieColor);
     if (result == null) return;
-    setState(() => _kasieFilterBagian = result.isAllSections ? null : result.sectionName);
+    setState(() {
+      if (result.isAllKasie) {
+        _kasieFilterKasieId = null;
+        _kasieFilterKasieNama = null;
+      } else {
+        _kasieFilterKasieId = result.kasieId;
+        _kasieFilterKasieNama = result.kasieNama;
+      }
+    });
     _loadKasieSectionData();
+  }
+
+  // Picker Kasie untuk sub-filter "Kasie" di dalam KTS Cost
+  void _showBiayaKasiePicker() async {
+    final items = _buildKasieItems();
+    final result = await showKtsKasiePicker(context, lang: widget.lang, kasieList: items, accentColor: _C.orange);
+    if (result == null) return;
+    setState(() {
+      if (result.isAllKasie) {
+        _subKasieId = null;
+        _subKasieNama = null;
+      } else {
+        _subKasieId = result.kasieId;
+        _subKasieNama = result.kasieNama;
+      }
+    });
+    _loadData();
   }
 
   // ==================== FILTER PICKERS (Bagian/Faktor/Biaya) ====================
@@ -1124,8 +1174,10 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         setState(() {
           _activeFilter = type;
           if (!isSame) {
-            _subBagian   = null;
-            _subFaktorId = null;
+            _subBagian    = null;
+            _subFaktorId  = null;
+            _subKasieId   = null;
+            _subKasieNama = null;
           }
         });
         if (_activeFilter == _FilterType.kasie) {
@@ -1650,6 +1702,23 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
               ),
             ),
           ],
+
+          // TOMBOL PILIH KASIE (khusus KTS Cost saat sub-filter "Kasie" aktif)
+          if (showBiayaSub && _biayaSubFilter == 'kasie') ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: _buildKasieFilterButton(
+                kasieNama: _subKasieNama,
+                onTap: _showBiayaKasiePicker,
+                onReset: () {
+                  setState(() { _subKasieId = null; _subKasieNama = null; });
+                  _loadData();
+                },
+                baseColor: _C.orange,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1684,6 +1753,58 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
           Flexible(
             child: Text(
               hasSelection ? _sectionDisplayName(sectionName) : _t('semua_bagian'),
+              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 4),
+          if (hasSelection)
+            GestureDetector(
+              onTap: onReset,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.5)),
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFFEF4444)),
+              ),
+            )
+          else
+            Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: color),
+        ]),
+      ),
+    );
+  }
+
+  // TOMBOL KASIE UNIVERSAL (mirip _buildSectionFilterButton, tapi untuk memilih Kasie)
+  Widget _buildKasieFilterButton({
+    required String? kasieNama,
+    required VoidCallback onTap,
+    required VoidCallback onReset,
+    Color baseColor = _C.kasieColor,
+  }) {
+    const activeColor = Color(0xFF1D72F3);
+    final hasSelection = kasieNama != null;
+    final color = hasSelection ? activeColor : baseColor;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color, width: 1.5),
+          boxShadow: [BoxShadow(color: color.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.person_outline_rounded, size: 14, color: color),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              hasSelection ? kasieNama : _t('semua_kasie'),
               style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: color),
               overflow: TextOverflow.ellipsis,
             ),
@@ -1818,16 +1939,16 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       child: Row(children: [
         Expanded(flex: 1, child: _buildKasieRangeFilterButton(rangeLabel)),
         const SizedBox(width: 6),
-        // SELECT VIEW (KASIE SECTION) - width sama dengan tombol Section di sampingnya, reset X karena bukan default
+        // SELECT VIEW (KASIE SECTION) - width sama dengan tombol Kasie di sampingnya, reset X karena bukan default
         Expanded(flex: 1, child: _buildSelectViewButton()),
         const SizedBox(width: 6),
         Expanded(
           flex: 1,
-          child: _buildSectionFilterButton(
-            sectionName: _kasieFilterBagian,
-            onTap: _showKasieBagianPicker,
+          child: _buildKasieFilterButton(
+            kasieNama: _kasieFilterKasieNama,
+            onTap: _showKasieKasiePicker,
             onReset: () {
-              setState(() => _kasieFilterBagian = null);
+              setState(() { _kasieFilterKasieId = null; _kasieFilterKasieNama = null; });
               _loadKasieSectionData();
             },
             baseColor: _C.kasieColor,
