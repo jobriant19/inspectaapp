@@ -236,6 +236,7 @@ class _SplashScreenState extends State<SplashScreen> {
       if (isAdmin) {
         int sTotalUsers = 0, sTotalLokasi = 0, sTotalKategori = 0;
         int sTotalTemuan = 0;
+        int sTotalUnit = 0, sTotalSubunit = 0, sTotalArea = 0;
         try {
           final stats = await Future.wait([
             Supabase.instance.client.from('User').count(),
@@ -244,11 +245,17 @@ class _SplashScreenState extends State<SplashScreen> {
             Supabase.instance.client.from('temuan').count(),
             Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Belum'),
             Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Selesai'),
+            Supabase.instance.client.from('unit').count(),
+            Supabase.instance.client.from('subunit').count(),
+            Supabase.instance.client.from('area').count(),
           ]);
           sTotalUsers    = stats[0];
           sTotalLokasi   = stats[1];
           sTotalKategori = stats[2];
           sTotalTemuan   = stats[3];
+          sTotalUnit     = stats[6];
+          sTotalSubunit  = stats[7];
+          sTotalArea     = stats[8];
         } catch (_) {}
 
         if (mounted) await warmupAdminFonts(context);
@@ -262,6 +269,9 @@ class _SplashScreenState extends State<SplashScreen> {
             initialTotalLokasi: sTotalLokasi,
             initialTotalKategori: sTotalKategori,
             initialTotalTemuan: sTotalTemuan,
+            initialTotalUnit: sTotalUnit,
+            initialTotalSubunit: sTotalSubunit,
+            initialTotalArea: sTotalArea,
             initialLang: lang,
           )),
         );

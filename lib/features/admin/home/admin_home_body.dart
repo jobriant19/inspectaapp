@@ -13,6 +13,9 @@ class AdminHomeBody extends StatefulWidget {
   final int? initialTotalLokasi;
   final int? initialTotalKategori;
   final int? initialTotalTemuan;
+  final int? initialTotalUnit;
+  final int? initialTotalSubunit;
+  final int? initialTotalArea;
 
   const AdminHomeBody({
     super.key,
@@ -23,6 +26,9 @@ class AdminHomeBody extends StatefulWidget {
     this.initialTotalLokasi,
     this.initialTotalKategori,
     this.initialTotalTemuan,
+    this.initialTotalUnit,
+    this.initialTotalSubunit,
+    this.initialTotalArea,
   });
 
   @override
@@ -52,6 +58,9 @@ class _AdminHomeBodyState extends State<AdminHomeBody> {
       _totalLokasi   = widget.initialTotalLokasi ?? 0;
       _totalKategori = widget.initialTotalKategori ?? 0;
       _totalTemuan   = widget.initialTotalTemuan ?? 0;
+      _totalUnit     = widget.initialTotalUnit ?? 0;
+      _totalSubunit  = widget.initialTotalSubunit ?? 0;
+      _totalArea     = widget.initialTotalArea ?? 0;
       _isLoadingStats = false;
     }
 

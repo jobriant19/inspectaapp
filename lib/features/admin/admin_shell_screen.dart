@@ -20,6 +20,9 @@ class AdminShellScreen extends StatefulWidget {
   final int? initialTotalLokasi;
   final int? initialTotalKategori;
   final int? initialTotalTemuan;
+  final int? initialTotalUnit;
+  final int? initialTotalSubunit;
+  final int? initialTotalArea;
 
   const AdminShellScreen({
     super.key,
@@ -31,6 +34,9 @@ class AdminShellScreen extends StatefulWidget {
     this.initialTotalLokasi,
     this.initialTotalKategori,
     this.initialTotalTemuan,
+    this.initialTotalUnit,
+    this.initialTotalSubunit,
+    this.initialTotalArea,
   });
 
   @override
@@ -113,6 +119,9 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           initialTotalLokasi: widget.initialTotalLokasi,
           initialTotalKategori: widget.initialTotalKategori,
           initialTotalTemuan: widget.initialTotalTemuan,
+          initialTotalUnit: widget.initialTotalUnit,
+          initialTotalSubunit: widget.initialTotalSubunit,
+          initialTotalArea: widget.initialTotalArea,
         );
       case 1:
         return Admin5RBody(key: const ValueKey('5r'), lang: _lang);

@@ -163,7 +163,7 @@ class AdminHomeManagementMenu extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.25,
+        childAspectRatio: 1.05,
       ),
       itemCount: menus.length,
       itemBuilder: (_, i) => _buildMenuCard(context, menus[i]),
@@ -198,33 +198,38 @@ class AdminHomeManagementMenu extends StatelessWidget {
                   size: 70, color: Colors.white.withValues(alpha:0.15)),
             ),
             Padding(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.max,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha:0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(item.icon, color: Colors.white, size: 22),
+                    child: Icon(item.icon, color: Colors.white, size: 20),
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         item.label,
                         style: GoogleFonts.poppins(
-                          fontSize: 13,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
-                          height: 1.3,
+                          height: 1.2,
                         ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             lang == 'EN'
@@ -233,14 +238,14 @@ class AdminHomeManagementMenu extends StatelessWidget {
                                     ? '管理'
                                     : 'Kelola',
                             style: GoogleFonts.poppins(
-                              fontSize: 10,
+                              fontSize: 9,
                               fontWeight: FontWeight.w600,
                               color: Colors.white.withValues(alpha:0.75),
                             ),
                           ),
                           const SizedBox(width: 4),
                           Icon(Icons.arrow_forward_ios,
-                              size: 9,
+                              size: 8,
                               color: Colors.white.withValues(alpha:0.75)),
                         ],
                       ),

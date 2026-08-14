@@ -325,6 +325,7 @@ class _LoginScreenState extends State<LoginScreen> {
           // ADMIN VIA GOOGLE
           int sTotalUsers = 0, sTotalLokasi = 0, sTotalKategori = 0;
           int sTotalTemuan = 0;
+          int sTotalUnit = 0, sTotalSubunit = 0, sTotalArea = 0;
           try {
             final stats = await Future.wait([
               Supabase.instance.client.from('User').count(),
@@ -333,6 +334,9 @@ class _LoginScreenState extends State<LoginScreen> {
               Supabase.instance.client.from('temuan').count(),
               Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Belum'),
               Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Selesai'),
+              Supabase.instance.client.from('unit').count(),
+              Supabase.instance.client.from('subunit').count(),
+              Supabase.instance.client.from('area').count(),
               if (mounted)
               precacheImage(const AssetImage('assets/images/bgadmin.png'), context)
                   .catchError((_) async {}),
@@ -341,6 +345,9 @@ class _LoginScreenState extends State<LoginScreen> {
             sTotalLokasi   = stats[1] as int;
             sTotalKategori = stats[2] as int;
             sTotalTemuan   = stats[3] as int;
+            sTotalUnit     = stats[6] as int;
+            sTotalSubunit  = stats[7] as int;
+            sTotalArea     = stats[8] as int;
           } catch (_) {
             if (!mounted) return;
             await precacheImage(const AssetImage('assets/images/bgadmin.png'), context)
@@ -360,6 +367,9 @@ class _LoginScreenState extends State<LoginScreen> {
               initialTotalLokasi:   sTotalLokasi,
               initialTotalKategori: sTotalKategori,
               initialTotalTemuan:   sTotalTemuan,
+              initialTotalUnit:     sTotalUnit,
+              initialTotalSubunit:  sTotalSubunit,
+              initialTotalArea:     sTotalArea,
               initialLang:          selectedLanguage,
             ),
             transitionDuration: Duration.zero,
@@ -776,6 +786,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (isAdmin) {
         int sTotalUsers = 0, sTotalLokasi = 0, sTotalKategori = 0;
         int sTotalTemuan = 0;
+        int sTotalUnit = 0, sTotalSubunit = 0, sTotalArea = 0;
         try {
           final stats = await Future.wait([
             Supabase.instance.client.from('User').count(),
@@ -784,6 +795,9 @@ class _LoginScreenState extends State<LoginScreen> {
             Supabase.instance.client.from('temuan').count(),
             Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Belum'),
             Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Selesai'),
+            Supabase.instance.client.from('unit').count(),
+            Supabase.instance.client.from('subunit').count(),
+            Supabase.instance.client.from('area').count(),
             precacheImage(const AssetImage('assets/images/bgadmin.png'), context)
                 .catchError((_) {}),
             GoogleFonts.pendingFonts([
@@ -796,6 +810,9 @@ class _LoginScreenState extends State<LoginScreen> {
           sTotalLokasi   = stats[1] as int;
           sTotalKategori = stats[2] as int;
           sTotalTemuan   = stats[3] as int;
+          sTotalUnit     = stats[6] as int;
+          sTotalSubunit  = stats[7] as int;
+          sTotalArea     = stats[8] as int;
         } catch (_) {
           if (!mounted) return;
           await precacheImage(const AssetImage('assets/images/bgadmin.png'), context)
@@ -815,6 +832,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 initialTotalLokasi:   sTotalLokasi,
                 initialTotalKategori: sTotalKategori,
                 initialTotalTemuan:   sTotalTemuan,
+                initialTotalUnit:     sTotalUnit,
+                initialTotalSubunit:  sTotalSubunit,
+                initialTotalArea:     sTotalArea,
                 initialLang:          selectedLanguage,
               ),
               transitionDuration: Duration.zero,
