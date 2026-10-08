@@ -5,7 +5,7 @@ import '../../../../core/utils/jabatan_helper.dart';
 import 'finding_solution_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../../core/widgets/user_picker_bottom_sheet.dart';
+import '../../../../core/services/notification_service.dart';
 
 class Comment {
   final String id;
@@ -14,6 +14,8 @@ class Comment {
   final String userId;
   final String userName;
   final String? userAvatarUrl;
+  final List<String> mentionedIds;
+  List<String> mentionedNames; // diisi setelah fetch
 
   Comment({
     required this.id,
@@ -22,6 +24,8 @@ class Comment {
     required this.userId,
     required this.userName,
     this.userAvatarUrl,
+    this.mentionedIds = const [],
+    this.mentionedNames = const [],
   });
 
   factory Comment.fromMap(Map<String, dynamic> map) {
@@ -33,6 +37,9 @@ class Comment {
       userId: map['id_user'] as String,
       userName: user?['nama'] as String? ?? 'Pengguna Anonim',
       userAvatarUrl: user?['gambar_user'] as String?,
+      mentionedIds: ((map['mentioned_users'] as List?) ?? [])
+          .map((e) => e.toString())
+          .toList(),
     );
   }
 }
@@ -59,8 +66,14 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
 
   // COMMENT STATE
   final _commentController = TextEditingController();
+  final _commentFocus = FocusNode();
   final List<Map<String, dynamic>> _mentionedUsers = [];
   bool _isPostingComment = false;
+
+  // MENTION STATE
+  List<Map<String, dynamic>> _allUsers = [];
+  List<Map<String, dynamic>> _suggestions = [];
+  int? _mentionStart; // posisi karakter '@' yang sedang diketik
 
   late Map<String, String> _texts;
 
@@ -71,11 +84,15 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     _findingDetailFuture = Future.value(widget.initialData);
     _currentFindingData = widget.initialData;
     _commentsFuture = _fetchComments(widget.initialData['id_temuan'].toString());
+    _commentController.addListener(_onCommentChanged);
+    _loadMentionUsers();
   }
 
   @override
   void dispose() {
+    _commentController.removeListener(_onCommentChanged);
     _commentController.dispose();
+    _commentFocus.dispose();
     super.dispose();
   }
 
@@ -109,13 +126,89 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     return response;
   }
 
+
+  Future<void> _sendMentionNotifications({
+      required List<String> userIds,
+      required String content,
+    }) async {
+      try {
+        final client = Supabase.instance.client;
+        final myId = client.auth.currentUser?.id;
+        if (myId == null) return;
+
+        final me = await client
+            .from('User')
+            .select('nama')
+            .eq('id_user', myId)
+            .maybeSingle();
+        final myName = me?['nama']?.toString() ?? 'Seseorang';
+
+        final rows = await client
+            .from('User')
+            .select('id_user, fcm_token')
+            .inFilter('id_user', userIds);
+
+        final title = widget.lang == 'EN'
+            ? '💬 You were mentioned'
+            : widget.lang == 'ZH'
+                ? '💬 有人提到了你'
+                : '💬 Kamu disebut dalam komentar';
+
+        final preview = content.length > 100
+            ? '${content.substring(0, 100)}...'
+            : content;
+
+        for (final row in rows) {
+          final token = row['fcm_token']?.toString().trim() ?? '';
+          if (token.isEmpty || row['id_user'] == myId) continue;
+
+          await NotificationService.sendFcmToToken(
+            fcmToken: token,
+            title: title,
+            body: '$myName: $preview',
+            route: 'findings',
+            extraData: {
+              'id_temuan': widget.initialData['id_temuan'].toString(),
+            },
+          );
+        }
+      } catch (e) {
+        debugPrint('Gagal kirim notif mention: $e');
+      }
+    }
+
   Future<List<Comment>> _fetchComments(String findingId) async {
     final response = await Supabase.instance.client
         .from('komentar')
         .select('*, User(nama, gambar_user)')
         .eq('id_temuan', findingId)
         .order('created_at', ascending: true);
-    return response.map((map) => Comment.fromMap(map)).toList();
+
+    final rows = List<Map<String, dynamic>>.from(response);
+
+    final ids = <String>{};
+    for (final m in rows) {
+      ids.addAll(
+          ((m['mentioned_users'] as List?) ?? []).map((e) => e.toString()));
+    }
+
+    Map<String, String> names = {};
+    if (ids.isNotEmpty) {
+      final users = await Supabase.instance.client
+          .from('User')
+          .select('id_user, nama')
+          .inFilter('id_user', ids.toList());
+      names = {
+        for (final u in users) u['id_user'] as String: u['nama'] as String
+      };
+    }
+
+    return rows.map((m) {
+      final c = Comment.fromMap(m);
+      c.mentionedNames =
+          c.mentionedIds.map((id) => names[id]).whereType<String>().toList();
+      return c;
+    }).toList();
   }
 
   Future<void> _postComment() async {
@@ -128,18 +221,24 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) throw Exception('User not logged in');
 
-      final mentionedUserIds = _mentionedUsers
-          .map((e) => e['id_user'] as String)
-          .toList();
+      final mentionedUserIds =
+          _mentionedUsers.map((e) => e['id_user'] as String).toList();
 
       await Supabase.instance.client.from('komentar').insert({
         'id_temuan': widget.initialData['id_temuan'].toString(),
         'id_user': user.id,
         'isi_komentar': content,
-        'mentioned_users': mentionedUserIds.isNotEmpty
-            ? mentionedUserIds
-            : null,
+        'mentioned_users':
+            mentionedUserIds.isNotEmpty ? mentionedUserIds : null,
       });
+
+      // kirim push ke user yang di-mention (tidak menunggu selesai)
+      if (mentionedUserIds.isNotEmpty) {
+        unawaited(_sendMentionNotifications(
+          userIds: mentionedUserIds,
+          content: content,
+        ));
+      }
 
       _commentController.clear();
       _mentionedUsers.clear();
@@ -151,32 +250,176 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     }
   }
 
-  void _showUserMentionPicker() async {
-    if (_currentFindingData == null) {
-      _showErrorSnackbar('Data temuan belum dimuat sepenuhnya.');
+  // ===================== MENTION (GAYA INSTAGRAM) =====================
+
+  Future<void> _loadMentionUsers() async {
+    try {
+      final d = widget.initialData;
+      var query = Supabase.instance.client
+          .from('User')
+          .select('id_user, nama, gambar_user');
+
+      if (d['id_area'] != null) {
+        query = query.eq('id_area', d['id_area'].toString());
+      } else if (d['id_subunit'] != null) {
+        query = query.eq('id_subunit', d['id_subunit'].toString());
+      } else if (d['id_unit'] != null) {
+        query = query.eq('id_unit', d['id_unit'].toString());
+      } else if (d['id_lokasi'] != null) {
+        query = query.eq('id_lokasi', d['id_lokasi'].toString());
+      }
+
+      final res = await query;
+      final myId = Supabase.instance.client.auth.currentUser?.id;
+      _allUsers = List<Map<String, dynamic>>.from(res)
+          .where((u) => u['id_user'] != myId)
+          .toList();
+    } catch (e) {
+      debugPrint('Gagal memuat user mention: $e');
+    }
+  }
+
+  void _onCommentChanged() {
+    final text = _commentController.text;
+    final sel = _commentController.selection;
+
+    // buang mention yang teksnya sudah dihapus
+    _mentionedUsers.removeWhere((u) => !text.contains('@${u['nama']}'));
+
+    if (!sel.isValid || sel.baseOffset < 0) {
+      _hideSuggestions();
       return;
     }
 
-    final selectedUser = await showModalBottomSheet<Map<String, dynamic>>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => UserPickerBottomSheet(
-        lang: widget.lang,
-        idArea: _currentFindingData!['id_area'],
-        idSubunit: _currentFindingData!['id_subunit'],
-        idUnit: _currentFindingData!['id_unit'],
-        idLokasi: _currentFindingData!['id_lokasi'],
-      ),
-    );
+    // cari "@..." tepat sebelum kursor (di awal teks atau setelah spasi)
+    final before = text.substring(0, sel.baseOffset);
+    final m = RegExp(r'(^|\s)@([^@\n]{0,30})$').firstMatch(before);
+    if (m == null) {
+      _hideSuggestions();
+      return;
+    }
 
-    if (selectedUser != null) {
+    final q = m.group(2)!.toLowerCase();
+    final list = _allUsers.where((u) {
+      final nama = (u['nama'] as String? ?? '').toLowerCase();
+      return nama.contains(q);
+    }).toList()
+      ..sort((a, b) {
+        final an =
+            (a['nama'] as String).toLowerCase().startsWith(q) ? 0 : 1;
+        final bn =
+            (b['nama'] as String).toLowerCase().startsWith(q) ? 0 : 1;
+        return an.compareTo(bn);
+      });
+
+    if (list.isEmpty) {
+      _hideSuggestions();
+      return;
+    }
+
+    setState(() {
+      _mentionStart = before.length - m.group(2)!.length - 1;
+      _suggestions = list.take(20).toList();
+    });
+  }
+
+  void _hideSuggestions() {
+    if (_suggestions.isNotEmpty || _mentionStart != null) {
       setState(() {
-        final userName = selectedUser['nama'];
-        _commentController.text += "@$userName ";
-        _mentionedUsers.add(selectedUser);
+        _suggestions = [];
+        _mentionStart = null;
       });
     }
   }
+
+  void _selectMention(Map<String, dynamic> user) {
+    final start = _mentionStart;
+    if (start == null) return;
+
+    final name = user['nama'] as String;
+    final text = _commentController.text;
+    final end = _commentController.selection.baseOffset;
+
+    if (!_mentionedUsers.any((u) => u['id_user'] == user['id_user'])) {
+      _mentionedUsers.add(user);
+    }
+
+    final newText = text.replaceRange(start, end, '@$name ');
+    _commentController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: start + name.length + 2),
+    );
+    _hideSuggestions();
+    _commentFocus.requestFocus();
+  }
+
+  // dipakai tombol @ di sebelah kolom komentar
+  void _insertAtSymbol() {
+    final t = _commentController.text;
+    final sel = _commentController.selection;
+    final pos = sel.isValid && sel.baseOffset >= 0 ? sel.baseOffset : t.length;
+    final needSpace = pos > 0 && t[pos - 1] != ' ' && t[pos - 1] != '\n';
+    final insert = needSpace ? ' @' : '@';
+
+    _commentController.value = TextEditingValue(
+      text: t.replaceRange(pos, pos, insert),
+      selection: TextSelection.collapsed(offset: pos + insert.length),
+    );
+    _commentFocus.requestFocus();
+  }
+
+  Widget _buildMentionSuggestions() {
+    if (_suggestions.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 220),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: ListView.builder(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          itemCount: _suggestions.length,
+          itemBuilder: (context, i) {
+            final u = _suggestions[i];
+            final avatar = u['gambar_user'] as String?;
+            final nama = u['nama'] as String? ?? '-';
+            return ListTile(
+              dense: true,
+              leading: CircleAvatar(
+                radius: 16,
+                backgroundColor: Colors.grey.shade200,
+                backgroundImage: avatar != null ? NetworkImage(avatar) : null,
+                child: avatar == null
+                    ? const Icon(Icons.person, size: 16, color: Colors.grey)
+                    : null,
+              ),
+              title: Text(
+                nama,
+                style: GoogleFonts.poppins(
+                    fontSize: 13.5, fontWeight: FontWeight.w600),
+              ),
+              onTap: () => _selectMention(u),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // ===================== HELPERS =====================
 
   String _localeFor(String lang) {
     switch (lang) {
@@ -342,7 +585,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     return labels[key]?[widget.lang] ?? labels[key]!['ID']!;
   }
 
-  Widget _buildInspectionBadgeChip(String text, Color bgColor, Color textColor) {
+  Widget _buildInspectionBadgeChip(
+      String text, Color bgColor, Color textColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -379,8 +623,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           _inspectionLabel('visitor'), const Color(0xFF3B82F6), Colors.white));
     }
     if (isEksekutif) {
-      badges.add(_buildInspectionBadgeChip(
-          _inspectionLabel('eksekutif'), const Color(0xFFEF4444), Colors.white));
+      badges.add(_buildInspectionBadgeChip(_inspectionLabel('eksekutif'),
+          const Color(0xFFEF4444), Colors.white));
     }
     if (isPro) {
       badges.add(_buildInspectionBadgeChip(_inspectionLabel('pro'),
@@ -435,7 +679,9 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                for (int i = 0; i < inspectionBadges.length; i++) ...[
+                                for (int i = 0;
+                                    i < inspectionBadges.length;
+                                    i++) ...[
                                   if (i > 0) const SizedBox(height: 6),
                                   inspectionBadges[i],
                                 ],
@@ -479,7 +725,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     final jenis = (data['jenis_temuan'] ?? '').toString();
     final isKts = jenis == 'KTS Production';
     final jenisLabel = isKts ? 'KTS' : '5R';
-    final jenisColor = isKts ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8);
+    final jenisColor =
+        isKts ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -489,7 +736,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha:0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 12,
               offset: const Offset(0, 4))
         ],
@@ -532,7 +779,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               const SizedBox(width: 6),
               if (poin > 0)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [Color(0xFF0D9488), Color(0xFF2DD4BF)],
@@ -574,7 +822,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               Flexible(child: _buildLocationBadgeDetail(data)),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: isFinished
                       ? const Color(0xFFF0FDF4)
@@ -628,7 +877,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
             const SizedBox(height: 16),
             Row(
               children: [
-                const Icon(Icons.description_rounded, size: 16, color: Color(0xFF1D72F3)),
+                const Icon(Icons.description_rounded,
+                    size: 16, color: Color(0xFF1D72F3)),
                 const SizedBox(width: 8),
                 Text(
                   widget.lang == 'ID'
@@ -740,8 +990,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     final category =
         data['kategoritemuan']?['nama_kategoritemuan'] as String? ?? '-';
     final subCategory =
-        data['subkategoritemuan']?['nama_subkategoritemuan'] as String? ??
-            '-';
+        data['subkategoritemuan']?['nama_subkategoritemuan'] as String? ?? '-';
     final createdAt = data['created_at'] as String?;
 
     final bool isVisitorFinding = data['is_visitor'] == true;
@@ -756,7 +1005,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha:0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 12,
               offset: const Offset(0, 4))
         ],
@@ -765,8 +1014,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // REPORTED BY
-          _sectionHeader(
-              Icons.info_outline_rounded, _texts['reported_by']!,
+          _sectionHeader(Icons.info_outline_rounded, _texts['reported_by']!,
               color: const Color(0xFF0EA5E9)),
           const SizedBox(height: 12),
           // REPORTER
@@ -798,7 +1046,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                           color: const Color(0xFF0F172A),
                         ),
                       ),
-                      if (visitorCompany != null && visitorCompany.trim().isNotEmpty) ...[
+                      if (visitorCompany != null &&
+                          visitorCompany.trim().isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Row(
                           children: [
@@ -833,8 +1082,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                       ? NetworkImage(creatorAvatarUrl)
                       : null,
                   child: creatorAvatarUrl == null
-                      ? const Icon(Icons.person,
-                          color: Color(0xFF0EA5E9))
+                      ? const Icon(Icons.person, color: Color(0xFF0EA5E9))
                       : null,
                 ),
                 const SizedBox(width: 12),
@@ -853,13 +1101,13 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           Container(height: 1, color: const Color(0xFFF1F5F9)),
           const SizedBox(height: 16),
           // INFO ROWS
-          _infoChipBlue(Icons.calendar_today_outlined,
-              _texts['reported_on']!, _formatDateTime(createdAt)),
+          _infoChipBlue(Icons.calendar_today_outlined, _texts['reported_on']!,
+              _formatDateTime(createdAt)),
           const SizedBox(height: 16),
           Container(height: 1, color: const Color(0xFFF1F5F9)),
           const SizedBox(height: 16),
-          _infoChipBlue(Icons.category_outlined,
-              _texts['category']!, category),
+          _infoChipBlue(
+              Icons.category_outlined, _texts['category']!, category),
           if (subCategory != '-') ...[
             const SizedBox(height: 12),
             _infoChipBlue(Icons.label_important_outline,
@@ -871,13 +1119,13 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
   }
 
   Widget _sectionHeader(IconData icon, String label,
-    {Color color = const Color(0xFF1E3A8A)}) {
+      {Color color = const Color(0xFF1E3A8A)}) {
     return Row(
       children: [
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: color.withValues(alpha:0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 16, color: color),
@@ -886,9 +1134,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         Text(
           label,
           style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: color),
+              fontSize: 14, fontWeight: FontWeight.w700, color: color),
         ),
       ],
     );
@@ -999,8 +1245,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
   Widget _buildPICJabatanBadge(Map<String, dynamic> assignee) {
     final idJabatan = assignee['id_jabatan'] as int?;
     final isVerificator = assignee['is_verificator'] as bool?;
-    final jabatanNama =
-        (assignee['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?;
+    final jabatanNama = (assignee['jabatan']
+        as Map<String, dynamic>?)?['nama_jabatan'] as String?;
 
     final label = JabatanHelper.getDisplayRole(
       isVerificatorFlag: isVerificator,
@@ -1152,7 +1398,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF1D72F3).withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF1D72F3).withValues(alpha: 0.15)),
+        border:
+            Border.all(color: const Color(0xFF1D72F3).withValues(alpha: 0.15)),
       ),
       child: Column(
         children: [
@@ -1213,23 +1460,51 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    DateFormat(
-                      'dd MMM, HH:mm',
-                    ).format(comment.createdAt.toLocal()),
+                    DateFormat('dd MMM, HH:mm')
+                        .format(comment.createdAt.toLocal()),
                     style: const TextStyle(color: Colors.grey, fontSize: 12),
                   ),
                 ],
               ),
               const SizedBox(height: 4),
-              Text(
-                comment.content,
-                style: const TextStyle(color: Colors.black87),
-              ),
+              _buildCommentText(comment),
             ],
           ),
         ),
       ],
     );
+  }
+
+  Widget _buildCommentText(Comment comment) {
+    const baseStyle = TextStyle(color: Colors.black87);
+    final names = [...comment.mentionedNames]
+      ..sort((a, b) => b.length.compareTo(a.length)); // nama panjang dulu
+
+    if (names.isEmpty) return Text(comment.content, style: baseStyle);
+
+    final pattern =
+        RegExp(names.map((n) => '@${RegExp.escape(n)}').join('|'));
+    final spans = <TextSpan>[];
+    int last = 0;
+
+    for (final m in pattern.allMatches(comment.content)) {
+      if (m.start > last) {
+        spans.add(TextSpan(text: comment.content.substring(last, m.start)));
+      }
+      spans.add(TextSpan(
+        text: m.group(0),
+        style: const TextStyle(
+          color: Color(0xFF1D72F3),
+          fontWeight: FontWeight.w700,
+        ),
+      ));
+      last = m.end;
+    }
+    if (last < comment.content.length) {
+      spans.add(TextSpan(text: comment.content.substring(last)));
+    }
+
+    return Text.rich(TextSpan(style: baseStyle, children: spans));
   }
 
   Widget _buildCommentInputBar() {
@@ -1244,57 +1519,64 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha:0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            icon: const Icon(Icons.alternate_email),
-            onPressed: _showUserMentionPicker,
-            tooltip: _texts['mention_user'],
-            color: Colors.blueGrey,
-          ),
-          Expanded(
-            child: TextField(
-              controller: _commentController,
-              decoration: InputDecoration(
-                hintText: _texts['comment_hint'],
-                fillColor: const Color(0xFFF8FAFC),
-                filled: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide.none,
+          _buildMentionSuggestions(), // daftar saran di atas input
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.alternate_email),
+                onPressed: _insertAtSymbol,
+                tooltip: _texts['mention_user'],
+                color: Colors.blueGrey,
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _commentController,
+                  focusNode: _commentFocus,
+                  decoration: InputDecoration(
+                    hintText: _texts['comment_hint'],
+                    fillColor: const Color(0xFFF8FAFC),
+                    filled: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  minLines: 1,
+                  maxLines: 4,
                 ),
               ),
-              minLines: 1,
-              maxLines: 4,
-            ),
+              const SizedBox(width: 8),
+              _isPostingComment
+                  ? const SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.send_rounded),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFF1D72F3),
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: _postComment,
+                    ),
+            ],
           ),
-          const SizedBox(width: 8),
-          _isPostingComment
-              ? const SizedBox(
-                  width: 44,
-                  height: 44,
-                  child: Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              : IconButton(
-                  icon: const Icon(Icons.send_rounded),
-                  style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFF1D72F3),
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: _postComment,
-                ),
         ],
       ),
     );
@@ -1306,7 +1588,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'detail_title': 'Detail Temuan',
         'comments_title': 'Komentar',
         'no_comments_title': 'Belum Ada Komentar',
-        'no_comments_subtitle': 'Jadilah yang pertama memberikan komentar atau masukan pada temuan ini.',
+        'no_comments_subtitle':
+            'Jadilah yang pertama memberikan komentar atau masukan pada temuan ini.',
         'professional': 'Profesional',
         'visitor': 'Visitor',
         'executive': 'Eksekutif',
@@ -1326,13 +1609,13 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'err_proof_required': 'Bukti penyelesaian wajib diunggah!',
         'finish_success': 'Temuan berhasil diselesaikan!',
         'finish_fail': 'Gagal menyelesaikan temuan',
-        'created_by': 'Dibuat oleh', 
+        'created_by': 'Dibuat oleh',
         'reported_by': 'Dilaporkan oleh',
-        'resolved_by': 'Diselesaikan oleh', 
-        'completed_on': 'Selesai pada', 
-        'resolution_result': 'Hasil Penyelesaian', 
-        'notes': 'Catatan:', 
-        'cost': 'Biaya yang Dikeluarkan:', 
+        'resolved_by': 'Diselesaikan oleh',
+        'completed_on': 'Selesai pada',
+        'resolution_result': 'Hasil Penyelesaian',
+        'notes': 'Catatan:',
+        'cost': 'Biaya yang Dikeluarkan:',
         'resolved': 'Temuan Selesai',
         'extension': 'Perpanjangan Deadline',
         'extension_reason': 'Alasan Perpanjangan',
@@ -1343,14 +1626,16 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'extension_fail': 'Gagal mengajukan perpanjangan',
         'extension_err_reason': 'Alasan perpanjangan wajib diisi!',
         'extension_err_date': 'Tanggal baru wajib dipilih!',
-        'extension_err_date_past': 'Tanggal baru harus setelah deadline saat ini!',
+        'extension_err_date_past':
+            'Tanggal baru harus setelah deadline saat ini!',
         'btn_extend': 'Perpanjang Deadline',
       },
       'EN': {
         'detail_title': 'Finding Detail',
         'comments_title': 'Comments',
         'no_comments_title': 'No Comments Yet',
-        'no_comments_subtitle': 'Be the first to add a comment or feedback on this finding.',
+        'no_comments_subtitle':
+            'Be the first to add a comment or feedback on this finding.',
         'professional': 'Professional',
         'visitor': 'Visitor',
         'executive': 'Executive',
@@ -1370,13 +1655,13 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'err_proof_required': 'Proof of solution is required!',
         'finish_success': 'Finding finished successfully!',
         'finish_fail': 'Failed to finish finding',
-        'created_by': 'Created by', 
+        'created_by': 'Created by',
         'reported_by': 'Reported by',
-        'resolved_by': 'Resolved by', 
-        'completed_on': 'Completed on', 
-        'resolution_result': 'Solution Result', 
-        'notes': 'Notes:', 
-        'cost': 'Cost Incurred:', 
+        'resolved_by': 'Resolved by',
+        'completed_on': 'Completed on',
+        'resolution_result': 'Solution Result',
+        'notes': 'Notes:',
+        'cost': 'Cost Incurred:',
         'resolved': 'Finding Resolved',
         'extension': 'Deadline Extension',
         'extension_reason': 'Extension Reason',
@@ -1414,13 +1699,13 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'err_proof_required': '必须上传解决方案证明！',
         'finish_success': '发现已成功完成！',
         'finish_fail': '完成发现失败',
-        'created_by': '创建者', 
+        'created_by': '创建者',
         'reported_by': '报告者',
-        'resolved_by': '解决者', 
-        'completed_on': '完成于', 
-        'resolution_result': '解决方案结果', 
-        'notes': '笔记：', 
-        'cost': '产生的费用：', 
+        'resolved_by': '解决者',
+        'completed_on': '完成于',
+        'resolution_result': '解决方案结果',
+        'notes': '笔记：',
+        'cost': '产生的费用：',
         'resolved': '发现已完成',
         'extension': '截止日期延期',
         'extension_reason': '延期原因',
@@ -1459,8 +1744,10 @@ class _FindingImageViewer extends StatelessWidget {
                   fit: BoxFit.contain,
                   width: double.infinity,
                   height: double.infinity,
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.image_not_supported, color: Colors.white54, size: 60),
+                  errorBuilder: (_, __, ___) => const Icon(
+                      Icons.image_not_supported,
+                      color: Colors.white54,
+                      size: 60),
                 ),
               ),
             ),
@@ -1474,8 +1761,10 @@ class _FindingImageViewer extends StatelessWidget {
                   onTap: () => Navigator.pop(context),
                   child: Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
-                    child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+                    decoration: const BoxDecoration(
+                        color: Color(0xFFEF4444), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded,
+                        color: Colors.white, size: 20),
                   ),
                 ),
               ),

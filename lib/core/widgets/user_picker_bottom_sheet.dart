@@ -3,10 +3,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UserPickerBottomSheet extends StatefulWidget {
   final String lang;
-  final int? idLokasi;
-  final int? idUnit;
-  final int? idSubunit;
-  final int? idArea;
+  final String? idLokasi;
+  final String? idUnit;
+  final String? idSubunit;
+  final String? idArea;
   const UserPickerBottomSheet({
     super.key,
     required this.lang,
